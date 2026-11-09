@@ -318,6 +318,36 @@ body {
   border-radius: 3px 3px 0 0;
 }
 
+.booker-subtab-btn.btn-new-request {
+  padding: 0.45rem 1rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: var(--radius-md);
+  background: var(--slate-100);
+  border: 1px solid var(--slate-200);
+  color: var(--slate-700);
+  margin-left: 0.25rem;
+}
+
+.booker-subtab-btn.btn-new-request:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1e40af;
+  transform: translateY(-1px);
+}
+
+.booker-subtab-btn.btn-new-request.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+}
+
+.booker-subtab-btn.btn-new-request.active::after {
+  display: none;
+}
+
 /* Card Container */
 .content-card {
   background: var(--white);

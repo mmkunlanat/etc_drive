@@ -18,7 +18,7 @@ import {
 import { renderPaperModal } from '../components/PaperModal.js';
 
 export function renderBookerView(container) {
-  let activeSubTab = 'form'; // 'form' | 'history'
+  let activeSubTab = 'history'; // 'history' | 'form' (แสดงประวัติการจองของฉันก่อน)
   const todayIso = getTodayISODate();
   const defaultUsageIso = addDaysToDate(todayIso, 1); // Defaults to tomorrow (1 day advance)
 
@@ -138,20 +138,20 @@ export function renderBookerView(container) {
           </div>
         </div>
 
-        <!-- Subtabs: New Form vs My Requests -->
+        <!-- Subtabs: ประวัติการจองของฉันขึ้นก่อน และปุ่ม + เพื่อกรอกใบขอใช้รถใหม่ -->
         <div class="booker-tabs-nav">
-          <button id="tab-sub-form" class="booker-subtab-btn ${activeSubTab === 'form' ? 'active' : ''}">
-            <span>📝 กรอกใบขออนุมัติการใช้รถ</span>
-          </button>
           <button id="tab-sub-history" class="booker-subtab-btn ${activeSubTab === 'history' ? 'active' : ''}">
             <span>📋 ประวัติการจองของฉัน</span>
             <span style="font-size: 0.72rem; background: #2563eb; color: #fff; padding: 1px 7px; border-radius: 10px;">
               ${bookings.length}
             </span>
           </button>
+          <button id="tab-sub-form" class="booker-subtab-btn btn-new-request ${activeSubTab === 'form' ? 'active' : ''}" title="กรอกใบขออนุมัติการใช้รถใหม่">
+            <span>+</span>
+          </button>
         </div>
 
-        ${activeSubTab === 'form' ? renderFormSection() : renderHistorySection(bookings)}
+        ${activeSubTab === 'history' ? renderHistorySection(bookings) : renderFormSection()}
 
       </div>
     `;
@@ -496,8 +496,13 @@ export function renderBookerView(container) {
             </h2>
             <p>ติดตามสถานะคำขอ ตรวจสอบผลการอนุมัติ และพิมพ์แบบฟอร์ม</p>
           </div>
-          <div style="font-size: 0.85rem; color: var(--slate-500);">
-            ทั้งหมด <strong>${bookings.length}</strong> รายการ
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <div style="font-size: 0.85rem; color: var(--slate-500);">
+              ทั้งหมด <strong>${bookings.length}</strong> รายการ
+            </div>
+            <button id="btn-create-new-top" class="btn-primary" style="padding: 5px 12px; font-size: 0.85rem;">
+              <span>+ กรอกใบขอใช้รถ</span>
+            </button>
           </div>
         </div>
 
@@ -593,10 +598,12 @@ export function renderBookerView(container) {
     const formTabBtn = document.getElementById('tab-sub-form');
     const histTabBtn = document.getElementById('tab-sub-history');
     const goToFormBtn = document.getElementById('btn-go-to-form');
+    const createNewTopBtn = document.getElementById('btn-create-new-top');
 
     if (formTabBtn) formTabBtn.addEventListener('click', () => { activeSubTab = 'form'; render(); });
     if (histTabBtn) histTabBtn.addEventListener('click', () => { activeSubTab = 'history'; render(); });
     if (goToFormBtn) goToFormBtn.addEventListener('click', () => { activeSubTab = 'form'; render(); });
+    if (createNewTopBtn) createNewTopBtn.addEventListener('click', () => { activeSubTab = 'form'; render(); });
 
     // History actions
     container.querySelectorAll('.btn-view-paper').forEach(btn => {
