@@ -27,7 +27,6 @@ function initApp() {
           <div class="brand-text">
             <h1>
               <span>ระบบใบขออนุมัติการใช้รถ</span>
-              <span class="form-tag">FM-OFF-001</span>
             </h1>
             <p>Car Booking & Fleet Dispatch Management System</p>
           </div>

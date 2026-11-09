@@ -69,7 +69,6 @@ export function renderBookerView(container) {
         <div class="booker-tabs-nav">
           <button id="tab-sub-form" class="booker-subtab-btn ${activeSubTab === 'form' ? 'active' : ''}">
             <span>📝 กรอกใบขออนุมัติการใช้รถ</span>
-            <span style="font-size: 0.72rem; background: #e2e8f0; padding: 1px 6px; border-radius: 10px;">FM-OFF-001</span>
           </button>
           <button id="tab-sub-history" class="booker-subtab-btn ${activeSubTab === 'history' ? 'active' : ''}">
             <span>📋 ประวัติการจองของฉัน</span>
@@ -267,7 +266,7 @@ export function renderBookerView(container) {
                 <span>➕ เพิ่มแถวรายการใหม่</span>
               </button>
               <span style="font-size: 0.8rem; color: var(--slate-500);">
-                * บังคับกรอกอย่างน้อย 1 รายการ และรองรับสูงสุด 6 รายการตรงตามแบบฟอร์มกระดาษ FM-OFF-001
+                * บังคับกรอกอย่างน้อย 1 รายการ และรองรับสูงสุด 6 รายการตรงตามแบบฟอร์ม
               </span>
             </div>
           </div>
@@ -291,7 +290,7 @@ export function renderBookerView(container) {
           <div class="form-actions-bottom">
             <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
               <button type="button" id="btn-preview-paper" class="btn-outline-blue">
-                <span>👁️ ดูตัวอย่างแบบฟอร์มทางการ (FM-OFF-001)</span>
+                <span>👁️ ดูตัวอย่างแบบฟอร์มทางการ</span>
               </button>
               <button type="button" id="btn-reset-form" class="btn-secondary">
                 <span>🔄 ล้างข้อมูล</span>
@@ -395,7 +394,7 @@ export function renderBookerView(container) {
               <span>📋</span>
               <span>ประวัติการขออนุมัติใช้รถทั้งหมด</span>
             </h2>
-            <p>ติดตามสถานะคำขอ ตรวจสอบผลการอนุมัติ และพิมพ์แบบฟอร์ม FM-OFF-001</p>
+            <p>ติดตามสถานะคำขอ ตรวจสอบผลการอนุมัติ และพิมพ์แบบฟอร์ม</p>
           </div>
           <div style="font-size: 0.85rem; color: var(--slate-500);">
             ทั้งหมด <strong>${bookings.length}</strong> รายการ
@@ -423,7 +422,6 @@ export function renderBookerView(container) {
                   <tr>
                     <td>
                       <strong style="color: #1e40af;">${b.id}</strong>
-                      <div style="font-size: 0.72rem; color: var(--slate-400);">FM-OFF-001</div>
                     </td>
                     <td>
                       <div><strong>${usageThai.short}</strong></div>
@@ -593,7 +591,7 @@ export function renderBookerView(container) {
     if (addRowBtn) {
       addRowBtn.addEventListener('click', () => {
         if (itineraryRows.length >= 6) {
-          alert('แบบฟอร์ม FM-OFF-001 กำหนดรายการไว้สูงสุด 6 แถว หากมีจุดหมายมากกว่านี้ กรุณาระบุในช่องหมายเหตุ');
+          alert('แบบฟอร์มกำหนดรายการไว้สูงสุด 6 แถว หากมีจุดหมายมากกว่านี้ กรุณาระบุในช่องหมายเหตุ');
           return;
         }
         collectCurrentRows();
@@ -1246,7 +1244,7 @@ export function renderBookerView(container) {
 
     return {
       id: 'DRAFT',
-      formCode: 'FM-OFF-001/3/01-06-66',
+      formCode: '',
       bookingDate,
       usageDate,
       startTime,

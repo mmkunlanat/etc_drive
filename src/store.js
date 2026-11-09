@@ -152,7 +152,7 @@ function getInitialSeedBookings() {
   return [
     {
       id: 'REQ-2026-001',
-      formCode: 'FM-OFF-001/3/01-06-66',
+      formCode: '',
       bookingDate: yesterday,
       usageDate: today,
       startTime: '09:00',
@@ -182,7 +182,7 @@ function getInitialSeedBookings() {
     },
     {
       id: 'REQ-2026-002',
-      formCode: 'FM-OFF-001/3/01-06-66',
+      formCode: '',
       bookingDate: today,
       usageDate: tomorrow,
       startTime: '08:30',
@@ -211,7 +211,7 @@ function getInitialSeedBookings() {
     },
     {
       id: 'REQ-2026-003',
-      formCode: 'FM-OFF-001/3/01-06-66',
+      formCode: '',
       bookingDate: today,
       usageDate: next2Days,
       startTime: '10:00',
@@ -250,7 +250,11 @@ export function getAllBookings() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
       return seed;
     }
-    return JSON.parse(raw);
+    const bookings = JSON.parse(raw);
+    return bookings.map(b => ({
+      ...b,
+      formCode: (b.formCode || '').replace(/FM-OFF-001[^\s]*/g, '').trim()
+    }));
   } catch (e) {
     console.error('Error reading localStorage', e);
     return getInitialSeedBookings();
@@ -273,7 +277,7 @@ export function createBooking(data) {
   
   const newBooking = {
     id: newId,
-    formCode: 'FM-OFF-001/3/01-06-66',
+    formCode: '',
     bookingDate: data.bookingDate || getTodayISODate(),
     usageDate: data.usageDate,
     startTime: data.startTime || '08:30',

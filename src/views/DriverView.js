@@ -163,7 +163,7 @@ export function renderDriverView(container) {
             ` : ''}
 
             <button class="btn-secondary-sm btn-driver-view-paper" data-id="${trip.id}">
-              📄 ดูใบงาน FM-OFF-001
+              📄 ดูใบงาน
             </button>
           </div>
         </div>

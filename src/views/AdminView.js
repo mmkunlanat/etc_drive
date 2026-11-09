@@ -40,7 +40,7 @@ export function renderAdminView(container) {
                   ระบบผู้จัดรถ & บริหารยานพาหนะ (Fleet Dispatch Admin)
                 </h2>
                 <p style="font-size: 0.85rem; color: #bae6fd;">
-                  ฝ่ายสำนักงาน: จัดสรรรถประจำตำแหน่ง ทะเบียนรถ และมอบหมายพนักงานขับรถตามแบบฟอร์ม FM-OFF-001
+                  ฝ่ายสำนักงาน: จัดสรรรถประจำตำแหน่ง ทะเบียนรถ และมอบหมายพนักงานขับรถตามแบบฟอร์ม
                 </p>
               </div>
             </div>
@@ -101,7 +101,6 @@ export function renderAdminView(container) {
                     <tr style="${isApprovedNeedsDispatch ? 'background-color: #f0fdf4;' : ''}">
                       <td>
                         <strong style="color: #1e40af;">${item.id}</strong>
-                        <div style="font-size: 0.72rem; color: var(--slate-400);">FM-OFF-001</div>
                       </td>
                       <td>
                         <div style="font-weight: 600;">${uThai.short}</div>
@@ -129,7 +128,7 @@ export function renderAdminView(container) {
                             ${item.assignedVehicle ? '✏️ แก้ไขรถ/คนขับ' : '⚡ จัดสรรรถและคนขับ'}
                           </button>
                           <button class="btn-outline-blue btn-admin-view-paper" data-id="${item.id}" style="padding: 4px 8px; font-size: 0.78rem;">
-                            📄 FM-OFF-001
+                            📄 แบบฟอร์ม
                           </button>
                         </div>
                       </td>

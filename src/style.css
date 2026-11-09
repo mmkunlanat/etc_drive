@@ -1,6 +1,6 @@
 /* ==========================================================================
    Vehicle Booking & Fleet System - Modern Design System (style.css)
-   Based on official form FM-OFF-001/3/01-06-66
+   Based on official vehicle booking form
    ========================================================================== */
 
 :root {
@@ -1189,7 +1189,7 @@ body {
 }
 
 /* ==========================================================================
-   Exact Replica: Authentic Paper Form View (FM-OFF-001/3/01-06-66)
+   Exact Replica: Authentic Paper Form View
    ========================================================================== */
 .paper-modal-backdrop {
   position: fixed;

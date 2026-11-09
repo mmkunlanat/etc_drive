@@ -1,4 +1,4 @@
-// PaperModal.js - High-fidelity authentic replica of form FM-OFF-001/3/01-06-66
+// PaperModal.js - High-fidelity authentic replica of vehicle booking form
 import { formatThaiDate } from '../store.js';
 
 export function renderPaperModal(booking, onClose) {
@@ -29,7 +29,7 @@ export function renderPaperModal(booking, onClose) {
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 1.2rem;">📄</span>
             <div>
-              <strong style="font-size: 0.95rem;">แบบฟอร์มเอกสารทางการ: FM-OFF-001</strong>
+              <strong style="font-size: 0.95rem;">แบบฟอร์มเอกสารทางการ</strong>
               <div style="font-size: 0.75rem; color: #94a3b8;">รหัสคำขอ: ${booking.id} (${booking.statusLabel})</div>
             </div>
           </div>
@@ -170,7 +170,7 @@ export function renderPaperModal(booking, onClose) {
                 <span>หมายเหตุ : กรุณากรอกรายละเอียดให้ครบถ้วน และส่ง </span>
                 <span class="paper-footer-warning">"ใบขออนุมัติการใช้รถ" ภายใน 15.00 น.</span>
               </div>
-              <div class="paper-form-code">${booking.formCode || 'FM-OFF-001/3/01-06-66'}</div>
+              <div class="paper-form-code">${booking.formCode || ''}</div>
             </div>
 
           </div>

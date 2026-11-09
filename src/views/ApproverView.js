@@ -29,7 +29,7 @@ export function renderApproverView(container) {
                   ระบบพิจารณาอนุมัติการใช้รถ (Approver Portal)
                 </h2>
                 <p style="font-size: 0.85rem; color: #94a3b8;">
-                  สำหรับหัวหน้าฝ่าย / ผู้จัดการแผนก พิจารณาตรวจสอบความจำเป็นและอนุมัติใบขอใช้รถ FM-OFF-001
+                  สำหรับหัวหน้าฝ่าย / ผู้จัดการแผนก พิจารณาตรวจสอบความจำเป็นและอนุมัติใบขอใช้รถ
                 </p>
               </div>
             </div>
@@ -81,7 +81,7 @@ export function renderApproverView(container) {
                     <div style="font-size: 0.75rem; color: var(--slate-400);">ส่งเมื่อ: ${bookingThai.short}</div>
                   </div>
                   <button class="btn-outline-blue btn-view-paper-form" data-id="${req.id}" style="padding: 3px 8px; font-size: 0.75rem;">
-                    📄 แบบฟอร์ม FM-OFF-001
+                    📄 แบบฟอร์ม
                   </button>
                 </div>
 
@@ -200,7 +200,7 @@ export function renderApproverView(container) {
                     </td>
                     <td style="text-align: center;">
                       <button class="btn-outline-blue btn-view-paper-form" data-id="${h.id}" style="padding: 3px 8px; font-size: 0.75rem;">
-                        📄 FM-OFF-001
+                        📄 แบบฟอร์ม
                       </button>
                     </td>
                   </tr>
