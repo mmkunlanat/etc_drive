@@ -19,7 +19,7 @@ import { renderPaperModal } from '../components/PaperModal.js';
 
 export function renderBookerView(container) {
   let activeSubTab = 'history'; // 'history' | 'form' (แสดงประวัติการจองของฉันก่อน)
-  let historyViewMode = 'calendar'; // 'calendar' | 'table'
+  let showCalendarModal = false; // แสดงปฏิทินแบบป๊อบอัพเล็กๆ
   const todayIso = getTodayISODate();
   const defaultUsageIso = addDaysToDate(todayIso, 1); // Defaults to tomorrow (1 day advance)
 
@@ -237,10 +237,10 @@ export function renderBookerView(container) {
           </div>
         </div>
 
-        <!-- Subtabs: ปฏิทินการจองของฉันขึ้นก่อน และปุ่ม + เพื่อกรอกใบขอใช้รถใหม่ -->
+        <!-- Subtabs: ปฏิทินการใช้รถขึ้นก่อน และปุ่ม + เพื่อกรอกใบขอใช้รถใหม่ -->
         <div class="booker-tabs-nav">
           <button id="tab-sub-history" class="booker-subtab-btn ${activeSubTab === 'history' ? 'active' : ''}">
-            <span>📅 ปฏิทินการจองของฉัน</span>
+            <span>📅 ปฏิทินการใช้รถ</span>
             <span style="font-size: 0.72rem; background: #2563eb; color: #fff; padding: 1px 7px; border-radius: 10px;">
               ${bookings.length}
             </span>
@@ -578,31 +578,29 @@ export function renderBookerView(container) {
           <div class="card-title-group">
             <h2>
               <span>📅</span>
-              <span>ปฏิทินและประวัติการใช้รถ</span>
+              <span>ปฏิทินการใช้รถ</span>
             </h2>
-            <p>ดูตารางการใช้รถตามปฏิทิน ตรวจสอบสถานะคำขอ และพิมพ์แบบฟอร์ม</p>
+            <p>ติดตามตารางการใช้รถ ตรวจสอบสถานะคำขอ และพิมพ์แบบฟอร์ม</p>
           </div>
           <div class="history-top-actions">
-            <div class="view-mode-toggle-group">
-              <button type="button" id="btn-view-calendar" class="btn-view-mode ${historyViewMode === 'calendar' ? 'active' : ''}">
-                📅 ปฏิทิน
-              </button>
-              <button type="button" id="btn-view-table" class="btn-view-mode ${historyViewMode === 'table' ? 'active' : ''}">
-                📋 ตารางรายการ
-              </button>
-            </div>
+            <button type="button" id="btn-open-cal-modal" class="btn-outline-blue" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 0.85rem; font-weight: 600;">
+              <span>📅</span>
+              <span>ปฏิทินการใช้รถ</span>
+            </button>
             <button id="btn-create-new-top" class="btn-primary" style="padding: 6px 14px; font-size: 0.85rem;">
               <span>+ กรอกใบขอใช้รถ</span>
             </button>
           </div>
         </div>
 
-        ${historyViewMode === 'calendar' ? renderCalendarView(bookings) : renderTableView(bookings)}
+        ${renderTableView(bookings)}
       </div>
+
+      ${showCalendarModal ? renderMiniCalendarModal(bookings) : ''}
     `;
   }
 
-  function renderCalendarView(bookings = []) {
+  function renderMiniCalendarModal(bookings = []) {
     const buddhistYear = calendarYear + 543;
     const monthTitle = `${THAI_MONTH_NAMES[calendarMonth]} ${buddhistYear}`;
     const gridCells = getCalendarGridCells(calendarYear, calendarMonth);
@@ -621,151 +619,124 @@ export function renderBookerView(container) {
     const selectedDayOfWeek = getThaiDayOfWeek(selectedCalendarDate);
 
     return `
-      <div class="calendar-wrapper">
-        <!-- Calendar Toolbar: Month Nav & Status Legend -->
-        <div class="calendar-header-toolbar">
-          <div class="cal-nav-controls">
-            <button type="button" id="btn-cal-prev" class="cal-nav-btn" title="เดือนก่อนหน้า">◀</button>
-            <button type="button" id="btn-cal-today" class="cal-nav-btn cal-today-btn">วันนี้</button>
-            <button type="button" id="btn-cal-next" class="cal-nav-btn" title="เดือนถัดไป">▶</button>
-            <h3 class="cal-current-month-title">${monthTitle}</h3>
-          </div>
-
-          <div class="cal-status-legend">
-            <span class="legend-item"><span class="legend-dot dot-dispatched"></span> จัดสรรรถแล้ว</span>
-            <span class="legend-item"><span class="legend-dot dot-approved"></span> อนุมัติแล้ว</span>
-            <span class="legend-item"><span class="legend-dot dot-pending"></span> รออนุมัติ</span>
-            <span class="legend-item"><span class="legend-dot dot-rejected"></span> ปฏิเสธ</span>
-            <span class="legend-item"><span class="legend-dot dot-completed"></span> เสร็จสิ้น</span>
-          </div>
-        </div>
-
-        <!-- 7-Day Weekdays Header -->
-        <div class="cal-weekdays-row">
-          <div class="cal-weekday weekend-sun">อา.</div>
-          <div class="cal-weekday">จ.</div>
-          <div class="cal-weekday">อ.</div>
-          <div class="cal-weekday">พ.</div>
-          <div class="cal-weekday">พฤ.</div>
-          <div class="cal-weekday">ศ.</div>
-          <div class="cal-weekday weekend-sat">ส.</div>
-        </div>
-
-        <!-- Calendar Month Grid -->
-        <div class="cal-grid">
-          ${gridCells.map(cell => {
-            const isToday = cell.isoDate === todayIso;
-            const isSelected = cell.isoDate === selectedCalendarDate;
-            const dayBookings = bookingsByDate[cell.isoDate] || [];
-            const count = dayBookings.length;
-
-            const cellClasses = ['cal-cell'];
-            if (!cell.isCurrentMonth) cellClasses.push('other-month');
-            if (isToday) cellClasses.push('is-today');
-            if (isSelected) cellClasses.push('is-selected');
-            if (count > 0) cellClasses.push('has-bookings');
-
-            return `
-              <div class="${cellClasses.join(' ')}" data-date="${cell.isoDate}">
-                <div class="cal-cell-header">
-                  <span class="cal-day-num">${cell.day}</span>
-                  ${isToday ? '<span class="cal-today-tag">วันนี้</span>' : ''}
-                  ${count > 0 ? `<span class="cal-count-badge">${count} คิว</span>` : ''}
-                </div>
-                
-                <div class="cal-events-list">
-                  ${dayBookings.slice(0, 2).map(b => {
-                    const firstDest = (b.itinerary && b.itinerary[0] && b.itinerary[0].destination) ? b.itinerary[0].destination : (b.bookerName || 'ขอใช้รถ');
-                    return `
-                      <div class="cal-event-pill status-${b.status}" data-booking-id="${b.id}" title="${b.startTime || ''} ${firstDest} (${b.bookerName || ''})">
-                        <span class="pill-dot"></span>
-                        <span class="pill-time">${b.startTime || ''}</span>
-                        <span class="pill-title">${firstDest}</span>
-                      </div>
-                    `;
-                  }).join('')}
-                  ${count > 2 ? `<div class="cal-event-more">+อีก ${count - 2} รายการ</div>` : ''}
-                </div>
-              </div>
-            `;
-          }).join('')}
-        </div>
-
-        <!-- Selected Date Details Panel -->
-        <div class="cal-selected-day-panel">
-          <div class="cal-selected-header">
-            <div class="cal-selected-title">
-              <span class="cal-selected-icon">📌</span>
-              <div>
-                <h4>รายการขอใช้รถประจำ${selectedDayOfWeek ? selectedDayOfWeek + 'ที่ ' : ''}${selectedDayThai.full}</h4>
-                <p>${selectedDayBookings.length > 0 ? `พบคำขอใช้งาน ${selectedDayBookings.length} รายการในวันนี้` : 'ไม่มีรายการขอใช้รถในวันนี้'}</p>
-              </div>
+      <div id="mini-cal-modal-overlay" class="mini-cal-overlay">
+        <div class="mini-cal-card" role="dialog" aria-modal="true" aria-labelledby="mini-cal-heading">
+          
+          <!-- Modal Header -->
+          <div class="mini-cal-header">
+            <div class="mini-cal-title">
+              <span style="font-size: 1.25rem;">📅</span>
+              <span id="mini-cal-heading" style="font-weight: 700; font-size: 1.05rem; color: var(--slate-800);">ปฏิทินการใช้รถ</span>
             </div>
-            <button type="button" class="btn-primary-sm btn-book-for-date" data-date="${selectedCalendarDate}">
-              <span>+ ขอใช้รถในวันนี้</span>
+            <button type="button" id="btn-close-cal-modal" class="mini-cal-close-btn" title="ปิดปฏิทิน">
+              ✕
             </button>
           </div>
 
-          ${selectedDayBookings.length === 0 ? `
-            <div class="cal-empty-day-box">
-              <div style="font-size: 1.8rem; margin-bottom: 0.35rem;">🚗</div>
-              <div style="font-weight: 600; color: var(--slate-700); margin-bottom: 4px;">ไม่มีรายการขอใช้รถในวันที่เลือก</div>
-              <p style="font-size: 0.85rem; color: var(--slate-500); margin-bottom: 0.75rem;">คุณสามารถคลิกปุ่มด้านล่างเพื่อกรอกใบขอใช้รถสำหรับวันนี้ได้ทันที</p>
-              <button type="button" class="btn-secondary-sm btn-book-for-date" data-date="${selectedCalendarDate}">
-                + ขอใช้รถในวันที่ ${selectedDayThai.short}
-              </button>
+          <!-- Month & Year Controls -->
+          <div class="mini-cal-toolbar">
+            <button type="button" id="btn-mini-cal-prev" class="mini-cal-nav-btn" title="เดือนก่อนหน้า">◀</button>
+            <div class="mini-cal-month-name">${monthTitle}</div>
+            <button type="button" id="btn-mini-cal-next" class="mini-cal-nav-btn" title="เดือนถัดไป">▶</button>
+            <button type="button" id="btn-mini-cal-today" class="mini-cal-today-pill" title="กลับมาวันนี้">วันนี้</button>
+          </div>
+
+          <!-- Weekdays Row -->
+          <div class="mini-cal-weekdays">
+            <div class="mini-cal-wday sun">อา.</div>
+            <div class="mini-cal-wday">จ.</div>
+            <div class="mini-cal-wday">อ.</div>
+            <div class="mini-cal-wday">พ.</div>
+            <div class="mini-cal-wday">พฤ.</div>
+            <div class="mini-cal-wday">ศ.</div>
+            <div class="mini-cal-wday sat">ส.</div>
+          </div>
+
+          <!-- Days Grid -->
+          <div class="mini-cal-grid">
+            ${gridCells.map(cell => {
+              const isToday = cell.isoDate === todayIso;
+              const isSelected = cell.isoDate === selectedCalendarDate;
+              const dayBookings = bookingsByDate[cell.isoDate] || [];
+              const count = dayBookings.length;
+
+              const cellClasses = ['mini-cal-cell'];
+              if (!cell.isCurrentMonth) cellClasses.push('other-month');
+              if (isToday) cellClasses.push('is-today');
+              if (isSelected) cellClasses.push('is-selected');
+              if (count > 0) cellClasses.push('has-bookings');
+
+              return `
+                <div class="${cellClasses.join(' ')}" data-date="${cell.isoDate}">
+                  <span class="mini-cal-day-num">${cell.day}</span>
+                  ${count > 0 ? `
+                    <div class="mini-cal-dots-bar">
+                      ${dayBookings.slice(0, 3).map(b => `<span class="mini-dot dot-${b.status}"></span>`).join('')}
+                      ${count > 3 ? `<span class="mini-dot-plus">+</span>` : ''}
+                    </div>
+                  ` : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <!-- Selected Day Summary Card -->
+          <div class="mini-cal-selected-box">
+            <div class="mini-cal-selected-header">
+              <div class="mini-cal-selected-date-text">
+                <strong>${selectedDayOfWeek ? selectedDayOfWeek + ' ' : ''}${selectedDayThai.short}</strong>
+              </div>
+              <span class="mini-cal-count-tag ${selectedDayBookings.length > 0 ? 'active' : ''}">
+                ${selectedDayBookings.length > 0 ? `${selectedDayBookings.length} คิวรถ` : 'ว่าง'}
+              </span>
             </div>
-          ` : `
-            <div class="cal-day-bookings-grid">
-              ${selectedDayBookings.map(b => {
-                const firstDest = (b.itinerary && b.itinerary[0] && b.itinerary[0].destination) ? b.itinerary[0].destination : '-';
+
+            <!-- List of bookings on selected date -->
+            <div class="mini-cal-items-list">
+              ${selectedDayBookings.length === 0 ? `
+                <div class="mini-cal-empty-text">ไม่มีรายการขอใช้รถในวันนี้</div>
+              ` : selectedDayBookings.map(b => {
+                const firstDest = (b.itinerary && b.itinerary[0] && b.itinerary[0].destination) ? b.itinerary[0].destination : (b.bookerName || 'ขอใช้รถ');
                 return `
-                  <div class="cal-day-card border-status-${b.status}">
-                    <div class="cal-card-top">
-                      <span class="cal-card-id">${b.id}</span>
-                      <span class="status-badge ${b.status}">
-                        ${getStatusDot(b.status)}
-                        ${b.statusLabel || b.status}
-                      </span>
-                    </div>
-                    <div class="cal-card-time">
-                      <span>⏰ ${b.startTime} - ${b.endTime} น.</span>
-                    </div>
-                    <div class="cal-card-details">
-                      <div class="cal-card-row">
-                        <span class="row-label">ผู้ขอ:</span>
-                        <span class="row-val"><strong>${b.bookerName}</strong> (${b.department})</span>
-                      </div>
-                      <div class="cal-card-row">
-                        <span class="row-label">รถ:</span>
-                        <span class="row-val">${b.assignedVehicle || b.requestedVehicle || '-'}</span>
-                      </div>
-                      ${b.assignedDriver ? `
-                        <div class="cal-card-row">
-                          <span class="row-label">คนขับ:</span>
-                          <span class="row-val" style="color: #059669; font-weight: 600;">🚗 ${b.assignedDriver}</span>
-                        </div>
-                      ` : ''}
-                      <div class="cal-card-row">
-                        <span class="row-label">ปลายทาง:</span>
-                        <span class="row-val">📍 ${firstDest} ${b.itinerary && b.itinerary.length > 1 ? `(+อีก ${b.itinerary.length - 1} จุด)` : ''}</span>
+                  <div class="mini-cal-booking-item">
+                    <div class="mini-item-left">
+                      <span class="mini-item-status-dot dot-${b.status}"></span>
+                      <div class="mini-item-info">
+                        <div class="mini-item-title">${firstDest}</div>
+                        <div class="mini-item-sub">⏰ ${b.startTime} น. • ${b.bookerName}</div>
                       </div>
                     </div>
-                    <div class="cal-card-actions">
-                      <button class="btn-outline-blue btn-view-paper" data-id="${b.id}" style="padding: 4px 10px; font-size: 0.8rem;" title="ดูใบขออนุมัติทางการ">
-                        📄 ดูใบคำขอ
-                      </button>
-                      ${b.status === 'pending_approval' ? `
-                        <button class="btn-icon-danger btn-cancel-booking" data-id="${b.id}" style="padding: 4px 10px; font-size: 0.8rem; width: auto;" title="ยกเลิกคำขอ">
-                          ✕ ยกเลิกคำขอ
-                        </button>
-                      ` : ''}
-                    </div>
+                    <button type="button" class="mini-item-view-btn btn-view-paper" data-id="${b.id}" title="ดูใบคำขอ">
+                      📄 ดู
+                    </button>
                   </div>
                 `;
               }).join('')}
             </div>
-          `}
+
+            <!-- Actions for selected day -->
+            <div class="mini-cal-actions-row">
+              <button type="button" id="btn-mini-filter-day" class="mini-btn-filter" data-date="${selectedCalendarDate}">
+                🔍 กรองตารางตามวันนี้
+              </button>
+              <button type="button" class="mini-btn-book btn-book-for-date" data-date="${selectedCalendarDate}">
+                + ขอใช้รถในวันนี้
+              </button>
+            </div>
+          </div>
+
+          <!-- Modal Footer -->
+          <div class="mini-cal-footer">
+            <div class="mini-cal-legend-row">
+              <span><span class="mini-dot dot-dispatched"></span> จัดรถแล้ว</span>
+              <span><span class="mini-dot dot-approved"></span> อนุมัติ</span>
+              <span><span class="mini-dot dot-pending_approval"></span> รออนุมัติ</span>
+            </div>
+            <button type="button" id="btn-close-cal-footer" class="btn-secondary-sm" style="padding: 4px 12px; font-size: 0.8rem;">
+              ปิด
+            </button>
+          </div>
+
         </div>
       </div>
     `;
@@ -804,6 +775,9 @@ export function renderBookerView(container) {
           <button type="button" class="btn-filter-preset ${historyFilter.preset === 'this_month' ? 'active' : ''}" data-preset="this_month">
             เดือนนี้
           </button>
+          <button type="button" id="btn-open-cal-filter" class="btn-filter-preset btn-cal-filter-trigger" title="เปิดปฏิทินแบบป๊อบอัพเพื่อเลือกวันที่">
+            📅 ปฏิทินการใช้รถ
+          </button>
         </div>
 
         <div class="filter-custom-range">
@@ -833,12 +807,24 @@ export function renderBookerView(container) {
         </div>
       </div>
 
-      <div class="filter-summary-row" style="margin-bottom: 0.75rem; font-size: 0.85rem; color: var(--slate-500);">
+      <div class="filter-summary-row" style="margin-bottom: 0.75rem; font-size: 0.85rem; color: var(--slate-600); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        <div>
+          ${isFiltered ? `
+            <span>กำลังกรอง: แสดง <strong>${filteredBookings.length}</strong> จากทั้งหมด ${bookings.length} รายการ</span>
+            ${(historyFilter.startDate && historyFilter.startDate === historyFilter.endDate) ? `
+              <span style="margin-left: 6px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem; font-weight: 600;">
+                📅 วันที่ ${formatThaiDate(historyFilter.startDate).short}
+              </span>
+            ` : ''}
+          ` : `
+            <span>ทั้งหมด <strong>${bookings.length}</strong> รายการ</span>
+          `}
+        </div>
         ${isFiltered ? `
-          แสดง <strong>${filteredBookings.length}</strong> จากทั้งหมด ${bookings.length} รายการ
-        ` : `
-          ทั้งหมด <strong>${bookings.length}</strong> รายการ
-        `}
+          <button type="button" id="btn-reset-filter-text" class="btn-clear-filter" style="font-size: 0.78rem;">
+            ✕ แสดงทั้งหมด
+          </button>
+        ` : ''}
       </div>
 
       <div class="table-responsive">
@@ -954,72 +940,115 @@ export function renderBookerView(container) {
     if (goToFormBtn) goToFormBtn.addEventListener('click', () => { activeSubTab = 'form'; render(); });
     if (createNewTopBtn) createNewTopBtn.addEventListener('click', () => { activeSubTab = 'form'; render(); });
 
-    // History View Mode (Calendar vs Table)
-    const btnCal = document.getElementById('btn-view-calendar');
-    const btnTbl = document.getElementById('btn-view-table');
-    if (btnCal) btnCal.addEventListener('click', () => { historyViewMode = 'calendar'; render(); });
-    if (btnTbl) btnTbl.addEventListener('click', () => { historyViewMode = 'table'; render(); });
+    // Open Calendar Pop-up Modal
+    const btnOpenCalModal = document.getElementById('btn-open-cal-modal');
+    if (btnOpenCalModal) {
+      btnOpenCalModal.addEventListener('click', () => {
+        showCalendarModal = true;
+        render();
+      });
+    }
 
-    // Calendar Navigation Controls
-    const btnCalPrev = document.getElementById('btn-cal-prev');
-    const btnCalNext = document.getElementById('btn-cal-next');
-    const btnCalToday = document.getElementById('btn-cal-today');
+    const btnOpenCalFilter = document.getElementById('btn-open-cal-filter');
+    if (btnOpenCalFilter) {
+      btnOpenCalFilter.addEventListener('click', () => {
+        showCalendarModal = true;
+        render();
+      });
+    }
 
-    if (btnCalPrev) {
-      btnCalPrev.addEventListener('click', () => {
-        calendarMonth--;
-        if (calendarMonth < 0) {
-          calendarMonth = 11;
-          calendarYear--;
+    // Mini Calendar Pop-up Controls (when modal is open)
+    if (showCalendarModal) {
+      const btnCloseCalModal = document.getElementById('btn-close-cal-modal');
+      const btnCloseCalFooter = document.getElementById('btn-close-cal-footer');
+      const miniCalOverlay = document.getElementById('mini-cal-modal-overlay');
+
+      const closeModal = () => {
+        showCalendarModal = false;
+        render();
+      };
+
+      if (btnCloseCalModal) btnCloseCalModal.addEventListener('click', closeModal);
+      if (btnCloseCalFooter) btnCloseCalFooter.addEventListener('click', closeModal);
+      if (miniCalOverlay) {
+        miniCalOverlay.addEventListener('click', (e) => {
+          if (e.target === miniCalOverlay) closeModal();
+        });
+      }
+
+      const onEscKey = (e) => {
+        if (e.key === 'Escape') {
+          document.removeEventListener('keydown', onEscKey);
+          closeModal();
         }
-        render();
-      });
-    }
+      };
+      document.addEventListener('keydown', onEscKey, { once: true });
 
-    if (btnCalNext) {
-      btnCalNext.addEventListener('click', () => {
-        calendarMonth++;
-        if (calendarMonth > 11) {
-          calendarMonth = 0;
-          calendarYear++;
-        }
-        render();
-      });
-    }
+      // Mini Month Nav
+      const btnMiniPrev = document.getElementById('btn-mini-cal-prev');
+      const btnMiniNext = document.getElementById('btn-mini-cal-next');
+      const btnMiniToday = document.getElementById('btn-mini-cal-today');
 
-    if (btnCalToday) {
-      btnCalToday.addEventListener('click', () => {
-        const now = new Date();
-        calendarYear = now.getFullYear();
-        calendarMonth = now.getMonth();
-        selectedCalendarDate = todayIso;
-        render();
-      });
-    }
-
-    // Day Cell Selection
-    container.querySelectorAll('.cal-cell').forEach(cell => {
-      cell.addEventListener('click', (e) => {
-        if (e.target.closest('.cal-event-pill')) return;
-        const date = cell.getAttribute('data-date');
-        if (date) {
-          selectedCalendarDate = date;
+      if (btnMiniPrev) {
+        btnMiniPrev.addEventListener('click', () => {
+          calendarMonth--;
+          if (calendarMonth < 0) {
+            calendarMonth = 11;
+            calendarYear--;
+          }
           render();
-        }
-      });
-    });
+        });
+      }
 
-    // Event Pill Click -> Open Paper Modal
-    container.querySelectorAll('.cal-event-pill').forEach(pill => {
-      pill.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const id = pill.getAttribute('data-booking-id');
-        const b = getAllBookings().find(x => x.id === id);
-        if (b) renderPaperModal(b);
-      });
-    });
+      if (btnMiniNext) {
+        btnMiniNext.addEventListener('click', () => {
+          calendarMonth++;
+          if (calendarMonth > 11) {
+            calendarMonth = 0;
+            calendarYear++;
+          }
+          render();
+        });
+      }
 
-    // Book for selected date button
+      if (btnMiniToday) {
+        btnMiniToday.addEventListener('click', () => {
+          const now = new Date();
+          calendarYear = now.getFullYear();
+          calendarMonth = now.getMonth();
+          selectedCalendarDate = todayIso;
+          render();
+        });
+      }
+
+      // Mini Day Cell Selection
+      container.querySelectorAll('.mini-cal-cell').forEach(cell => {
+        cell.addEventListener('click', () => {
+          const date = cell.getAttribute('data-date');
+          if (date) {
+            selectedCalendarDate = date;
+            render();
+          }
+        });
+      });
+
+      // Filter main table by selected day
+      const btnMiniFilterDay = document.getElementById('btn-mini-filter-day');
+      if (btnMiniFilterDay) {
+        btnMiniFilterDay.addEventListener('click', () => {
+          const d = btnMiniFilterDay.getAttribute('data-date');
+          if (d) {
+            historyFilter.startDate = d;
+            historyFilter.endDate = d;
+            historyFilter.preset = 'custom';
+          }
+          showCalendarModal = false;
+          render();
+        });
+      }
+    }
+
+    // Quick book for selected date button (works in popup and inline)
     container.querySelectorAll('.btn-book-for-date').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1027,10 +1056,20 @@ export function renderBookerView(container) {
         if (date) {
           currentUsageDate = date;
         }
+        showCalendarModal = false;
         activeSubTab = 'form';
         render();
       });
     });
+
+    // Reset filter text button
+    const btnResetFilterText = document.getElementById('btn-reset-filter-text');
+    if (btnResetFilterText) {
+      btnResetFilterText.addEventListener('click', () => {
+        historyFilter = { preset: 'all', startDate: '', endDate: '' };
+        render();
+      });
+    }
 
     // History actions
     container.querySelectorAll('.btn-view-paper').forEach(btn => {
