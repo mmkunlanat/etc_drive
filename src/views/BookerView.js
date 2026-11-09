@@ -30,7 +30,7 @@ export function renderBookerView(container) {
 
   function normalize24hTime(val) {
     if (!val || typeof val !== 'string') return '';
-    const clean = val.trim();
+    let clean = val.trim().replace('.', ':');
     if (!clean) return '';
 
     // H:mm or HH:mm
@@ -84,15 +84,6 @@ export function renderBookerView(container) {
     root.querySelectorAll('.time-input-24h').forEach(input => {
       if (input.dataset.bound24h) return;
       input.dataset.bound24h = 'true';
-
-      input.addEventListener('input', (e) => {
-        let val = input.value.replace(/[^\d:]/g, '');
-        if (val.length === 2 && !val.includes(':') && e.inputType !== 'deleteContentBackward') {
-          val = val + ':';
-        }
-        if (val.length > 5) val = val.slice(0, 5);
-        input.value = val;
-      });
 
       input.addEventListener('blur', () => {
         if (input.value) {
@@ -212,7 +203,7 @@ export function renderBookerView(container) {
             <div class="form-group">
               <label class="form-label" for="bookingDate">
                 <span>📅 วันที่จอง</span>
-                <span class="required">* (สามารถแก้ไขได้)</span>
+                <span class="required">*</span>
               </label>
               <input 
                 type="date" 
@@ -281,7 +272,7 @@ export function renderBookerView(container) {
             <div class="form-group">
               <label class="form-label" for="startTime">
                 <span>⏰ ตั้งแต่เวลา</span>
-                <span class="required">* (24 ชม.)</span>
+                <span class="required">*</span>
               </label>
               <div class="input-group">
                 <input 
@@ -302,7 +293,7 @@ export function renderBookerView(container) {
             <div class="form-group">
               <label class="form-label" for="endTime">
                 <span>⏰ ถึงเวลา</span>
-                <span class="required">* (24 ชม.)</span>
+                <span class="required">*</span>
               </label>
               <div class="input-group">
                 <input 
@@ -331,7 +322,7 @@ export function renderBookerView(container) {
               <h3>
                 <span>🗺️</span>
                 <span>ตารางรายละเอียดภารกิจและสถานที่ (ลำดับ 1 - 6)</span>
-                <span class="required" style="font-size: 0.85rem; font-weight: 600; margin-left: 6px; color: #dc2626;">* (บังคับต้องกรอก)</span>
+                <span class="required" style="font-size: 0.85rem; font-weight: 600; margin-left: 6px; color: #dc2626;">*</span>
               </h3>
               <div class="quick-templates-group">
                 <span style="font-size: 0.75rem; opacity: 0.9;">เทมเพลตด่วน:</span>
@@ -353,10 +344,10 @@ export function renderBookerView(container) {
                 <thead>
                   <tr>
                     <th style="width: 55px; text-align: center;">ลำดับที่</th>
-                    <th>รายละเอียด (ภารกิจ / สิ่งของ / วัตถุประสงค์) <span class="required" style="color: #dc2626;">* (บังคับ)</span></th>
-                    <th style="width: 135px;">⏰ เวลา (24 ชม.)</th>
-                    <th style="width: 110px;">👥 จำนวนคน</th>
-                    <th style="width: 260px;">สถานที่ (ปลายทาง / จุดแวะ) <span class="required" style="color: #dc2626;">* (บังคับ)</span></th>
+                    <th>รายละเอียด (ภารกิจ / สิ่งของ / วัตถุประสงค์) <span class="required" style="color: #dc2626;">*</span></th>
+                    <th style="width: 125px;">⏰ เวลา</th>
+                    <th style="width: 140px;">👥 จำนวนคน</th>
+                    <th style="width: 260px;">สถานที่ (ปลายทาง / จุดแวะ) <span class="required" style="color: #dc2626;">*</span></th>
                     <th style="width: 50px; text-align: center;">ลบ</th>
                   </tr>
                 </thead>
@@ -449,15 +440,15 @@ export function renderBookerView(container) {
           </div>
         </td>
         <td>
-          <div class="input-group">
+          <div class="stepper-group">
+            <button type="button" class="btn-stepper btn-minus" title="ลดจำนวนคน">−</button>
             <input 
-              type="number" 
-              class="form-control row-passengers" 
-              min="1" 
-              max="100" 
+              type="text" 
+              class="form-control row-passengers text-center" 
               placeholder="0" 
               value="${passengers}" 
             />
+            <button type="button" class="btn-stepper btn-plus" title="เพิ่มจำนวนคน">+</button>
             <span class="input-addon">คน</span>
           </div>
         </td>
@@ -731,6 +722,34 @@ export function renderBookerView(container) {
           }
         });
       });
+      // Stepper buttons for passengers (+ / -)
+      container.querySelectorAll('.btn-minus').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const group = btn.closest('.stepper-group');
+          const input = group?.querySelector('.row-passengers');
+          if (input) {
+            let val = parseInt(input.value.trim(), 10);
+            if (isNaN(val) || val <= 1) val = 1;
+            else val = val - 1;
+            input.value = val;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        });
+      });
+
+      container.querySelectorAll('.btn-plus').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const group = btn.closest('.stepper-group');
+          const input = group?.querySelector('.row-passengers');
+          if (input) {
+            let val = parseInt(input.value.trim(), 10);
+            if (isNaN(val) || val < 0) val = 0;
+            input.value = val + 1;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        });
+      });
+
       // Bind 24-hour time formatting & validation
       bind24hTimeInputs(container);
     }
@@ -870,9 +889,9 @@ export function renderBookerView(container) {
           return;
         }
 
-        // Validate itinerary - บังคับต้องกรอกตารางรายละเอียดภารกิจและสถานที่ (ลำดับ 1 - 6)
+        // Validate itinerary
         if (itineraryRows.length === 0) {
-          alert('กรุณากรอกตารางรายละเอียดภารกิจและสถานที่ (ลำดับ 1 - 6) อย่างน้อย 1 รายการ (บังคับต้องกรอก)');
+          alert('กรุณากรอกตารางรายละเอียดภารกิจและสถานที่ (ลำดับ 1 - 6) อย่างน้อย 1 รายการ');
           return;
         }
 
@@ -1190,7 +1209,7 @@ export function renderBookerView(container) {
           <td>
             <input type="text" class="form-control tpl-row-detail" placeholder="เช่น ไปพบลูกค้าเพื่อส่งมอบสัญญา" value="${r.detail || ''}" required />
           </td>
-          <td style="width: 110px;">
+          <td style="width: 105px;">
             <input 
               type="text" 
               class="form-control tpl-row-time time-input-24h" 
@@ -1202,8 +1221,18 @@ export function renderBookerView(container) {
               style="text-align: center;"
             />
           </td>
-          <td style="width: 95px;">
-            <input type="number" class="form-control tpl-row-passengers" min="1" max="100" placeholder="0" value="${r.passengers || ''}" />
+          <td style="width: 130px;">
+            <div class="stepper-group">
+              <button type="button" class="btn-stepper btn-tpl-minus" title="ลดจำนวนคน">−</button>
+              <input 
+                type="text" 
+                class="form-control tpl-row-passengers text-center" 
+                placeholder="0" 
+                value="${r.passengers || ''}" 
+              />
+              <button type="button" class="btn-stepper btn-tpl-plus" title="เพิ่มจำนวนคน">+</button>
+              <span class="input-addon">คน</span>
+            </div>
           </td>
           <td style="width: 190px;">
             <input type="text" class="form-control tpl-row-destination" placeholder="เช่น บางปู สมุทรปราการ" value="${r.destination || ''}" required />
@@ -1219,7 +1248,7 @@ export function renderBookerView(container) {
 
     const modalHtml = `
       <div id="${modalId}" class="paper-modal-backdrop" style="z-index: 1050;">
-        <div class="paper-modal-dialog" style="max-width: 680px;">
+        <div class="paper-modal-dialog" style="max-width: 720px;">
           <div class="paper-modal-header" style="background: linear-gradient(135deg, #1e3a8a, #0284c7);">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-size: 1.25rem;">${isEdit ? '✏️' : '➕'}</span>
@@ -1262,8 +1291,8 @@ export function renderBookerView(container) {
                   <tr>
                     <th style="width: 45px; text-align: center;">ลำดับ</th>
                     <th>ภารกิจ/รายละเอียด <span class="required" style="color: #dc2626;">*</span></th>
-                    <th style="width: 110px;">⏰ เวลา (24 ชม.)</th>
-                    <th style="width: 95px;">👥 จำนวน</th>
+                    <th style="width: 105px;">⏰ เวลา</th>
+                    <th style="width: 130px;">👥 จำนวนคน</th>
                     <th style="width: 190px;">📍 สถานที่ <span class="required" style="color: #dc2626;">*</span></th>
                     <th style="width: 40px; text-align: center;">ลบ</th>
                   </tr>
@@ -1317,6 +1346,34 @@ export function renderBookerView(container) {
       if (!tbody) return;
       tbody.innerHTML = renderEditorRowsHtml();
       bind24hTimeInputs(backdrop);
+
+      // Stepper buttons for template rows
+      tbody.querySelectorAll('.btn-tpl-minus').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const group = btn.closest('.stepper-group');
+          const input = group?.querySelector('.tpl-row-passengers');
+          if (input) {
+            let val = parseInt(input.value.trim(), 10);
+            if (isNaN(val) || val <= 1) val = 1;
+            else val = val - 1;
+            input.value = val;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        });
+      });
+
+      tbody.querySelectorAll('.btn-tpl-plus').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const group = btn.closest('.stepper-group');
+          const input = group?.querySelector('.tpl-row-passengers');
+          if (input) {
+            let val = parseInt(input.value.trim(), 10);
+            if (isNaN(val) || val < 0) val = 0;
+            input.value = val + 1;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        });
+      });
 
       tbody.querySelectorAll('.btn-tpl-delete-row').forEach(btn => {
         btn.addEventListener('click', () => {

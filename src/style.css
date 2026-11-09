@@ -547,6 +547,68 @@ body {
   min-width: 95px;
 }
 
+/* Stepper Input Group (สำหรับเพิ่ม/พิมพ์จำนวนคน) */
+.stepper-group {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.stepper-group .btn-stepper {
+  width: 25px;
+  height: 33px;
+  background-color: var(--slate-100);
+  border: 1.5px solid var(--slate-200);
+  color: var(--slate-700);
+  font-weight: 700;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.stepper-group .btn-stepper:hover {
+  background-color: #dbeafe;
+  border-color: #3b82f6;
+  color: #1e40af;
+}
+
+.stepper-group .btn-stepper:active {
+  background-color: #bfdbfe;
+}
+
+.stepper-group .btn-minus,
+.stepper-group .btn-tpl-minus {
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  border-right: none;
+}
+
+.stepper-group .btn-plus,
+.stepper-group .btn-tpl-plus {
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+}
+
+.stepper-group .row-passengers,
+.stepper-group .tpl-row-passengers {
+  border-radius: 0 !important;
+  text-align: center;
+  padding: 0.4rem 0.2rem;
+  min-width: 34px;
+}
+
+.stepper-group .input-addon {
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: 0.4rem 0.45rem;
+  font-size: 0.78rem;
+}
+
 /* ==========================================================================
    Itinerary Table (ตารางรายละเอียดการใช้รถ - รายการ 1-6)
    ========================================================================== */
