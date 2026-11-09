@@ -2835,6 +2835,8 @@ body {
 }
 
 /* Row Action Buttons inside the table (non-print) */
+/* Cell Combobox (Vehicle plate, Driver Code, Driver Name, Department) */
+.cell-combobox-wrap,
 .plate-combobox-wrap {
   position: relative;
   display: flex;
@@ -2842,10 +2844,12 @@ body {
   width: 100%;
 }
 
+.cell-combobox-wrap .dispatch-cell-input,
 .plate-combobox-wrap .dispatch-cell-input {
   padding-right: 18px;
 }
 
+.btn-cell-dropdown-arrow,
 .btn-plate-dropdown-arrow {
   position: absolute;
   right: 2px;
@@ -2863,16 +2867,18 @@ body {
   align-items: center;
   justify-content: center;
 }
+.btn-cell-dropdown-arrow:hover,
 .btn-plate-dropdown-arrow:hover {
   background: rgba(0, 0, 0, 0.1);
   color: #0f172a;
 }
 
+.cell-dropdown-menu,
 .plate-custom-dropdown-menu {
   position: absolute;
   top: calc(100% + 2px);
   left: 0;
-  min-width: 220px;
+  min-width: 170px;
   max-height: 250px;
   overflow-y: auto;
   background: #ffffff;
@@ -2883,7 +2889,12 @@ body {
   text-align: left;
   padding: 4px 0;
 }
+.cell-dropdown-menu.menu-align-right {
+  left: auto;
+  right: 0;
+}
 
+.cell-opt-item,
 .plate-opt-item {
   padding: 7px 12px;
   font-size: 0.85rem;
@@ -2897,33 +2908,44 @@ body {
   transition: background 0.1s ease;
   border-bottom: 1px solid #f8fafc;
 }
+.cell-opt-item:last-child,
 .plate-opt-item:last-child {
   border-bottom: none;
 }
+.cell-opt-item:hover,
 .plate-opt-item:hover {
   background: #eff6ff;
   color: #1d4ed8;
 }
+.cell-opt-badge,
 .plate-opt-badge {
   font-size: 0.7rem;
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 4px;
 }
+.cell-opt-badge.yellow,
 .plate-opt-badge.yellow {
   background: #fef08a;
   color: #854d0e;
   border: 1px solid #fde047;
 }
+.cell-opt-badge.green,
 .plate-opt-badge.green {
   background: #bbf7d0;
   color: #166534;
   border: 1px solid #86efac;
 }
+.cell-opt-badge.default,
 .plate-opt-badge.default {
   background: #f1f5f9;
   color: #64748b;
   border: 1px solid #e2e8f0;
+}
+.cell-opt-subtext {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #64748b;
 }
 
 .dispatch-row-action-btn {
@@ -3043,6 +3065,8 @@ body {
   .dispatch-row-action-btn,
   .btn-plate-dropdown-arrow,
   .plate-custom-dropdown-menu,
+  .btn-cell-dropdown-arrow,
+  .cell-dropdown-menu,
   .no-print,
   .btn-print-hide,
   .role-nav-group {

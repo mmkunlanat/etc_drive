@@ -127,27 +127,46 @@ export const DEPARTMENTS = [
 ];
 
 export const VEHICLE_TYPES = [
-  { id: 'v_sedan_6kt1381', label: '6กถ-1381 (เก๋ง)', plate: '6กถ-1381', capacity: 4, color: 'yellow' },
-  { id: 'v_sedan_6kt1382', label: '6กถ-1382 (เก๋ง)', plate: '6กถ-1382', capacity: 4, color: 'yellow' },
-  { id: 'v_sedan_4kc7837', label: '4ขจ-7837 (เก๋ง)', plate: '4ขจ-7837', capacity: 4, color: 'yellow' },
-  { id: 'v_sedan_6kp7214', label: '6ขภ-7214 (เก๋ง)', plate: '6ขภ-7214', capacity: 4, color: 'yellow' },
-  { id: 'v_sedan_ng4202', label: 'งล-4202 (เก๋ง)', plate: 'งล-4202', capacity: 4, color: 'yellow' },
-  { id: 'v_sedan_7kc2606', label: '7ขจ-2606 (เก๋ง)', plate: '7ขจ-2606', capacity: 4, color: 'green' },
-  { id: 'v_sedan_7kp4299', label: '7ขภ-4299 (เก๋ง)', plate: '7ขภ-4299', capacity: 4, color: 'green' },
-  { id: 'v_van_commuter', label: 'รถตู้ส่วนกลาง (Toyota Commuter 13 ที่นั่ง)', plate: 'ฮภ-4521 กทม.', capacity: 13, color: 'default' },
-  { id: 'v_van_vip', label: 'รถตู้ VIP ผู้บริหาร (Hyundai Staria 7 ที่นั่ง)', plate: 'นข-8899 กทม.', capacity: 7, color: 'default' },
-  { id: 'v_pickup_4d', label: 'รถกระบะ 4 ประตู (Isuzu D-Max 5 ที่นั่ง)', plate: 'บย-3104 สมุทรปราการ', capacity: 5, color: 'default' },
-  { id: 'v_truck_cargo', label: 'รถกระบะตู้ทึบขนของ (Toyota Hilux Revo 2 ที่นั่ง)', plate: 'ผต-7741 นนทบุรี', capacity: 2, color: 'default' },
-  { id: 'v_custom', label: 'ระบุประเภทอื่น / รถเช่าภายนอก', plate: '-', capacity: 0, color: 'default' }
+  { id: 'v_sedan_6kt1381', label: '6กถ-1381 (เก๋ง)', plate: '6กถ-1381', color: 'yellow' },
+  { id: 'v_sedan_6kt1382', label: '6กถ-1382 (เก๋ง)', plate: '6กถ-1382', color: 'yellow' },
+  { id: 'v_sedan_4kc7837', label: '4ขจ-7837 (เก๋ง)', plate: '4ขจ-7837', color: 'yellow' },
+  { id: 'v_sedan_6kp7214', label: '6ขภ-7214 (เก๋ง)', plate: '6ขภ-7214', color: 'yellow' },
+  { id: 'v_sedan_ng4202', label: 'งล-4202 (เก๋ง)', plate: 'งล-4202', color: 'yellow' },
+  { id: 'v_sedan_7kc2606', label: '7ขจ-2606 (เก๋ง)', plate: '7ขจ-2606', color: 'green' },
+  { id: 'v_sedan_7kp4299', label: '7ขภ-4299 (เก๋ง)', plate: '7ขภ-4299', color: 'green' },
+  { id: 'v_van_commuter', label: 'ฮภ-4521 (ตู้)', plate: 'ฮภ-4521', color: 'default' },
+  { id: 'v_van_vip', label: 'นข-8899 (VIP)', plate: 'นข-8899', color: 'default' },
+  { id: 'v_pickup_4d', label: 'บย-3104 (กระบะ)', plate: 'บย-3104', color: 'default' }
 ];
 
 export const DRIVER_POOL = [
-  { id: 'drv_5', name: 'วัชรินทร์', phone: '081-762-3726', license: 'ท.2-110293', status: 'พร้อมรับงาน', code: '5' },
-  { id: 'drv_2', name: 'ปิยะวัฒน์', phone: '084-861-4388', license: 'ท.2-554219', status: 'พร้อมรับงาน', code: '2' },
-  { id: 'drv_1', name: 'นายสมศักดิ์ ขับปลอดภัย', phone: '081-234-5678', license: 'ท.2-948123', status: 'พร้อมรับงาน', code: '1' },
-  { id: 'drv_3', name: 'นายวิชัย ถึงที่หมาย', phone: '089-876-5432', license: 'ท.2-887145', status: 'พร้อมรับงาน', code: '3' },
-  { id: 'drv_4', name: 'นายอนุสรณ์ ทางสะดวก', phone: '086-555-1234', license: 'ท.2-710923', status: 'ติดภารกิจ', code: '4' },
-  { id: 'drv_self', name: 'พนักงานขับเอง (ได้รับอนุญาตแล้ว)', phone: '-', license: 'ส่วนบุคคล', status: 'พร้อมรับงาน', code: '-' }
+  { id: 'drv_5', name: 'วัชรินทร์', code: '5', phone: '081-762-3726', license: 'ท.2-110293', status: 'พร้อมรับงาน' },
+  { id: 'drv_2', name: 'ปิยะวัฒน์', code: '2', phone: '084-861-4388', license: 'ท.2-554219', status: 'พร้อมรับงาน' },
+  { id: 'drv_1', name: 'สมศักดิ์', code: '1', phone: '081-234-5678', license: 'ท.2-948123', status: 'พร้อมรับงาน' },
+  { id: 'drv_3', name: 'วิชัย', code: '3', phone: '089-876-5432', license: 'ท.2-887145', status: 'พร้อมรับงาน' },
+  { id: 'drv_4', name: 'อนุสรณ์', code: '4', phone: '086-555-1234', license: 'ท.2-710923', status: 'ติดภารกิจ' },
+  { id: 'drv_self', name: 'พนักงานขับเอง', code: '-', phone: '-', license: 'ส่วนบุคคล', status: 'พร้อมรับงาน' }
+];
+
+export const DRIVER_CODES = [
+  { code: '5', driverName: 'วัชรินทร์' },
+  { code: '2', driverName: 'ปิยะวัฒน์' },
+  { code: '1', driverName: 'สมศักดิ์' },
+  { code: '3', driverName: 'วิชัย' },
+  { code: '4', driverName: 'อนุสรณ์' },
+  { code: '#N/A', driverName: '' }
+];
+
+export const DISPATCH_DEPARTMENTS = [
+  { code: 'ACC/OFF', label: 'ACC/OFF (บัญชี/ธุรการ)' },
+  { code: 'ACC', label: 'ACC (บัญชีและการเงิน)' },
+  { code: 'SALE', label: 'SALE (ฝ่ายขายและการตลาด)' },
+  { code: 'IT', label: 'IT (สารสนเทศ)' },
+  { code: 'HR', label: 'HR (บุคคล)' },
+  { code: 'PUR', label: 'PUR (จัดซื้อ)' },
+  { code: 'PROD', label: 'PROD (ฝ่ายผลิต)' },
+  { code: 'QA', label: 'QA (ประกันคุณภาพ)' },
+  { code: 'MGT', label: 'MGT (บริหาร)' }
 ];
 
 // Initial Seed Data with varied statuses

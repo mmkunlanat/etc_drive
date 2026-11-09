@@ -7,6 +7,8 @@ import {
   updateBooking,
   VEHICLE_TYPES,
   DRIVER_POOL,
+  DRIVER_CODES,
+  DISPATCH_DEPARTMENTS,
   DEMO_DISPATCH_DATE,
   getTodayISODate,
   addDaysToDate,
@@ -162,32 +164,6 @@ export function renderAdminView(container) {
           </tbody>
         </table>
 
-        <!-- Datalists for Autocomplete & Suggestions -->
-        <datalist id="vehicle-plate-datalist">
-          ${VEHICLE_TYPES.map(v => `<option value="${escapeHtml(v.label)}">${v.color === 'green' ? '🟢 สีเขียว' : (v.color === 'yellow' ? '🟡 สีเหลือง' : '')}</option>`).join('')}
-        </datalist>
-        <datalist id="driver-code-datalist">
-          <option value="5">5 (วัชรินทร์)</option>
-          <option value="2">2 (ปิยะวัฒน์)</option>
-          <option value="1">1 (สมศักดิ์)</option>
-          <option value="3">3 (วิชัย)</option>
-          <option value="4">4 (อนุสรณ์)</option>
-          <option value="#N/A">#N/A</option>
-        </datalist>
-        <datalist id="driver-name-datalist">
-          ${DRIVER_POOL.map(d => `<option value="${escapeHtml(d.name)}">${d.code ? `รหัส ${d.code} | ` : ''}${d.phone}</option>`).join('')}
-        </datalist>
-        <datalist id="department-datalist">
-          <option value="ACC/OFF">ACC/OFF (บัญชี/สำนักงาน)</option>
-          <option value="ACC">ACC (ฝ่ายบัญชีและการเงิน)</option>
-          <option value="SALE">SALE (ฝ่ายขายและการตลาด)</option>
-          <option value="IT/ENG">IT/ENG (วิศวกรรม/ไอที)</option>
-          <option value="HR">HR (ฝ่ายทรัพยากรบุคคล)</option>
-          <option value="PUR">PUR (ฝ่ายจัดซื้อ)</option>
-          <option value="PROD">PROD (ฝ่ายผลิต)</option>
-          <option value="QA">QA (ฝ่ายประกันคุณภาพ)</option>
-        </datalist>
-
       </div>
     `;
   }
@@ -215,13 +191,12 @@ export function renderAdminView(container) {
           />
         </td>
 
-        <!-- ทะเบียนรถ (ตัวเลือกที่พิมพ์แก้ไขได้อิสระ) -->
+        <!-- ทะเบียนรถ (ตัวเลือกที่พิมพ์แก้ไขได้) -->
         <td class="col-plate ${plateClass}">
-          <div class="plate-combobox-wrap">
+          <div class="cell-combobox-wrap">
             <input 
               type="text" 
-              list="vehicle-plate-datalist" 
-              class="dispatch-cell-input text-center font-bold dispatch-plate-input" 
+              class="dispatch-cell-input text-center font-bold cell-combobox-input" 
               data-field="plate" 
               data-row-id="${row.id}" 
               value="${escapeHtml(row.plate || '')}" 
@@ -230,25 +205,25 @@ export function renderAdminView(container) {
             />
             <button 
               type="button" 
-              class="btn-plate-dropdown-arrow no-print" 
-              data-action="toggle-plate-menu" 
-              data-row-id="${row.id}" 
-              title="คลิกเพื่อเลือกทะเบียนรถจากรายการ (หรือพิมพ์เองได้)"
+              class="btn-cell-dropdown-arrow no-print" 
+              data-toggle-dropdown="plate-${row.id}" 
               tabindex="-1"
+              title="เลือกทะเบียนรถ"
             >
               ▾
             </button>
-            <div class="plate-custom-dropdown-menu no-print" id="plate-dropdown-${row.id}" style="display: none;">
+            <div class="cell-dropdown-menu no-print" id="dropdown-plate-${row.id}" style="display: none; min-width: 200px;">
               ${VEHICLE_TYPES.map(v => `
                 <div 
-                  class="plate-opt-item" 
-                  data-plate-val="${escapeHtml(v.label)}" 
-                  data-color="${v.color || 'yellow'}"
+                  class="cell-opt-item" 
+                  data-field="plate" 
+                  data-val="${escapeHtml(v.label)}" 
+                  data-color="${v.color || 'yellow'}" 
                   data-row-id="${row.id}"
                 >
                   <span>${escapeHtml(v.label)}</span>
-                  <span class="plate-opt-badge ${v.color || 'yellow'}">
-                    ${v.color === 'green' ? '🟢 สีเขียว' : (v.color === 'yellow' ? '🟡 สีเหลือง' : '⚪ ทั่วไป')}
+                  <span class="cell-opt-badge ${v.color || 'yellow'}">
+                    ${v.color === 'green' ? '🟢 เขียว' : (v.color === 'yellow' ? '🟡 เหลือง' : '⚪ ทั่วไป')}
                   </span>
                 </div>
               `).join('')}
@@ -256,30 +231,80 @@ export function renderAdminView(container) {
           </div>
         </td>
 
-        <!-- รหัส -->
+        <!-- รหัส (ตัวเลือกที่พิมพ์แก้ไขได้) -->
         <td class="col-code">
-          <input 
-            type="text" 
-            list="driver-code-datalist"
-            class="dispatch-cell-input text-center font-semibold" 
-            data-field="driverCode" 
-            data-row-id="${row.id}" 
-            value="${escapeHtml(row.driverCode || '')}" 
-            placeholder="#N/A"
-          />
+          <div class="cell-combobox-wrap">
+            <input 
+              type="text" 
+              class="dispatch-cell-input text-center font-semibold cell-combobox-input" 
+              data-field="driverCode" 
+              data-row-id="${row.id}" 
+              value="${escapeHtml(row.driverCode || '')}" 
+              placeholder="#N/A"
+              autocomplete="off"
+            />
+            <button 
+              type="button" 
+              class="btn-cell-dropdown-arrow no-print" 
+              data-toggle-dropdown="code-${row.id}" 
+              tabindex="-1"
+              title="เลือกรหัสคนขับ"
+            >
+              ▾
+            </button>
+            <div class="cell-dropdown-menu no-print" id="dropdown-code-${row.id}" style="display: none; min-width: 140px;">
+              ${DRIVER_CODES.map(dc => `
+                <div 
+                  class="cell-opt-item" 
+                  data-field="driverCode" 
+                  data-val="${escapeHtml(dc.code)}" 
+                  data-driver="${escapeHtml(dc.driverName)}"
+                  data-row-id="${row.id}"
+                >
+                  <strong>${escapeHtml(dc.code)}</strong>
+                  <span class="cell-opt-subtext">${escapeHtml(dc.driverName || '-')}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
         </td>
 
-        <!-- พนักงานขับรถ -->
+        <!-- พนักงานขับรถ (ตัวเลือกที่พิมพ์แก้ไขได้) -->
         <td class="col-driver">
-          <input 
-            type="text" 
-            list="driver-name-datalist"
-            class="dispatch-cell-input text-center" 
-            data-field="driverName" 
-            data-row-id="${row.id}" 
-            value="${escapeHtml(row.driverName || '')}" 
-            placeholder=""
-          />
+          <div class="cell-combobox-wrap">
+            <input 
+              type="text" 
+              class="dispatch-cell-input text-center cell-combobox-input" 
+              data-field="driverName" 
+              data-row-id="${row.id}" 
+              value="${escapeHtml(row.driverName || '')}" 
+              placeholder="ระบุคนขับ"
+              autocomplete="off"
+            />
+            <button 
+              type="button" 
+              class="btn-cell-dropdown-arrow no-print" 
+              data-toggle-dropdown="driver-${row.id}" 
+              tabindex="-1"
+              title="เลือกพนักงานขับรถ"
+            >
+              ▾
+            </button>
+            <div class="cell-dropdown-menu no-print" id="dropdown-driver-${row.id}" style="display: none; min-width: 160px;">
+              ${DRIVER_POOL.map(d => `
+                <div 
+                  class="cell-opt-item" 
+                  data-field="driverName" 
+                  data-val="${escapeHtml(d.name)}" 
+                  data-code="${escapeHtml(d.code || '')}"
+                  data-row-id="${row.id}"
+                >
+                  <span>${escapeHtml(d.name)}</span>
+                  <span class="cell-opt-subtext">${d.code && d.code !== '-' ? `รหัส ${d.code}` : ''}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
         </td>
 
         <!-- เวลา -->
@@ -294,17 +319,41 @@ export function renderAdminView(container) {
           />
         </td>
 
-        <!-- ฝ่าย/แผนก -->
+        <!-- ฝ่าย/แผนก (ตัวเลือกที่พิมพ์แก้ไขได้) -->
         <td class="col-dept">
-          <input 
-            type="text" 
-            list="department-datalist"
-            class="dispatch-cell-input text-center" 
-            data-field="department" 
-            data-row-id="${row.id}" 
-            value="${escapeHtml(row.department || '')}" 
-            placeholder=""
-          />
+          <div class="cell-combobox-wrap">
+            <input 
+              type="text" 
+              class="dispatch-cell-input text-center cell-combobox-input" 
+              data-field="department" 
+              data-row-id="${row.id}" 
+              value="${escapeHtml(row.department || '')}" 
+              placeholder="ฝ่าย/แผนก"
+              autocomplete="off"
+            />
+            <button 
+              type="button" 
+              class="btn-cell-dropdown-arrow no-print" 
+              data-toggle-dropdown="dept-${row.id}" 
+              tabindex="-1"
+              title="เลือกฝ่าย/แผนก"
+            >
+              ▾
+            </button>
+            <div class="cell-dropdown-menu no-print" id="dropdown-dept-${row.id}" style="display: none; min-width: 190px;">
+              ${DISPATCH_DEPARTMENTS.map(dp => `
+                <div 
+                  class="cell-opt-item" 
+                  data-field="department" 
+                  data-val="${escapeHtml(dp.code)}" 
+                  data-row-id="${row.id}"
+                >
+                  <strong>${escapeHtml(dp.code)}</strong>
+                  <span class="cell-opt-subtext">${escapeHtml(dp.label.replace(dp.code, '').replace(/[\(\)]/g, '').trim())}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
         </td>
 
         <!-- ผู้จอง -->
@@ -350,15 +399,6 @@ export function renderAdminView(container) {
               title="ใส่คอมเม้น/หมายเหตุในงานนี้"
             >
               💬 ${hasComment ? 'แก้คอมเม้น' : '+ คอมเม้น'}
-            </button>
-            <button 
-              type="button" 
-              class="dispatch-row-action-btn" 
-              data-action="toggle-plate-color" 
-              data-row-id="${row.id}" 
-              title="เปลี่ยนสีป้ายทะเบียน (เหลือง/เขียว/ขาว)"
-            >
-              🎨
             </button>
             <button 
               type="button" 
@@ -676,42 +716,73 @@ export function renderAdminView(container) {
       });
     });
 
-    // Plate combobox dropdown toggle and click to select
-    container.querySelectorAll('.btn-plate-dropdown-arrow').forEach(btn => {
+    // Universal Cell Combobox Dropdown Toggle & Options Handler
+    container.querySelectorAll('.btn-cell-dropdown-arrow').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const rowId = btn.getAttribute('data-row-id');
-        const menu = document.getElementById(`plate-dropdown-${rowId}`);
+        const toggleKey = btn.getAttribute('data-toggle-dropdown');
+        const menu = document.getElementById(`dropdown-${toggleKey}`);
         if (menu) {
           const isVisible = menu.style.display !== 'none';
-          container.querySelectorAll('.plate-custom-dropdown-menu').forEach(m => { m.style.display = 'none'; });
+          container.querySelectorAll('.cell-dropdown-menu').forEach(m => { m.style.display = 'none'; });
           menu.style.display = isVisible ? 'none' : 'block';
         }
       });
     });
 
-    container.querySelectorAll('.dispatch-plate-input').forEach(input => {
+    // Click input to open dropdown and filter as typing
+    container.querySelectorAll('.cell-combobox-input').forEach(input => {
       input.addEventListener('click', (e) => {
         e.stopPropagation();
-        const rowId = input.getAttribute('data-row-id');
-        const menu = document.getElementById(`plate-dropdown-${rowId}`);
+        const wrap = input.closest('.cell-combobox-wrap');
+        const menu = wrap ? wrap.querySelector('.cell-dropdown-menu') : null;
         if (menu && menu.style.display === 'none') {
-          container.querySelectorAll('.plate-custom-dropdown-menu').forEach(m => { m.style.display = 'none'; });
+          container.querySelectorAll('.cell-dropdown-menu').forEach(m => { m.style.display = 'none'; });
           menu.style.display = 'block';
+        }
+      });
+
+      input.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        const wrap = input.closest('.cell-combobox-wrap');
+        const menu = wrap ? wrap.querySelector('.cell-dropdown-menu') : null;
+        if (menu) {
+          menu.style.display = 'block';
+          menu.querySelectorAll('.cell-opt-item').forEach(item => {
+            const itemText = item.innerText.toLowerCase();
+            item.style.display = itemText.includes(query) ? 'flex' : 'none';
+          });
         }
       });
     });
 
-    container.querySelectorAll('.plate-opt-item').forEach(item => {
+    // Selecting an option from any combobox
+    container.querySelectorAll('.cell-opt-item').forEach(item => {
       item.addEventListener('click', (e) => {
         e.stopPropagation();
-        const plateVal = item.getAttribute('data-plate-val');
-        const color = item.getAttribute('data-color');
+        const field = item.getAttribute('data-field');
+        const val = item.getAttribute('data-val');
         const rowId = item.getAttribute('data-row-id');
         const targetRow = rows.find(r => r.id === rowId);
-        if (targetRow) {
-          targetRow.plate = plateVal;
-          targetRow.plateColor = color;
+
+        if (targetRow && field) {
+          targetRow[field] = val;
+
+          // Smart auto-linking between fields
+          if (field === 'plate') {
+            targetRow.plateColor = item.getAttribute('data-color') || 'yellow';
+          } else if (field === 'driverCode') {
+            const linkedDriver = item.getAttribute('data-driver');
+            if (linkedDriver !== undefined && linkedDriver !== null) {
+              targetRow.driverName = linkedDriver;
+            }
+          } else if (field === 'driverName') {
+            const linkedCode = item.getAttribute('data-code');
+            if (linkedCode && linkedCode !== '-') {
+              targetRow.driverCode = linkedCode;
+            }
+          }
+
           saveCurrentSchedule();
           render();
         }
@@ -720,8 +791,8 @@ export function renderAdminView(container) {
 
     // Close open dropdowns when clicking anywhere outside
     const handleOutsideClick = (e) => {
-      if (!e.target.closest('.plate-combobox-wrap')) {
-        container.querySelectorAll('.plate-custom-dropdown-menu').forEach(m => { m.style.display = 'none'; });
+      if (!e.target.closest('.cell-combobox-wrap')) {
+        container.querySelectorAll('.cell-dropdown-menu').forEach(m => { m.style.display = 'none'; });
       }
     };
     document.removeEventListener('click', container._outsideClickHandler);
