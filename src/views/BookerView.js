@@ -19,8 +19,79 @@ import { renderPaperModal } from '../components/PaperModal.js';
 
 export function renderBookerView(container) {
   let activeSubTab = 'history'; // 'history' | 'form' (แสดงประวัติการจองของฉันก่อน)
+  let historyViewMode = 'calendar'; // 'calendar' | 'table'
   const todayIso = getTodayISODate();
   const defaultUsageIso = addDaysToDate(todayIso, 1); // Defaults to tomorrow (1 day advance)
+
+  // Calendar navigation state
+  const initDate = new Date();
+  let calendarYear = initDate.getFullYear();
+  let calendarMonth = initDate.getMonth(); // 0 - 11
+  let selectedCalendarDate = todayIso;
+
+  const THAI_MONTH_NAMES = [
+    'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+    'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+  ];
+
+  const THAI_DAY_OF_WEEK = [
+    'วันอาทิตย์', 'วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์'
+  ];
+
+  function getThaiDayOfWeek(isoDateStr) {
+    if (!isoDateStr) return '';
+    const parts = isoDateStr.split('-');
+    if (parts.length === 3) {
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      return THAI_DAY_OF_WEEK[d.getDay()] || '';
+    }
+    return '';
+  }
+
+  function getCalendarGridCells(year, month) {
+    const firstDay = new Date(year, month, 1);
+    const startDayOfWeek = firstDay.getDay(); // 0 = Sun, 1 = Mon ... 6 = Sat
+    const daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+    const cells = [];
+    const fmt = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+    // Prev month padding
+    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+      const d = daysInPrevMonth - i;
+      const prevM = month === 0 ? 11 : month - 1;
+      const prevY = month === 0 ? year - 1 : year;
+      cells.push({
+        day: d,
+        isoDate: fmt(prevY, prevM, d),
+        isCurrentMonth: false
+      });
+    }
+
+    // Current month
+    for (let d = 1; d <= daysInCurrentMonth; d++) {
+      cells.push({
+        day: d,
+        isoDate: fmt(year, month, d),
+        isCurrentMonth: true
+      });
+    }
+
+    // Next month padding to complete weeks
+    const remainder = (7 - (cells.length % 7)) % 7;
+    for (let d = 1; d <= remainder; d++) {
+      const nextM = month === 11 ? 0 : month + 1;
+      const nextY = month === 11 ? year + 1 : year;
+      cells.push({
+        day: d,
+        isoDate: fmt(nextY, nextM, d),
+        isCurrentMonth: false
+      });
+    }
+
+    return cells;
+  }
 
   let historyFilter = {
     preset: 'all', // 'all' | 'today' | 'this_week' | 'this_month' | 'custom'
@@ -166,10 +237,10 @@ export function renderBookerView(container) {
           </div>
         </div>
 
-        <!-- Subtabs: ประวัติการจองของฉันขึ้นก่อน และปุ่ม + เพื่อกรอกใบขอใช้รถใหม่ -->
+        <!-- Subtabs: ปฏิทินการจองของฉันขึ้นก่อน และปุ่ม + เพื่อกรอกใบขอใช้รถใหม่ -->
         <div class="booker-tabs-nav">
           <button id="tab-sub-history" class="booker-subtab-btn ${activeSubTab === 'history' ? 'active' : ''}">
-            <span>📋 ประวัติการจองของฉัน</span>
+            <span>📅 ปฏิทินการจองของฉัน</span>
             <span style="font-size: 0.72rem; background: #2563eb; color: #fff; padding: 1px 7px; border-radius: 10px;">
               ${bookings.length}
             </span>
@@ -500,20 +571,207 @@ export function renderBookerView(container) {
     `;
   }
 
-  function renderHistorySection(bookings) {
-    if (!bookings || bookings.length === 0) {
-      return `
-        <div class="content-card" style="text-align: center; padding: 3rem 1rem;">
-          <div style="font-size: 3rem; margin-bottom: 0.5rem;">🚗</div>
-          <h3 style="font-size: 1.2rem; color: var(--slate-700);">ยังไม่มีประวัติการขอใช้รถ</h3>
-          <p style="color: var(--slate-500); margin-bottom: 1.5rem;">คุณสามารถเริ่มสร้างคำขอจองรถใหม่ได้ที่แท็บด้านบน</p>
-          <button id="btn-go-to-form" class="btn-primary">
-            📝 สร้างคำขอจองรถใหม่
-          </button>
+  function renderHistorySection(bookings = []) {
+    return `
+      <div class="content-card">
+        <div class="card-header-flex">
+          <div class="card-title-group">
+            <h2>
+              <span>📅</span>
+              <span>ปฏิทินและประวัติการใช้รถ</span>
+            </h2>
+            <p>ดูตารางการใช้รถตามปฏิทิน ตรวจสอบสถานะคำขอ และพิมพ์แบบฟอร์ม</p>
+          </div>
+          <div class="history-top-actions">
+            <div class="view-mode-toggle-group">
+              <button type="button" id="btn-view-calendar" class="btn-view-mode ${historyViewMode === 'calendar' ? 'active' : ''}">
+                📅 ปฏิทิน
+              </button>
+              <button type="button" id="btn-view-table" class="btn-view-mode ${historyViewMode === 'table' ? 'active' : ''}">
+                📋 ตารางรายการ
+              </button>
+            </div>
+            <button id="btn-create-new-top" class="btn-primary" style="padding: 6px 14px; font-size: 0.85rem;">
+              <span>+ กรอกใบขอใช้รถ</span>
+            </button>
+          </div>
         </div>
-      `;
-    }
 
+        ${historyViewMode === 'calendar' ? renderCalendarView(bookings) : renderTableView(bookings)}
+      </div>
+    `;
+  }
+
+  function renderCalendarView(bookings = []) {
+    const buddhistYear = calendarYear + 543;
+    const monthTitle = `${THAI_MONTH_NAMES[calendarMonth]} ${buddhistYear}`;
+    const gridCells = getCalendarGridCells(calendarYear, calendarMonth);
+
+    // Map bookings by usageDate
+    const bookingsByDate = {};
+    bookings.forEach(b => {
+      const d = b.usageDate || b.bookingDate;
+      if (!d) return;
+      if (!bookingsByDate[d]) bookingsByDate[d] = [];
+      bookingsByDate[d].push(b);
+    });
+
+    const selectedDayBookings = bookingsByDate[selectedCalendarDate] || [];
+    const selectedDayThai = formatThaiDate(selectedCalendarDate);
+    const selectedDayOfWeek = getThaiDayOfWeek(selectedCalendarDate);
+
+    return `
+      <div class="calendar-wrapper">
+        <!-- Calendar Toolbar: Month Nav & Status Legend -->
+        <div class="calendar-header-toolbar">
+          <div class="cal-nav-controls">
+            <button type="button" id="btn-cal-prev" class="cal-nav-btn" title="เดือนก่อนหน้า">◀</button>
+            <button type="button" id="btn-cal-today" class="cal-nav-btn cal-today-btn">วันนี้</button>
+            <button type="button" id="btn-cal-next" class="cal-nav-btn" title="เดือนถัดไป">▶</button>
+            <h3 class="cal-current-month-title">${monthTitle}</h3>
+          </div>
+
+          <div class="cal-status-legend">
+            <span class="legend-item"><span class="legend-dot dot-dispatched"></span> จัดสรรรถแล้ว</span>
+            <span class="legend-item"><span class="legend-dot dot-approved"></span> อนุมัติแล้ว</span>
+            <span class="legend-item"><span class="legend-dot dot-pending"></span> รออนุมัติ</span>
+            <span class="legend-item"><span class="legend-dot dot-rejected"></span> ปฏิเสธ</span>
+            <span class="legend-item"><span class="legend-dot dot-completed"></span> เสร็จสิ้น</span>
+          </div>
+        </div>
+
+        <!-- 7-Day Weekdays Header -->
+        <div class="cal-weekdays-row">
+          <div class="cal-weekday weekend-sun">อา.</div>
+          <div class="cal-weekday">จ.</div>
+          <div class="cal-weekday">อ.</div>
+          <div class="cal-weekday">พ.</div>
+          <div class="cal-weekday">พฤ.</div>
+          <div class="cal-weekday">ศ.</div>
+          <div class="cal-weekday weekend-sat">ส.</div>
+        </div>
+
+        <!-- Calendar Month Grid -->
+        <div class="cal-grid">
+          ${gridCells.map(cell => {
+            const isToday = cell.isoDate === todayIso;
+            const isSelected = cell.isoDate === selectedCalendarDate;
+            const dayBookings = bookingsByDate[cell.isoDate] || [];
+            const count = dayBookings.length;
+
+            const cellClasses = ['cal-cell'];
+            if (!cell.isCurrentMonth) cellClasses.push('other-month');
+            if (isToday) cellClasses.push('is-today');
+            if (isSelected) cellClasses.push('is-selected');
+            if (count > 0) cellClasses.push('has-bookings');
+
+            return `
+              <div class="${cellClasses.join(' ')}" data-date="${cell.isoDate}">
+                <div class="cal-cell-header">
+                  <span class="cal-day-num">${cell.day}</span>
+                  ${isToday ? '<span class="cal-today-tag">วันนี้</span>' : ''}
+                  ${count > 0 ? `<span class="cal-count-badge">${count} คิว</span>` : ''}
+                </div>
+                
+                <div class="cal-events-list">
+                  ${dayBookings.slice(0, 2).map(b => {
+                    const firstDest = (b.itinerary && b.itinerary[0] && b.itinerary[0].destination) ? b.itinerary[0].destination : (b.bookerName || 'ขอใช้รถ');
+                    return `
+                      <div class="cal-event-pill status-${b.status}" data-booking-id="${b.id}" title="${b.startTime || ''} ${firstDest} (${b.bookerName || ''})">
+                        <span class="pill-dot"></span>
+                        <span class="pill-time">${b.startTime || ''}</span>
+                        <span class="pill-title">${firstDest}</span>
+                      </div>
+                    `;
+                  }).join('')}
+                  ${count > 2 ? `<div class="cal-event-more">+อีก ${count - 2} รายการ</div>` : ''}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <!-- Selected Date Details Panel -->
+        <div class="cal-selected-day-panel">
+          <div class="cal-selected-header">
+            <div class="cal-selected-title">
+              <span class="cal-selected-icon">📌</span>
+              <div>
+                <h4>รายการขอใช้รถประจำ${selectedDayOfWeek ? selectedDayOfWeek + 'ที่ ' : ''}${selectedDayThai.full}</h4>
+                <p>${selectedDayBookings.length > 0 ? `พบคำขอใช้งาน ${selectedDayBookings.length} รายการในวันนี้` : 'ไม่มีรายการขอใช้รถในวันนี้'}</p>
+              </div>
+            </div>
+            <button type="button" class="btn-primary-sm btn-book-for-date" data-date="${selectedCalendarDate}">
+              <span>+ ขอใช้รถในวันนี้</span>
+            </button>
+          </div>
+
+          ${selectedDayBookings.length === 0 ? `
+            <div class="cal-empty-day-box">
+              <div style="font-size: 1.8rem; margin-bottom: 0.35rem;">🚗</div>
+              <div style="font-weight: 600; color: var(--slate-700); margin-bottom: 4px;">ไม่มีรายการขอใช้รถในวันที่เลือก</div>
+              <p style="font-size: 0.85rem; color: var(--slate-500); margin-bottom: 0.75rem;">คุณสามารถคลิกปุ่มด้านล่างเพื่อกรอกใบขอใช้รถสำหรับวันนี้ได้ทันที</p>
+              <button type="button" class="btn-secondary-sm btn-book-for-date" data-date="${selectedCalendarDate}">
+                + ขอใช้รถในวันที่ ${selectedDayThai.short}
+              </button>
+            </div>
+          ` : `
+            <div class="cal-day-bookings-grid">
+              ${selectedDayBookings.map(b => {
+                const firstDest = (b.itinerary && b.itinerary[0] && b.itinerary[0].destination) ? b.itinerary[0].destination : '-';
+                return `
+                  <div class="cal-day-card border-status-${b.status}">
+                    <div class="cal-card-top">
+                      <span class="cal-card-id">${b.id}</span>
+                      <span class="status-badge ${b.status}">
+                        ${getStatusDot(b.status)}
+                        ${b.statusLabel || b.status}
+                      </span>
+                    </div>
+                    <div class="cal-card-time">
+                      <span>⏰ ${b.startTime} - ${b.endTime} น.</span>
+                    </div>
+                    <div class="cal-card-details">
+                      <div class="cal-card-row">
+                        <span class="row-label">ผู้ขอ:</span>
+                        <span class="row-val"><strong>${b.bookerName}</strong> (${b.department})</span>
+                      </div>
+                      <div class="cal-card-row">
+                        <span class="row-label">รถ:</span>
+                        <span class="row-val">${b.assignedVehicle || b.requestedVehicle || '-'}</span>
+                      </div>
+                      ${b.assignedDriver ? `
+                        <div class="cal-card-row">
+                          <span class="row-label">คนขับ:</span>
+                          <span class="row-val" style="color: #059669; font-weight: 600;">🚗 ${b.assignedDriver}</span>
+                        </div>
+                      ` : ''}
+                      <div class="cal-card-row">
+                        <span class="row-label">ปลายทาง:</span>
+                        <span class="row-val">📍 ${firstDest} ${b.itinerary && b.itinerary.length > 1 ? `(+อีก ${b.itinerary.length - 1} จุด)` : ''}</span>
+                      </div>
+                    </div>
+                    <div class="cal-card-actions">
+                      <button class="btn-outline-blue btn-view-paper" data-id="${b.id}" style="padding: 4px 10px; font-size: 0.8rem;" title="ดูใบขออนุมัติทางการ">
+                        📄 ดูใบคำขอ
+                      </button>
+                      ${b.status === 'pending_approval' ? `
+                        <button class="btn-icon-danger btn-cancel-booking" data-id="${b.id}" style="padding: 4px 10px; font-size: 0.8rem; width: auto;" title="ยกเลิกคำขอ">
+                          ✕ ยกเลิกคำขอ
+                        </button>
+                      ` : ''}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderTableView(bookings = []) {
     let filteredBookings = bookings;
     if (historyFilter.startDate || historyFilter.endDate) {
       filteredBookings = bookings.filter(b => {
@@ -528,163 +786,147 @@ export function renderBookerView(container) {
     const isFiltered = Boolean(historyFilter.startDate || historyFilter.endDate || historyFilter.preset !== 'all');
 
     return `
-      <div class="content-card">
-        <div class="card-header-flex">
-          <div class="card-title-group">
-            <h2>
-              <span>📋</span>
-              <span>ประวัติการขออนุมัติใช้รถทั้งหมด</span>
-            </h2>
-            <p>ติดตามสถานะคำขอ ตรวจสอบผลการอนุมัติ และพิมพ์แบบฟอร์ม</p>
-          </div>
-          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-            <div style="font-size: 0.85rem; color: var(--slate-500);">
-              ${isFiltered ? `
-                แสดง <strong>${filteredBookings.length}</strong> จากทั้งหมด ${bookings.length} รายการ
-              ` : `
-                ทั้งหมด <strong>${bookings.length}</strong> รายการ
-              `}
-            </div>
-            <button id="btn-create-new-top" class="btn-primary" style="padding: 5px 12px; font-size: 0.85rem;">
-              <span>+ กรอกใบขอใช้รถ</span>
-            </button>
-          </div>
+      <!-- Date Filter Toolbar -->
+      <div class="history-filter-bar">
+        <div class="filter-presets-group">
+          <span class="filter-label">
+            <span>📅 กรองวันที่ใช้งาน:</span>
+          </span>
+          <button type="button" class="btn-filter-preset ${historyFilter.preset === 'all' ? 'active' : ''}" data-preset="all">
+            ทั้งหมด
+          </button>
+          <button type="button" class="btn-filter-preset ${historyFilter.preset === 'today' ? 'active' : ''}" data-preset="today">
+            วันนี้
+          </button>
+          <button type="button" class="btn-filter-preset ${historyFilter.preset === 'this_week' ? 'active' : ''}" data-preset="this_week">
+            สัปดาห์นี้
+          </button>
+          <button type="button" class="btn-filter-preset ${historyFilter.preset === 'this_month' ? 'active' : ''}" data-preset="this_month">
+            เดือนนี้
+          </button>
         </div>
 
-        <!-- Date Filter Toolbar -->
-        <div class="history-filter-bar">
-          <div class="filter-presets-group">
-            <span class="filter-label">
-              <span>📅 กรองวันที่ใช้งาน:</span>
-            </span>
-            <button type="button" class="btn-filter-preset ${historyFilter.preset === 'all' ? 'active' : ''}" data-preset="all">
-              ทั้งหมด
-            </button>
-            <button type="button" class="btn-filter-preset ${historyFilter.preset === 'today' ? 'active' : ''}" data-preset="today">
-              วันนี้
-            </button>
-            <button type="button" class="btn-filter-preset ${historyFilter.preset === 'this_week' ? 'active' : ''}" data-preset="this_week">
-              สัปดาห์นี้
-            </button>
-            <button type="button" class="btn-filter-preset ${historyFilter.preset === 'this_month' ? 'active' : ''}" data-preset="this_month">
-              เดือนนี้
-            </button>
+        <div class="filter-custom-range">
+          <div class="filter-date-field">
+            <label for="filter-start-date">ตั้งแต่:</label>
+            <input 
+              type="date" 
+              id="filter-start-date" 
+              class="form-control filter-date-input" 
+              value="${historyFilter.startDate}" 
+            />
           </div>
-
-          <div class="filter-custom-range">
-            <div class="filter-date-field">
-              <label for="filter-start-date">ตั้งแต่:</label>
-              <input 
-                type="date" 
-                id="filter-start-date" 
-                class="form-control filter-date-input" 
-                value="${historyFilter.startDate}" 
-              />
-            </div>
-            <div class="filter-date-field">
-              <label for="filter-end-date">ถึง:</label>
-              <input 
-                type="date" 
-                id="filter-end-date" 
-                class="form-control filter-date-input" 
-                value="${historyFilter.endDate}" 
-              />
-            </div>
-            ${isFiltered ? `
-              <button type="button" id="btn-clear-date-filter" class="btn-clear-filter" title="ล้างตัวกรองวันที่">
-                ✕ ล้างตัวกรอง
-              </button>
-            ` : ''}
+          <div class="filter-date-field">
+            <label for="filter-end-date">ถึง:</label>
+            <input 
+              type="date" 
+              id="filter-end-date" 
+              class="form-control filter-date-input" 
+              value="${historyFilter.endDate}" 
+            />
           </div>
+          ${isFiltered ? `
+            <button type="button" id="btn-clear-date-filter" class="btn-clear-filter" title="ล้างตัวกรองวันที่">
+              ✕ ล้างตัวกรอง
+            </button>
+          ` : ''}
         </div>
+      </div>
 
-        <div class="table-responsive">
-          <table class="bookings-list-table">
-            <thead>
+      <div class="filter-summary-row" style="margin-bottom: 0.75rem; font-size: 0.85rem; color: var(--slate-500);">
+        ${isFiltered ? `
+          แสดง <strong>${filteredBookings.length}</strong> จากทั้งหมด ${bookings.length} รายการ
+        ` : `
+          ทั้งหมด <strong>${bookings.length}</strong> รายการ
+        `}
+      </div>
+
+      <div class="table-responsive">
+        <table class="bookings-list-table">
+          <thead>
+            <tr>
+              <th>รหัสคำขอ</th>
+              <th>วันที่ใช้งาน & เวลา</th>
+              <th>ฝ่าย/แผนก & ผู้ขอ</th>
+              <th>รถที่ขอ / จัดสรร</th>
+              <th>ปลายทางหลัก</th>
+              <th>สถานะคำขอ</th>
+              <th style="text-align: center;">การจัดการ</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredBookings.length === 0 ? `
               <tr>
-                <th>รหัสคำขอ</th>
-                <th>วันที่ใช้งาน & เวลา</th>
-                <th>ฝ่าย/แผนก & ผู้ขอ</th>
-                <th>รถที่ขอ / จัดสรร</th>
-                <th>ปลายทางหลัก</th>
-                <th>สถานะคำขอ</th>
-                <th style="text-align: center;">การจัดการ</th>
+                <td colspan="7" style="text-align: center; padding: 3rem 1rem;">
+                  <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">📅</div>
+                  <div style="font-weight: 600; font-size: 1.05rem; color: var(--slate-700); margin-bottom: 4px;">
+                    ไม่พบประวัติการขอใช้รถในช่วงวันที่เลือก
+                  </div>
+                  <p style="font-size: 0.85rem; color: var(--slate-400); margin-bottom: 1rem;">
+                    ลองเปลี่ยนช่วงวันที่ หรือคลิกปุ่มด้านล่างเพื่อแสดงรายการทั้งหมด
+                  </p>
+                  <button type="button" id="btn-reset-filter-inline" class="btn-secondary-sm" style="padding: 6px 14px;">
+                    🔄 แสดงประวัติทั้งหมด
+                  </button>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              ${filteredBookings.length === 0 ? `
+            ` : filteredBookings.map(b => {
+              const usageThai = formatThaiDate(b.usageDate);
+              const firstDest = (b.itinerary && b.itinerary[0] && b.itinerary[0].destination) ? b.itinerary[0].destination : '-';
+              return `
                 <tr>
-                  <td colspan="7" style="text-align: center; padding: 3rem 1rem;">
-                    <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">📅</div>
-                    <div style="font-weight: 600; font-size: 1.05rem; color: var(--slate-700); margin-bottom: 4px;">
-                      ไม่พบประวัติการขอใช้รถในช่วงวันที่เลือก
+                  <td>
+                    <strong style="color: #1e40af;">${b.id}</strong>
+                  </td>
+                  <td>
+                    <div><strong>${usageThai.short}</strong></div>
+                    <div style="font-size: 0.78rem; color: var(--slate-500);">${b.startTime} - ${b.endTime} น.</div>
+                  </td>
+                  <td>
+                    <div>${b.bookerName}</div>
+                    <div style="font-size: 0.75rem; color: var(--slate-400);">${b.department}</div>
+                  </td>
+                  <td>
+                    <div style="max-width: 180px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+                      ${b.assignedVehicle || b.requestedVehicle || '-'}
                     </div>
-                    <p style="font-size: 0.85rem; color: var(--slate-400); margin-bottom: 1rem;">
-                      ลองเปลี่ยนช่วงวันที่ หรือคลิกปุ่มด้านล่างเพื่อแสดงรายการทั้งหมด
-                    </p>
-                    <button type="button" id="btn-reset-filter-inline" class="btn-secondary-sm" style="padding: 6px 14px;">
-                      🔄 แสดงประวัติทั้งหมด
-                    </button>
+                    ${b.assignedDriver ? `
+                      <div style="font-size: 0.75rem; color: #059669;">
+                        🚗 ${b.assignedDriver}
+                      </div>
+                    ` : ''}
+                  </td>
+                  <td>
+                    <div style="max-width: 180px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+                      📍 ${firstDest}
+                    </div>
+                    ${b.itinerary && b.itinerary.length > 1 ? `
+                      <div style="font-size: 0.72rem; color: var(--slate-400);">(รวม ${b.itinerary.length} จุดหมาย)</div>
+                    ` : ''}
+                  </td>
+                  <td>
+                    <span class="status-badge ${b.status}">
+                      ${getStatusDot(b.status)}
+                      ${b.statusLabel || b.status}
+                    </span>
+                  </td>
+                  <td style="text-align: center;">
+                    <div style="display: flex; gap: 5px; justify-content: center;">
+                      <button class="btn-outline-blue btn-view-paper" data-id="${b.id}" style="padding: 4px 8px; font-size: 0.78rem;" title="ดูใบขออนุมัติทางการ">
+                        📄 ดูใบคำขอ
+                      </button>
+                      ${b.status === 'pending_approval' ? `
+                        <button class="btn-icon-danger btn-cancel-booking" data-id="${b.id}" style="width: 28px; height: 28px;" title="ยกเลิกคำขอ">
+                          ✕
+                        </button>
+                      ` : ''}
+                    </div>
                   </td>
                 </tr>
-              ` : filteredBookings.map(b => {
-                const usageThai = formatThaiDate(b.usageDate);
-                const firstDest = (b.itinerary && b.itinerary[0] && b.itinerary[0].destination) ? b.itinerary[0].destination : '-';
-                return `
-                  <tr>
-                    <td>
-                      <strong style="color: #1e40af;">${b.id}</strong>
-                    </td>
-                    <td>
-                      <div><strong>${usageThai.short}</strong></div>
-                      <div style="font-size: 0.78rem; color: var(--slate-500);">${b.startTime} - ${b.endTime} น.</div>
-                    </td>
-                    <td>
-                      <div>${b.bookerName}</div>
-                      <div style="font-size: 0.75rem; color: var(--slate-400);">${b.department}</div>
-                    </td>
-                    <td>
-                      <div style="max-width: 180px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
-                        ${b.assignedVehicle || b.requestedVehicle || '-'}
-                      </div>
-                      ${b.assignedDriver ? `
-                        <div style="font-size: 0.75rem; color: #059669;">
-                          🚗 ${b.assignedDriver}
-                        </div>
-                      ` : ''}
-                    </td>
-                    <td>
-                      <div style="max-width: 180px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
-                        📍 ${firstDest}
-                      </div>
-                      ${b.itinerary && b.itinerary.length > 1 ? `
-                        <div style="font-size: 0.72rem; color: var(--slate-400);">(รวม ${b.itinerary.length} จุดหมาย)</div>
-                      ` : ''}
-                    </td>
-                    <td>
-                      <span class="status-badge ${b.status}">
-                        ${getStatusDot(b.status)}
-                        ${b.statusLabel || b.status}
-                      </span>
-                    </td>
-                    <td style="text-align: center;">
-                      <div style="display: flex; gap: 5px; justify-content: center;">
-                        <button class="btn-outline-blue btn-view-paper" data-id="${b.id}" style="padding: 4px 8px; font-size: 0.78rem;" title="ดูใบขออนุมัติทางการ">
-                          📄 ดูใบคำขอ
-                        </button>
-                        ${b.status === 'pending_approval' ? `
-                          <button class="btn-icon-danger btn-cancel-booking" data-id="${b.id}" style="width: 28px; height: 28px;" title="ยกเลิกคำขอ">
-                            ✕
-                          </button>
-                        ` : ''}
-                      </div>
-                    </td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
       </div>
     `;
   }
@@ -711,6 +953,84 @@ export function renderBookerView(container) {
     if (histTabBtn) histTabBtn.addEventListener('click', () => { activeSubTab = 'history'; render(); });
     if (goToFormBtn) goToFormBtn.addEventListener('click', () => { activeSubTab = 'form'; render(); });
     if (createNewTopBtn) createNewTopBtn.addEventListener('click', () => { activeSubTab = 'form'; render(); });
+
+    // History View Mode (Calendar vs Table)
+    const btnCal = document.getElementById('btn-view-calendar');
+    const btnTbl = document.getElementById('btn-view-table');
+    if (btnCal) btnCal.addEventListener('click', () => { historyViewMode = 'calendar'; render(); });
+    if (btnTbl) btnTbl.addEventListener('click', () => { historyViewMode = 'table'; render(); });
+
+    // Calendar Navigation Controls
+    const btnCalPrev = document.getElementById('btn-cal-prev');
+    const btnCalNext = document.getElementById('btn-cal-next');
+    const btnCalToday = document.getElementById('btn-cal-today');
+
+    if (btnCalPrev) {
+      btnCalPrev.addEventListener('click', () => {
+        calendarMonth--;
+        if (calendarMonth < 0) {
+          calendarMonth = 11;
+          calendarYear--;
+        }
+        render();
+      });
+    }
+
+    if (btnCalNext) {
+      btnCalNext.addEventListener('click', () => {
+        calendarMonth++;
+        if (calendarMonth > 11) {
+          calendarMonth = 0;
+          calendarYear++;
+        }
+        render();
+      });
+    }
+
+    if (btnCalToday) {
+      btnCalToday.addEventListener('click', () => {
+        const now = new Date();
+        calendarYear = now.getFullYear();
+        calendarMonth = now.getMonth();
+        selectedCalendarDate = todayIso;
+        render();
+      });
+    }
+
+    // Day Cell Selection
+    container.querySelectorAll('.cal-cell').forEach(cell => {
+      cell.addEventListener('click', (e) => {
+        if (e.target.closest('.cal-event-pill')) return;
+        const date = cell.getAttribute('data-date');
+        if (date) {
+          selectedCalendarDate = date;
+          render();
+        }
+      });
+    });
+
+    // Event Pill Click -> Open Paper Modal
+    container.querySelectorAll('.cal-event-pill').forEach(pill => {
+      pill.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = pill.getAttribute('data-booking-id');
+        const b = getAllBookings().find(x => x.id === id);
+        if (b) renderPaperModal(b);
+      });
+    });
+
+    // Book for selected date button
+    container.querySelectorAll('.btn-book-for-date').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const date = btn.getAttribute('data-date');
+        if (date) {
+          currentUsageDate = date;
+        }
+        activeSubTab = 'form';
+        render();
+      });
+    });
 
     // History actions
     container.querySelectorAll('.btn-view-paper').forEach(btn => {
