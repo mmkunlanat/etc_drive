@@ -534,6 +534,19 @@ body {
   border-bottom-right-radius: 0;
 }
 
+.time-input-24h {
+  font-family: var(--font-sans);
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.form-table .input-group {
+  display: flex;
+  align-items: center;
+  min-width: 95px;
+}
+
 /* ==========================================================================
    Itinerary Table (ตารางรายละเอียดการใช้รถ - รายการ 1-6)
    ========================================================================== */

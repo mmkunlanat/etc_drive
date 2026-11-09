@@ -28,12 +28,94 @@ export function renderBookerView(container) {
     { no: 1, detail: '', time: '', passengers: '', note: '', destination: '' }
   ];
 
+  function normalize24hTime(val) {
+    if (!val || typeof val !== 'string') return '';
+    const clean = val.trim();
+    if (!clean) return '';
+
+    // H:mm or HH:mm
+    const matchColon = clean.match(/^(\d{1,2}):(\d{1,2})$/);
+    if (matchColon) {
+      let h = parseInt(matchColon[1], 10);
+      let m = parseInt(matchColon[2], 10);
+      if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      }
+    }
+
+    // 3 or 4 digits without colon (e.g. 830, 0830, 1430)
+    const matchDigits = clean.match(/^(\d{1,2})(\d{2})$/);
+    if (matchDigits) {
+      let h = parseInt(matchDigits[1], 10);
+      let m = parseInt(matchDigits[2], 10);
+      if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      }
+    }
+
+    // Single or double digit hour (e.g. 8, 9, 14)
+    const matchSingleH = clean.match(/^(\d{1,2})$/);
+    if (matchSingleH) {
+      let h = parseInt(matchSingleH[1], 10);
+      if (h >= 0 && h <= 23) {
+        return `${String(h).padStart(2, '0')}:00`;
+      }
+    }
+
+    return clean;
+  }
+
+  function render24hDatalist() {
+    const times = [];
+    for (let h = 0; h < 24; h++) {
+      const hh = String(h).padStart(2, '0');
+      times.push(`${hh}:00`);
+      times.push(`${hh}:30`);
+    }
+    return `
+      <datalist id="time-list-24h">
+        ${times.map(t => `<option value="${t}">${t} น.</option>`).join('')}
+      </datalist>
+    `;
+  }
+
+  function bind24hTimeInputs(scope) {
+    const root = scope || container;
+    root.querySelectorAll('.time-input-24h').forEach(input => {
+      if (input.dataset.bound24h) return;
+      input.dataset.bound24h = 'true';
+
+      input.addEventListener('input', (e) => {
+        let val = input.value.replace(/[^\d:]/g, '');
+        if (val.length === 2 && !val.includes(':') && e.inputType !== 'deleteContentBackward') {
+          val = val + ':';
+        }
+        if (val.length > 5) val = val.slice(0, 5);
+        input.value = val;
+      });
+
+      input.addEventListener('blur', () => {
+        if (input.value) {
+          const norm = normalize24hTime(input.value);
+          input.value = norm;
+          if (/^([01]\d|2[0-3]):[0-5]\d$/.test(norm)) {
+            input.classList.remove('input-invalid');
+          } else {
+            input.classList.add('input-invalid');
+          }
+        } else {
+          input.classList.remove('input-invalid');
+        }
+      });
+    });
+  }
+
   function parseNote(note) {
     if (!note || typeof note !== 'string') return { time: '', passengers: '' };
     let time = '';
     let passengers = '';
     const timeMatch = note.match(/(\d{1,2}:\d{2})/);
-    if (timeMatch) time = timeMatch[1];
+    if (timeMatch) time = normalize24hTime(timeMatch[1]);
     const passMatch = note.match(/(\d+)\s*คน/);
     if (passMatch) {
       passengers = passMatch[1];
@@ -199,10 +281,20 @@ export function renderBookerView(container) {
             <div class="form-group">
               <label class="form-label" for="startTime">
                 <span>⏰ ตั้งแต่เวลา</span>
-                <span class="required">*</span>
+                <span class="required">* (24 ชม.)</span>
               </label>
               <div class="input-group">
-                <input type="time" id="startTime" class="form-control" value="08:30" required />
+                <input 
+                  type="text" 
+                  id="startTime" 
+                  class="form-control time-input-24h" 
+                  value="08:30" 
+                  placeholder="08:30" 
+                  maxlength="5"
+                  list="time-list-24h"
+                  autocomplete="off"
+                  required 
+                />
                 <span class="input-addon">น.</span>
               </div>
             </div>
@@ -210,15 +302,28 @@ export function renderBookerView(container) {
             <div class="form-group">
               <label class="form-label" for="endTime">
                 <span>⏰ ถึงเวลา</span>
-                <span class="required">*</span>
+                <span class="required">* (24 ชม.)</span>
               </label>
               <div class="input-group">
-                <input type="time" id="endTime" class="form-control" value="17:00" required />
+                <input 
+                  type="text" 
+                  id="endTime" 
+                  class="form-control time-input-24h" 
+                  value="17:00" 
+                  placeholder="17:00" 
+                  maxlength="5"
+                  list="time-list-24h"
+                  autocomplete="off"
+                  required 
+                />
                 <span class="input-addon">น.</span>
               </div>
             </div>
 
           </div>
+
+          <!-- 24-Hour Time Datalist Preset -->
+          ${render24hDatalist()}
 
           <!-- Itinerary Table (ตารางรายละเอียดการใช้รถ 1 - 6) -->
           <div class="itinerary-section">
@@ -249,7 +354,7 @@ export function renderBookerView(container) {
                   <tr>
                     <th style="width: 55px; text-align: center;">ลำดับที่</th>
                     <th>รายละเอียด (ภารกิจ / สิ่งของ / วัตถุประสงค์) <span class="required" style="color: #dc2626;">* (บังคับ)</span></th>
-                    <th style="width: 125px;">⏰ เวลา</th>
+                    <th style="width: 135px;">⏰ เวลา (24 ชม.)</th>
                     <th style="width: 110px;">👥 จำนวนคน</th>
                     <th style="width: 260px;">สถานที่ (ปลายทาง / จุดแวะ) <span class="required" style="color: #dc2626;">* (บังคับ)</span></th>
                     <th style="width: 50px; text-align: center;">ลบ</th>
@@ -332,9 +437,13 @@ export function renderBookerView(container) {
         <td>
           <div class="input-group">
             <input 
-              type="time" 
-              class="form-control row-time" 
+              type="text" 
+              class="form-control row-time time-input-24h" 
               value="${time}" 
+              placeholder="09:00"
+              maxlength="5"
+              list="time-list-24h"
+              autocomplete="off"
             />
             <span class="input-addon">น.</span>
           </div>
@@ -622,6 +731,8 @@ export function renderBookerView(container) {
           }
         });
       });
+      // Bind 24-hour time formatting & validation
+      bind24hTimeInputs(container);
     }
     attachRowEvents();
 
@@ -635,7 +746,7 @@ export function renderBookerView(container) {
         const destInput = tr.querySelector('.row-destination');
 
         const detail = detailInput ? detailInput.value : '';
-        const time = timeInput ? timeInput.value : '';
+        const time = timeInput ? normalize24hTime(timeInput.value) : '';
         const passengers = passInput ? passInput.value : '';
         const destination = destInput ? destInput.value : '';
 
@@ -803,7 +914,27 @@ export function renderBookerView(container) {
           return;
         }
 
+        // Validate 24-hour time format for startTime and endTime
+        const startTimeInput = document.getElementById('startTime');
+        const endTimeInput = document.getElementById('endTime');
+        const sTime = normalize24hTime(startTimeInput ? startTimeInput.value : '');
+        const eTime = normalize24hTime(endTimeInput ? endTimeInput.value : '');
+
+        const isValidTime = (t) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
+        if (!isValidTime(sTime)) {
+          alert('กรุณาระบุ "ตั้งแต่เวลา" ให้ถูกต้องในรูปแบบ 24 ชั่วโมง เช่น 08:30 หรือ 13:00 (00:00 - 23:59)');
+          if (startTimeInput) startTimeInput.focus();
+          return;
+        }
+        if (!isValidTime(eTime)) {
+          alert('กรุณาระบุ "ถึงเวลา" ให้ถูกต้องในรูปแบบ 24 ชั่วโมง เช่น 17:00 หรือ 18:30 (00:00 - 23:59)');
+          if (endTimeInput) endTimeInput.focus();
+          return;
+        }
+
         const data = getFormData();
+        data.startTime = sTime;
+        data.endTime = eTime;
         data.itinerary = validRows;
         
         const created = createBooking(data);
@@ -1059,8 +1190,17 @@ export function renderBookerView(container) {
           <td>
             <input type="text" class="form-control tpl-row-detail" placeholder="เช่น ไปพบลูกค้าเพื่อส่งมอบสัญญา" value="${r.detail || ''}" required />
           </td>
-          <td style="width: 105px;">
-            <input type="time" class="form-control tpl-row-time" value="${r.time || ''}" />
+          <td style="width: 110px;">
+            <input 
+              type="text" 
+              class="form-control tpl-row-time time-input-24h" 
+              value="${r.time || ''}" 
+              placeholder="09:00"
+              maxlength="5"
+              list="time-list-24h"
+              autocomplete="off"
+              style="text-align: center;"
+            />
           </td>
           <td style="width: 95px;">
             <input type="number" class="form-control tpl-row-passengers" min="1" max="100" placeholder="0" value="${r.passengers || ''}" />
@@ -1122,7 +1262,7 @@ export function renderBookerView(container) {
                   <tr>
                     <th style="width: 45px; text-align: center;">ลำดับ</th>
                     <th>ภารกิจ/รายละเอียด <span class="required" style="color: #dc2626;">*</span></th>
-                    <th style="width: 105px;">⏰ เวลา</th>
+                    <th style="width: 110px;">⏰ เวลา (24 ชม.)</th>
                     <th style="width: 95px;">👥 จำนวน</th>
                     <th style="width: 190px;">📍 สถานที่ <span class="required" style="color: #dc2626;">*</span></th>
                     <th style="width: 40px; text-align: center;">ลบ</th>
@@ -1162,7 +1302,8 @@ export function renderBookerView(container) {
       const rows = [];
       trs.forEach((tr, i) => {
         const detail = tr.querySelector('.tpl-row-detail')?.value || '';
-        const time = tr.querySelector('.tpl-row-time')?.value || '';
+        const timeInput = tr.querySelector('.tpl-row-time');
+        const time = timeInput ? normalize24hTime(timeInput.value) : '';
         const passengers = tr.querySelector('.tpl-row-passengers')?.value || '';
         const destination = tr.querySelector('.tpl-row-destination')?.value || '';
         const note = [time ? `${time} น.` : '', passengers ? `${passengers} คน` : ''].filter(Boolean).join(' / ');
@@ -1175,6 +1316,7 @@ export function renderBookerView(container) {
       const tbody = document.getElementById('tpl-editor-tbody');
       if (!tbody) return;
       tbody.innerHTML = renderEditorRowsHtml();
+      bind24hTimeInputs(backdrop);
 
       tbody.querySelectorAll('.btn-tpl-delete-row').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -1233,8 +1375,10 @@ export function renderBookerView(container) {
     const bookingDate = (bookingDateInput && bookingDateInput.value) || currentBookingDate || todayIso;
     const usageDateInput = document.getElementById('usageDate');
     const usageDate = (usageDateInput && usageDateInput.value) || currentUsageDate || defaultUsageIso;
-    const startTime = document.getElementById('startTime')?.value || '08:30';
-    const endTime = document.getElementById('endTime')?.value || '17:00';
+    const startTimeInput = document.getElementById('startTime');
+    const startTime = (startTimeInput && normalize24hTime(startTimeInput.value)) || '08:30';
+    const endTimeInput = document.getElementById('endTime');
+    const endTime = (endTimeInput && normalize24hTime(endTimeInput.value)) || '17:00';
     const bookerName = document.getElementById('bookerName')?.value || 'สมชาย รักบริการ';
     const bookerPhone = document.getElementById('bookerPhone')?.value || '081-999-1234';
     const department = document.getElementById('department')?.value || 'ฝ่ายขายและการตลาด';
