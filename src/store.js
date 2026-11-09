@@ -328,6 +328,94 @@ export function resetToSeedData() {
   return seed;
 }
 
+// Quick Templates Store
+const QUICK_TEMPLATES_KEY = 'car_booking_quick_templates_v1';
+
+export const DEFAULT_QUICK_TEMPLATES = [
+  {
+    id: 'tpl_customer',
+    name: '🤝 พบลูกค้า',
+    rows: [
+      { no: 1, detail: 'เดินทางไปพบลูกค้าเพื่อส่งมอบสัญญาและประชุมนำเสนอโครงการ', time: '10:00', passengers: '3', note: '10:00 น. / 3 คน', destination: 'นิคมอุตสาหกรรมบางปู จ.สมุทรปราการ' },
+      { no: 2, detail: 'เดินทางกลับสำนักงานใหญ่', time: '14:30', passengers: '3', note: '14:30 น. / 3 คน', destination: 'สำนักงานใหญ่ พระราม 9' }
+    ]
+  },
+  {
+    id: 'tpl_airport',
+    name: '✈️ สนามบิน',
+    rows: [
+      { no: 1, detail: 'ไปรับผู้บริหารและคณะดูงานจากต่างประเทศ', time: '09:30', passengers: '4', note: '09:30 น. / 4 คน', destination: 'สนามบินสุวรรณภูมิ ประตู 4' },
+      { no: 2, detail: 'ส่งคณะผู้บริหารเข้าที่พักและศูนย์ประชุม', time: '13:00', passengers: '4', note: '13:00 น. / 4 คน', destination: 'โรงแรม แกรนด์ เซนเตอร์พอยต์ เพลินจิต' }
+    ]
+  },
+  {
+    id: 'tpl_cargo',
+    name: '📦 ส่งของ',
+    rows: [
+      { no: 1, detail: 'ขนส่งอุปกรณ์เครื่องมือและอะไหล่ซ่อมบำรุง', time: '08:30', passengers: '2', note: '08:30 น. / 2 คน', destination: 'คลังสินค้า บางนา กม.19' },
+      { no: 2, detail: 'นำส่งเอกสารตรวจรับสินค้า', time: '13:30', passengers: '2', note: '13:30 น. / 2 คน', destination: 'สาขานิคมพัฒนา จ.ระยอง' }
+    ]
+  }
+];
+
+export function getQuickTemplates() {
+  try {
+    const raw = localStorage.getItem(QUICK_TEMPLATES_KEY);
+    if (!raw) {
+      localStorage.setItem(QUICK_TEMPLATES_KEY, JSON.stringify(DEFAULT_QUICK_TEMPLATES));
+      return DEFAULT_QUICK_TEMPLATES;
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_QUICK_TEMPLATES;
+  } catch (e) {
+    console.error('Error reading quick templates', e);
+    return DEFAULT_QUICK_TEMPLATES;
+  }
+}
+
+export function saveQuickTemplates(templates) {
+  try {
+    localStorage.setItem(QUICK_TEMPLATES_KEY, JSON.stringify(templates));
+    window.dispatchEvent(new CustomEvent('quick_templates_updated', { detail: templates }));
+  } catch (e) {
+    console.error('Error saving quick templates', e);
+  }
+}
+
+export function addQuickTemplate(tpl) {
+  const templates = getQuickTemplates();
+  const newTpl = {
+    ...tpl,
+    id: tpl.id || `tpl_${Date.now()}`
+  };
+  templates.push(newTpl);
+  saveQuickTemplates(templates);
+  return newTpl;
+}
+
+export function updateQuickTemplate(id, updatedFields) {
+  const templates = getQuickTemplates();
+  const idx = templates.findIndex(t => t.id === id);
+  if (idx !== -1) {
+    templates[idx] = { ...templates[idx], ...updatedFields };
+    saveQuickTemplates(templates);
+    return templates[idx];
+  }
+  return null;
+}
+
+export function deleteQuickTemplate(id) {
+  let templates = getQuickTemplates();
+  templates = templates.filter(t => t.id !== id);
+  saveQuickTemplates(templates);
+  return templates;
+}
+
+export function resetQuickTemplates() {
+  saveQuickTemplates(DEFAULT_QUICK_TEMPLATES);
+  return DEFAULT_QUICK_TEMPLATES;
+}
+
 // Current active role
 export function getActiveRole() {
   return localStorage.getItem(CURRENT_ROLE_KEY) || 'booker';

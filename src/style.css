@@ -587,6 +587,55 @@ body {
   background: rgba(255, 255, 255, 0.3);
 }
 
+.form-table .input-group .input-addon {
+  padding: 0.55rem 0.55rem;
+  font-size: 0.78rem;
+}
+
+.form-table .form-control {
+  padding: 0.55rem 0.65rem;
+  font-size: 0.85rem;
+}
+
+.tpl-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-md);
+  margin-bottom: 0.6rem;
+  gap: 12px;
+}
+
+.tpl-list-item:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.tpl-info h4 {
+  margin: 0 0 4px 0;
+  font-size: 0.95rem;
+  color: var(--slate-800);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tpl-info p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--slate-500);
+}
+
+.tpl-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .table-responsive {
   overflow-x: auto;
   width: 100%;

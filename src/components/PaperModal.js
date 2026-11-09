@@ -12,11 +12,12 @@ export function renderPaperModal(booking, onClose) {
   const rows = [];
   const maxRows = 6;
   for (let i = 0; i < maxRows; i++) {
-    const item = (booking.itinerary && booking.itinerary[i]) || { detail: '', note: '', destination: '' };
+    const item = (booking.itinerary && booking.itinerary[i]) || { detail: '', note: '', time: '', passengers: '', destination: '' };
+    const noteText = item.note || [item.time ? `${item.time} น.` : '', item.passengers ? `${item.passengers} คน` : ''].filter(Boolean).join(' / ');
     rows.push({
       no: i + 1,
       detail: item.detail || '',
-      note: item.note || '',
+      note: noteText,
       destination: item.destination || ''
     });
   }
