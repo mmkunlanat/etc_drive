@@ -348,6 +348,101 @@ body {
   display: none;
 }
 
+/* History Date Filter Bar */
+.history-filter-bar {
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.filter-presets-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--slate-600);
+  margin-right: 2px;
+}
+
+.btn-filter-preset {
+  background: var(--white);
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  color: var(--slate-700);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--font-sans);
+}
+
+.btn-filter-preset:hover {
+  background: var(--slate-100);
+  border-color: var(--slate-300);
+}
+
+.btn-filter-preset.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25);
+}
+
+.filter-custom-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-date-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.filter-date-field label {
+  font-size: 0.8rem;
+  color: var(--slate-500);
+}
+
+.filter-date-input {
+  padding: 4px 8px !important;
+  font-size: 0.82rem !important;
+  width: 135px !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+.btn-clear-filter {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--font-sans);
+}
+
+.btn-clear-filter:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
 /* Card Container */
 .content-card {
   background: var(--white);

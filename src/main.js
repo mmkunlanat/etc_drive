@@ -48,7 +48,7 @@ function initApp() {
           </button>
 
           <button id="role-btn-admin" class="role-tab-btn ${currentRole === 'admin' ? 'active' : ''}" data-role="admin">
-            <span> แอดมิน/จัดรถ (Admin)</span>
+            <span> แอดมิน (Admin)</span>
             ${pendingDispatch > 0 ? `<span class="role-badge" style="background: #f59e0b; color: #fff;">${pendingDispatch}</span>` : ''}
           </button>
         </nav>
