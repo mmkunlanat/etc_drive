@@ -577,8 +577,8 @@ export function renderBookerView(container) {
         <div class="card-header-flex">
           <div class="card-title-group">
             <h2>
-              <span>📅</span>
-              <span>ปฏิทินการใช้รถ</span>
+              <span>📋</span>
+              <span>ประวัติการจองของฉัน</span>
             </h2>
             <p>ติดตามตารางการใช้รถ ตรวจสอบสถานะคำขอ และพิมพ์แบบฟอร์ม</p>
           </div>
@@ -757,75 +757,21 @@ export function renderBookerView(container) {
     const isFiltered = Boolean(historyFilter.startDate || historyFilter.endDate || historyFilter.preset !== 'all');
 
     return `
-      <!-- Date Filter Toolbar -->
-      <div class="history-filter-bar">
-        <div class="filter-presets-group">
-          <span class="filter-label">
-            <span>📅 กรองวันที่ใช้งาน:</span>
-          </span>
-          <button type="button" class="btn-filter-preset ${historyFilter.preset === 'all' ? 'active' : ''}" data-preset="all">
-            ทั้งหมด
-          </button>
-          <button type="button" class="btn-filter-preset ${historyFilter.preset === 'today' ? 'active' : ''}" data-preset="today">
-            วันนี้
-          </button>
-          <button type="button" class="btn-filter-preset ${historyFilter.preset === 'this_week' ? 'active' : ''}" data-preset="this_week">
-            สัปดาห์นี้
-          </button>
-          <button type="button" class="btn-filter-preset ${historyFilter.preset === 'this_month' ? 'active' : ''}" data-preset="this_month">
-            เดือนนี้
-          </button>
-          <button type="button" id="btn-open-cal-filter" class="btn-filter-preset btn-cal-filter-trigger" title="เปิดปฏิทินแบบป๊อบอัพเพื่อเลือกวันที่">
-            📅 ปฏิทินการใช้รถ
-          </button>
-        </div>
-
-        <div class="filter-custom-range">
-          <div class="filter-date-field">
-            <label for="filter-start-date">ตั้งแต่:</label>
-            <input 
-              type="date" 
-              id="filter-start-date" 
-              class="form-control filter-date-input" 
-              value="${historyFilter.startDate}" 
-            />
-          </div>
-          <div class="filter-date-field">
-            <label for="filter-end-date">ถึง:</label>
-            <input 
-              type="date" 
-              id="filter-end-date" 
-              class="form-control filter-date-input" 
-              value="${historyFilter.endDate}" 
-            />
-          </div>
-          ${isFiltered ? `
-            <button type="button" id="btn-clear-date-filter" class="btn-clear-filter" title="ล้างตัวกรองวันที่">
-              ✕ ล้างตัวกรอง
-            </button>
-          ` : ''}
-        </div>
-      </div>
-
-      <div class="filter-summary-row" style="margin-bottom: 0.75rem; font-size: 0.85rem; color: var(--slate-600); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-        <div>
-          ${isFiltered ? `
-            <span>กำลังกรอง: แสดง <strong>${filteredBookings.length}</strong> จากทั้งหมด ${bookings.length} รายการ</span>
+      ${isFiltered ? `
+        <div class="filter-summary-row" style="margin-bottom: 0.85rem; font-size: 0.85rem; color: var(--slate-600); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; background: #eff6ff; border: 1px solid #bfdbfe; padding: 6px 12px; border-radius: var(--radius-sm);">
+          <div>
+            <span>กำลังแสดงเฉพาะ: <strong>${filteredBookings.length}</strong> จากทั้งหมด ${bookings.length} รายการ</span>
             ${(historyFilter.startDate && historyFilter.startDate === historyFilter.endDate) ? `
-              <span style="margin-left: 6px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem; font-weight: 600;">
-                📅 วันที่ ${formatThaiDate(historyFilter.startDate).short}
+              <span style="margin-left: 6px; font-weight: 600; color: #1e40af;">
+                (วันที่ ${formatThaiDate(historyFilter.startDate).short})
               </span>
             ` : ''}
-          ` : `
-            <span>ทั้งหมด <strong>${bookings.length}</strong> รายการ</span>
-          `}
-        </div>
-        ${isFiltered ? `
-          <button type="button" id="btn-reset-filter-text" class="btn-clear-filter" style="font-size: 0.78rem;">
+          </div>
+          <button type="button" id="btn-reset-filter-text" class="btn-clear-filter" style="font-size: 0.78rem; padding: 2px 8px;">
             ✕ แสดงทั้งหมด
           </button>
-        ` : ''}
-      </div>
+        </div>
+      ` : ''}
 
       <div class="table-responsive">
         <table class="bookings-list-table">
@@ -944,14 +890,6 @@ export function renderBookerView(container) {
     const btnOpenCalModal = document.getElementById('btn-open-cal-modal');
     if (btnOpenCalModal) {
       btnOpenCalModal.addEventListener('click', () => {
-        showCalendarModal = true;
-        render();
-      });
-    }
-
-    const btnOpenCalFilter = document.getElementById('btn-open-cal-filter');
-    if (btnOpenCalFilter) {
-      btnOpenCalFilter.addEventListener('click', () => {
         showCalendarModal = true;
         render();
       });
@@ -1079,59 +1017,6 @@ export function renderBookerView(container) {
         if (b) renderPaperModal(b);
       });
     });
-
-    // History Date Filter Presets & Inputs
-    container.querySelectorAll('.btn-filter-preset').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const preset = btn.getAttribute('data-preset');
-        historyFilter.preset = preset;
-        if (preset === 'today') {
-          historyFilter.startDate = todayIso;
-          historyFilter.endDate = todayIso;
-        } else if (preset === 'this_week') {
-          const w = getWeekRange(todayIso);
-          historyFilter.startDate = w.start;
-          historyFilter.endDate = w.end;
-        } else if (preset === 'this_month') {
-          const m = getMonthRange(todayIso);
-          historyFilter.startDate = m.start;
-          historyFilter.endDate = m.end;
-        } else {
-          historyFilter.startDate = '';
-          historyFilter.endDate = '';
-        }
-        render();
-      });
-    });
-
-    const filterStartInput = document.getElementById('filter-start-date');
-    const filterEndInput = document.getElementById('filter-end-date');
-
-    const onDateInputChange = () => {
-      historyFilter.startDate = filterStartInput ? filterStartInput.value : '';
-      historyFilter.endDate = filterEndInput ? filterEndInput.value : '';
-      historyFilter.preset = 'custom';
-      render();
-    };
-
-    if (filterStartInput) filterStartInput.addEventListener('change', onDateInputChange);
-    if (filterEndInput) filterEndInput.addEventListener('change', onDateInputChange);
-
-    const clearDateFilterBtn = document.getElementById('btn-clear-date-filter');
-    if (clearDateFilterBtn) {
-      clearDateFilterBtn.addEventListener('click', () => {
-        historyFilter = { preset: 'all', startDate: '', endDate: '' };
-        render();
-      });
-    }
-
-    const resetFilterInlineBtn = document.getElementById('btn-reset-filter-inline');
-    if (resetFilterInlineBtn) {
-      resetFilterInlineBtn.addEventListener('click', () => {
-        historyFilter = { preset: 'all', startDate: '', endDate: '' };
-        render();
-      });
-    }
 
     container.querySelectorAll('.btn-cancel-booking').forEach(btn => {
       btn.addEventListener('click', () => {
