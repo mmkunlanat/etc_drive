@@ -42,7 +42,7 @@ export function formatThaiDate(isoDateStr) {
     month = d.getMonth() + 1;
     day = d.getDate();
   }
-  
+
   const thaiMonths = [
     'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
@@ -74,7 +74,7 @@ export function validateBookingAdvance(bookingDateStr, usageDateStr) {
 
   const bookingDate = new Date(bookingDateStr + 'T00:00:00');
   const usageDate = new Date(usageDateStr + 'T00:00:00');
-  
+
   // Calculate difference in days
   const diffTime = usageDate.getTime() - bookingDate.getTime();
   const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
@@ -188,12 +188,12 @@ function getInitialSeedBookings() {
       bookerPhone: '081-999-1234',
       department: 'ฝ่ายขายและการตลาด',
       requestedVehicle: 'รถตู้ส่วนกลาง (Toyota Commuter 13 ที่นั่ง)',
-      assignedVehicle: 'รถตู้ส่วนกลาง (Toyota Commuter ทะเบียน ฮภ-4521 กทม.)',
+      assignedVehicle: '',
       requestedDriver: 'ขอพนักงานขับรถของบริษัท',
-      assignedDriver: 'นายสมศักดิ์ ขับปลอดภัย (โทร. 081-234-5678)',
-      assignedDriverId: 'drv_1',
-      status: 'dispatched', // pending_approval -> approved -> dispatched -> completed / rejected
-      statusLabel: 'จัดรถและคนขับแล้ว (พร้อมเดินทาง)',
+      assignedDriver: '',
+      assignedDriverId: '',
+      status: 'approved', // pending_approval -> approved -> dispatched -> completed / rejected
+      statusLabel: 'อนุมัติแล้ว (รอจัดสรรรถ/ยืนยัน)',
       driverJobStatus: 'in_progress', // not_started, in_progress, completed
       itinerary: [
         { no: 1, detail: 'เดินทางไปพบลูกค้า บริษัท ไทยซัมมิท จำกัด เพื่อส่งมอบเอกสารสัญญา', note: '10:00 น. / 3 คน', destination: 'นิคมอุตสาหกรรมแหลมฉบัง จ.ชลบุรี' },
@@ -264,6 +264,69 @@ function getInitialSeedBookings() {
       approverRemark: 'อนุมัติตามระเบียบการรับรองแขกต่างประเทศ',
       adminSignature: '',
       createdAt: new Date().toISOString()
+    },
+    {
+      id: 'REQ-2026-004',
+      formCode: '',
+      bookingDate: yesterday,
+      usageDate: today,
+      startTime: '08:00',
+      endTime: '20:00',
+      bookerName: 'ลัดดา วงศ์สุวรรณ',
+      bookerPhone: '084-861-4388',
+      department: 'ฝ่ายบัญชีและธุรการ (ACC/OFF)',
+      requestedVehicle: 'รถเก๋งสำนักงาน',
+      assignedVehicle: '6กถ-1381 (เก๋ง)',
+      requestedDriver: 'ขอพนักงานขับรถของบริษัท',
+      assignedDriver: 'วัชรินทร์',
+      assignedDriverId: 'drv_5',
+      status: 'dispatched',
+      statusLabel: 'จัดรถแล้ว (ตารางจัดรถ)',
+      driverJobStatus: 'not_started',
+      itinerary: [
+        { no: 1, detail: 'ส่งเอกสาร บ.เอ-พลา ไฮเทค ต.บึง ศรีราชา', note: '', destination: 'ต.บึง ศรีราชา จ.ชลบุรี', dispatched: true, dispatchedToVehicle: '6กถ-1381 (เก๋ง)', dispatchedRowId: 'disp-row-1' },
+        { no: 2, detail: 'รับเช็ค บ.แน็ชเชอรัล อ.บ้านบึง ชลบุรี', note: '', destination: 'อ.บ้านบึง จ.ชลบุรี', dispatched: true, dispatchedToVehicle: '6กถ-1381 (เก๋ง)', dispatchedRowId: 'disp-row-1' },
+        { no: 3, detail: 'แจ้งหนี้+ส่งเล่มรายงาน บ.เพรซิเดนท์ เบเกอรี่ บางชัน กทม.เวลา 13.00-16.30 น.', note: 'เวลา 13.00-16.30 น.', destination: 'บางชัน กทม.', dispatched: true, dispatchedToVehicle: '6กถ-1381 (เก๋ง)', dispatchedRowId: 'disp-row-1' },
+        { no: 4, detail: '18.00 น. สแตนบายรับ เจ้าหน้าที่ STC 3 ท่าน ที่สนามบินสุวรรณภูมิ เครื่องลง 18.20 น. ติดต่อ K.ดา (STC) 084-8614388/ 081-7623726 รับไปส่งที่โรงแรมเอ็มเอส รีสอร์ท ศรีราชา', note: '18.00 น.', destination: 'สนามบินสุวรรณภูมิ -> โรงแรมเอ็มเอส รีสอร์ท ศรีราชา', dispatched: true, dispatchedToVehicle: '6กถ-1381 (เก๋ง)', dispatchedRowId: 'disp-row-1' }
+      ],
+      notes: 'ผู้จองร่วม: K.สุชานรี',
+      bookerSignature: 'ลัดดา วงศ์สุวรรณ',
+      approverSignature: 'สุชาดา บัญชีมั่นคง (ผู้จัดการฝ่ายบัญชี)',
+      approverRemark: 'อนุมัติการเดินทาง',
+      adminSignature: '',
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: 'REQ-2026-005',
+      formCode: '',
+      bookingDate: yesterday,
+      usageDate: today,
+      startTime: '06:30',
+      endTime: '17:30',
+      bookerName: 'ลัดดา วงศ์สุวรรณ',
+      bookerPhone: '084-861-4388',
+      department: 'ฝ่ายบัญชีและการเงิน (ACC)',
+      requestedVehicle: 'รถเก๋งสำนักงาน',
+      assignedVehicle: '6กถ-1382 (เก๋ง)',
+      requestedDriver: 'ขอพนักงานขับรถของบริษัท',
+      assignedDriver: 'ปิยะวัฒน์',
+      assignedDriverId: 'drv_2',
+      status: 'dispatched',
+      statusLabel: 'จัดรถแล้ว (ตารางจัดรถ)',
+      driverJobStatus: 'not_started',
+      itinerary: [
+        { no: 1, detail: 'ส่งผล+วางบิล บ.ยูมิคอร์ อ.บ้านค่าย ระยอง', note: '', destination: 'อ.บ้านค่าย ระยอง', dispatched: true, dispatchedToVehicle: '6กถ-1382 (เก๋ง)', dispatchedRowId: 'disp-row-2' },
+        { no: 2, detail: 'ส่งผล+วางบิล นิติเอสเซ็นระยอง 2 อ.เมือง ระยอง', note: '', destination: 'อ.เมือง ระยอง', dispatched: true, dispatchedToVehicle: '6กถ-1382 (เก๋ง)', dispatchedRowId: 'disp-row-2' },
+        { no: 3, detail: 'ส่งผล+วางบิล นิติบริกซ์ตันระยอง อ.เมือง ระยอง', note: '', destination: 'อ.เมือง ระยอง', dispatched: true, dispatchedToVehicle: '6กถ-1382 (เก๋ง)', dispatchedRowId: 'disp-row-2' },
+        { no: 4, detail: 'รับเช็ค นิติเอสเซ็นระยอง 1 และ รับเช็ค นิติศุภาลัยระยอง อ.เมือง ระยอง', note: '', destination: 'อ.เมือง ระยอง', dispatched: true, dispatchedToVehicle: '6กถ-1382 (เก๋ง)', dispatchedRowId: 'disp-row-2' },
+        { no: 5, detail: 'ส่งงาน+แจ้งหนี้ +วางบิล บ.สยามเอ็นไวรอน อ.ปลวกแดง / รับเช็ค บ.วิค อ.ปลวกแดง เวลา 13.00 - 17.00 น.', note: 'เวลา 13.00 - 17.00 น.', destination: 'อ.ปลวกแดง ระยอง', dispatched: true, dispatchedToVehicle: '6กถ-1382 (เก๋ง)', dispatchedRowId: 'disp-row-2' }
+      ],
+      notes: 'งานวางบิลและรับเช็คสายระยอง-ปลวกแดง',
+      bookerSignature: 'ลัดดา วงศ์สุวรรณ',
+      approverSignature: 'สุชาดา บัญชีมั่นคง (ผู้จัดการฝ่ายบัญชี)',
+      approverRemark: 'อนุมัติการเดินทาง',
+      adminSignature: '',
+      createdAt: new Date().toISOString()
     }
   ];
 }
@@ -278,6 +341,17 @@ export function getAllBookings() {
       return seed;
     }
     const bookings = JSON.parse(raw);
+    let hasMigration = false;
+    const seed = getInitialSeedBookings();
+    seed.forEach(s => {
+      if (!bookings.some(b => b.id === s.id)) {
+        bookings.push(s);
+        hasMigration = true;
+      }
+    });
+    if (hasMigration) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(bookings));
+    }
     return bookings.map(b => ({
       ...b,
       formCode: (b.formCode || '').replace(/FM-OFF-001[^\s]*/g, '').trim()
@@ -301,7 +375,7 @@ export function createBooking(data) {
   const bookings = getAllBookings();
   const nextIdNum = bookings.length + 1;
   const newId = `REQ-2026-${String(nextIdNum).padStart(3, '0')}`;
-  
+
   const newBooking = {
     id: newId,
     formCode: '',
@@ -482,7 +556,7 @@ export function getDefaultFleetDispatchRows() {
         'รับไปส่งที่โรงแรมเอ็มเอส รีสอร์ท ศรีราชา'
       ],
       comment: '',
-      linkedBookingIds: []
+      linkedBookingIds: ['REQ-2026-004']
     },
     {
       id: 'disp-row-2',
@@ -501,7 +575,7 @@ export function getDefaultFleetDispatchRows() {
         'รับเช็ค บ.วิค อ.ปลวกแดง เวลา 13.00 - 17.00 น.'
       ],
       comment: '',
-      linkedBookingIds: []
+      linkedBookingIds: ['REQ-2026-005']
     },
     {
       id: 'disp-row-3',

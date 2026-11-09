@@ -4,6 +4,7 @@
 import {
   formatThaiDate,
   getAllBookings,
+  saveAllBookings,
   updateBooking,
   VEHICLE_TYPES,
   DRIVER_POOL,
@@ -11,6 +12,7 @@ import {
   DISPATCH_DEPARTMENTS,
   getTodayISODate,
   addDaysToDate,
+  getAllDispatchSchedules,
   getDispatchSchedule,
   saveDispatchSchedule,
   getDefaultFleetDispatchRows
@@ -38,11 +40,13 @@ export function renderAdminView(container) {
   }
 
   loadSchedule();
+  syncBookingsWithSchedule();
 
   function render() {
+    syncBookingsWithSchedule();
     const thaiDate = formatThaiDate(selectedDate);
     const bookings = getAllBookings();
-    const pendingDispatchCount = bookings.filter(b => b.status === 'pending_approval' || b.status === 'approved').length;
+    const pendingDispatchCount = bookings.filter(b => b.status === 'pending_approval' || b.status === 'approved' || b.status === 'partially_dispatched').length;
 
     container.innerHTML = `
       <div class="dispatch-portal-container">
@@ -150,19 +154,19 @@ export function renderAdminView(container) {
                 </td>
               </tr>
             ` : (() => {
-              const defaultBookers = ['K.ลัดดา', 'K.สุชานรี', 'K.สมชาย', 'K.นฤมล', 'K.ภานุวัตร', 'K.วิภา'];
-              const allBookings = getAllBookings();
-              const bookerPool = [...defaultBookers];
-              allBookings.forEach(b => {
-                if (b.bookerName) {
-                  const f = formatBookerName(b.bookerName);
-                  if (f && !bookerPool.includes(f)) {
-                    bookerPool.push(f);
-                  }
-                }
-              });
-              return rows.map((row, index) => renderVehicleRowGroup(row, index, bookerPool)).join('');
-            })()}
+        const defaultBookers = ['K.ลัดดา', 'K.สุชานรี', 'K.สมชาย', 'K.นฤมล', 'K.ภานุวัตร', 'K.วิภา'];
+        const allBookings = getAllBookings();
+        const bookerPool = [...defaultBookers];
+        allBookings.forEach(b => {
+          if (b.bookerName) {
+            const f = formatBookerName(b.bookerName);
+            if (f && !bookerPool.includes(f)) {
+              bookerPool.push(f);
+            }
+          }
+        });
+        return rows.map((row, index) => renderVehicleRowGroup(row, index, bookerPool)).join('');
+      })()}
           </tbody>
         </table>
 
@@ -549,10 +553,10 @@ export function renderAdminView(container) {
                   </td>
                 </tr>
               ` : bookings.map(b => {
-                const uThai = formatThaiDate(b.usageDate);
-                const isNeedsDispatch = b.status === 'pending_approval' || b.status === 'approved';
+      const uThai = formatThaiDate(b.usageDate);
+      const isNeedsDispatch = b.status === 'pending_approval' || b.status === 'approved';
 
-                return `
+      return `
                   <tr style="${isNeedsDispatch ? 'background-color: #f0fdf4;' : ''}">
                     <td><strong style="color: #1e40af;">${b.id}</strong></td>
                     <td>
@@ -588,7 +592,7 @@ export function renderAdminView(container) {
                     </td>
                   </tr>
                 `;
-              }).join('')}
+    }).join('')}
             </tbody>
           </table>
         </div>
@@ -817,8 +821,15 @@ export function renderAdminView(container) {
         const targetRow = rows.find(r => r.id === rowId);
         if (targetRow && field) {
           targetRow[field] = val;
+          if (field === 'itineraryText' && val.trim() === '') {
+            releaseLinkedBookings(targetRow);
+            targetRow.linkedBookingIds = [];
+          }
           debounceAutoSave();
         }
+      });
+      box.addEventListener('blur', () => {
+        syncBookingsWithSchedule();
       });
     });
 
@@ -874,8 +885,11 @@ export function renderAdminView(container) {
       releaseLinkedBookings(row);
       row.showItineraryBox = false;
       row.itineraryText = '';
+      row.linkedBookingIds = [];
       saveCurrentSchedule();
+      syncBookingsWithSchedule();
       render();
+      showToast('✓ ล้างงานในแถวนี้แล้ว — งานเด้งกลับไปสถานะ "รอจัดสรร" เรียบร้อยแล้ว');
     } else if (action === 'toggle-comment') {
       if (!row.comment && !row.showCommentBox) {
         row.showCommentBox = true;
@@ -907,52 +921,262 @@ export function renderAdminView(container) {
         // re-index no
         rows.forEach((r, idx) => { r.no = String(idx + 1); });
         saveCurrentSchedule();
+        syncBookingsWithSchedule();
         render();
-        showToast('ลบแถวรถเรียบร้อยแล้ว');
+        showToast('✓ ลบแถวรถเรียบร้อยแล้ว — งานที่ลบออกเด้งกลับไปสถานะ "รอจัดสรร" เรียบร้อยแล้ว');
       }
     }
   }
 
   // Release jobs back to pool if a car row is cleared or deleted
   function releaseLinkedBookings(row) {
-    if (!row.linkedBookingIds || row.linkedBookingIds.length === 0) return;
     const allBookings = getAllBookings();
     let hasChanges = false;
-    row.linkedBookingIds.forEach(bId => {
-      const booking = allBookings.find(b => b.id === bId);
-      if (booking) {
+    const targetIds = row.linkedBookingIds || [];
+    let matchedAny = false;
+
+    allBookings.forEach(booking => {
+      const bookerFirstName = booking.bookerName ? booking.bookerName.replace(/^(นาย|นางสาว|นาง|คุณ|K\.)\s*/i, '').split(' ')[0] : '';
+      const hasIdMatch = targetIds.includes(booking.id);
+      const hasPlateMatch = row.plate && booking.assignedVehicle && (booking.assignedVehicle.includes(row.plate) || row.plate.includes(booking.assignedVehicle));
+      const hasBookerMatch = bookerFirstName && row.booker && row.booker.includes(bookerFirstName);
+      const hasItemMatch = (booking.itinerary || []).some(it => 
+        it.dispatchedRowId === row.id || 
+        it.dispatchedToVehicle === row.plate || 
+        (row.itineraryText && it.detail && row.itineraryText.includes(it.detail.trim().slice(0, 15)))
+      );
+
+      const isMatch = hasIdMatch || hasPlateMatch || hasBookerMatch || hasItemMatch;
+
+      if (isMatch) {
+        matchedAny = true;
         if (booking.itinerary && Array.isArray(booking.itinerary)) {
           booking.itinerary.forEach(it => {
-            if (it.dispatchedToVehicle === row.plate || it.dispatchedRowNo === row.no) {
+            if (isMatch || it.dispatchedRowId === row.id || it.dispatchedToVehicle === row.plate || it.dispatchedRowNo === row.no) {
               it.dispatched = false;
               delete it.dispatchedToVehicle;
               delete it.dispatchedDate;
               delete it.dispatchedRowNo;
-              hasChanges = true;
+              delete it.dispatchedRowId;
             }
           });
         }
+
         delete booking.isDispatchedDirectly;
-        booking.status = 'approved';
-        booking.statusLabel = 'อนุมัติแล้ว (รอจัดสรรรถ/ยืนยัน)';
+        booking.status = (booking.approverSignature || booking.statusLabel?.includes('อนุมัติ')) ? 'approved' : 'pending_approval';
+        booking.statusLabel = booking.status === 'approved' ? 'อนุมัติแล้ว (รอจัดสรรรถ/ยืนยัน)' : 'รอหัวหน้าฝ่ายอนุมัติ';
+        booking.assignedVehicle = '';
+        booking.assignedDriver = '';
+        booking.assignedDriverId = '';
         hasChanges = true;
       }
     });
+
+    // If this row had non-empty itinerary text and was not matched with any existing booking (e.g. manually entered)
+    // create a booking request so that the work bounces back and is NEVER lost!
+    if (!matchedAny && row.itineraryText && row.itineraryText.trim() !== '') {
+      const parsedItems = row.itineraryText.split('\n')
+        .flatMap(line => line.split('/'))
+        .map(t => t.trim())
+        .filter(t => t.length > 2)
+        .map((t, idx) => ({
+          no: idx + 1,
+          detail: t,
+          destination: '',
+          dispatched: false
+        }));
+
+      if (parsedItems.length > 0) {
+        const fallbackBooking = {
+          id: `REQ-${Date.now().toString().slice(-6)}`,
+          formCode: '',
+          bookingDate: selectedDate,
+          usageDate: selectedDate,
+          startTime: row.time ? row.time.replace('.', ':') : '08:30',
+          endTime: '17:00',
+          bookerName: row.booker ? row.booker.replace(/^K\./, '') : 'ผู้จอง (จากตารางจัดรถ)',
+          bookerPhone: '081-000-0000',
+          department: row.department || 'สำนักงาน',
+          requestedVehicle: row.plate || 'รถสำนักงาน',
+          assignedVehicle: '',
+          requestedDriver: 'ขอพนักงานขับรถของบริษัท',
+          assignedDriver: '',
+          assignedDriverId: '',
+          status: 'approved',
+          statusLabel: 'อนุมัติแล้ว (รอจัดสรรรถ/ยืนยัน)',
+          driverJobStatus: 'not_started',
+          itinerary: parsedItems,
+          notes: 'งานคืนกลับจากตารางจัดรถ',
+          createdAt: new Date().toISOString()
+        };
+        allBookings.push(fallbackBooking);
+        hasChanges = true;
+      }
+    }
+
     if (hasChanges) {
       saveAllBookings(allBookings);
     }
     row.linkedBookingIds = [];
   }
 
+  // Synchronize bookings status with current dispatch schedules:
+  // If a booking or job is not currently present in any car row in the schedule, it MUST bounce back to "รอจัด"!
+  function syncBookingsWithSchedule() {
+    const allBookings = getAllBookings();
+    const allSchedules = getAllDispatchSchedules();
+    let hasChanges = false;
+
+    // Collect all active rows across all dates (with non-empty itinerary text)
+    const activeRows = [];
+    Object.keys(allSchedules).forEach(dateKey => {
+      const dateRows = (dateKey === selectedDate) ? rows : (allSchedules[dateKey] || []);
+      dateRows.forEach(r => {
+        const text = r.itineraryText || (Array.isArray(r.itineraryLines) ? r.itineraryLines.join('\n') : '');
+        if (text && text.trim() !== '') {
+          activeRows.push({ ...r, itineraryText: text });
+        }
+      });
+    });
+
+    // Also include in-memory current rows
+    rows.forEach(r => {
+      const text = r.itineraryText || (Array.isArray(r.itineraryLines) ? r.itineraryLines.join('\n') : '');
+      if (text && text.trim() !== '') {
+        if (!activeRows.some(existing => existing.id === r.id)) {
+          activeRows.push({ ...r, itineraryText: text });
+        }
+      }
+    });
+
+    allBookings.forEach(booking => {
+      // Completed, cancelled, rejected stay as is
+      if (booking.status === 'completed' || booking.status === 'cancelled' || booking.status === 'rejected') {
+        return;
+      }
+
+      const bookerFirstName = booking.bookerName ? booking.bookerName.replace(/^(นาย|นางสาว|นาง|คุณ|K\.)\s*/i, '').split(' ')[0] : '';
+
+      // Find any active row in schedule referencing this booking
+      const referencingRows = activeRows.filter(r => {
+        const hasId = r.linkedBookingIds && Array.isArray(r.linkedBookingIds) && r.linkedBookingIds.includes(booking.id);
+        const hasBooker = bookerFirstName && r.booker && r.booker.includes(bookerFirstName);
+        return hasId || hasBooker;
+      });
+
+      const validItems = (booking.itinerary || []).filter(it => it.detail || it.destination);
+
+      if (validItems.length > 0) {
+        let dispatchedCount = 0;
+
+        validItems.forEach(it => {
+          let isItemScheduled = false;
+
+          if (referencingRows.length > 0) {
+            const detailSnippet = (it.detail || '').trim().substring(0, 15);
+            const destSnippet = (it.destination || '').trim().substring(0, 15);
+
+            isItemScheduled = referencingRows.some(r => {
+              if (it.dispatchedRowId && r.id === it.dispatchedRowId) return true;
+              if (detailSnippet && r.itineraryText.includes(detailSnippet)) return true;
+              if (destSnippet && r.itineraryText.includes(destSnippet)) return true;
+              if (r.linkedBookingIds && r.linkedBookingIds.includes(booking.id)) {
+                if (it.dispatchedToVehicle && (r.plate === it.dispatchedToVehicle || r.id === it.dispatchedRowId)) {
+                  return true;
+                }
+              }
+              return false;
+            });
+          }
+
+          if (isItemScheduled) {
+            if (!it.dispatched) {
+              it.dispatched = true;
+              hasChanges = true;
+            }
+            dispatchedCount++;
+          } else {
+            // Item is NOT currently scheduled in any car row -> BOUNCE BACK!
+            if (it.dispatched) {
+              it.dispatched = false;
+              delete it.dispatchedToVehicle;
+              delete it.dispatchedDate;
+              delete it.dispatchedRowNo;
+              delete it.dispatchedRowId;
+              hasChanges = true;
+            }
+          }
+        });
+
+        // Update overall booking status
+        if (dispatchedCount === 0) {
+          // All jobs unassigned: bounce back to "รอจัด"
+          const targetStatus = (booking.approverSignature || booking.statusLabel?.includes('อนุมัติ')) ? 'approved' : 'pending_approval';
+          const targetLabel = targetStatus === 'approved' ? 'อนุมัติแล้ว (รอจัดสรรรถ/ยืนยัน)' : 'รอหัวหน้าฝ่ายอนุมัติ';
+          if (booking.status !== targetStatus || booking.statusLabel !== targetLabel) {
+            booking.status = targetStatus;
+            booking.statusLabel = targetLabel;
+            booking.assignedVehicle = '';
+            booking.assignedDriver = '';
+            booking.assignedDriverId = '';
+            delete booking.isDispatchedDirectly;
+            hasChanges = true;
+          }
+        } else if (dispatchedCount < validItems.length) {
+          // Partially assigned
+          const partialLabel = `จัดรถแล้วบางส่วน (${dispatchedCount}/${validItems.length} งาน)`;
+          if (booking.status !== 'partially_dispatched' || booking.statusLabel !== partialLabel) {
+            booking.status = 'partially_dispatched';
+            booking.statusLabel = partialLabel;
+            hasChanges = true;
+          }
+        } else {
+          // Fully assigned
+          if (booking.status !== 'dispatched') {
+            booking.status = 'dispatched';
+            booking.statusLabel = 'จัดรถแล้ว (ตารางจัดรถ)';
+            hasChanges = true;
+          }
+        }
+      } else {
+        // Booking without itinerary array
+        const isScheduled = referencingRows.length > 0;
+        if (!isScheduled) {
+          const targetStatus = (booking.approverSignature || booking.statusLabel?.includes('อนุมัติ')) ? 'approved' : 'pending_approval';
+          const targetLabel = targetStatus === 'approved' ? 'อนุมัติแล้ว (รอจัดสรรรถ/ยืนยัน)' : 'รอหัวหน้าฝ่ายอนุมัติ';
+          if (booking.status !== targetStatus || booking.statusLabel !== targetLabel) {
+            booking.status = targetStatus;
+            booking.statusLabel = targetLabel;
+            booking.assignedVehicle = '';
+            booking.assignedDriver = '';
+            delete booking.isDispatchedDirectly;
+            hasChanges = true;
+          }
+        } else {
+          if (booking.status !== 'dispatched') {
+            booking.status = 'dispatched';
+            booking.statusLabel = 'จัดรถแล้ว (ตารางจัดรถ)';
+            hasChanges = true;
+          }
+        }
+      }
+    });
+
+    if (hasChanges) {
+      saveAllBookings(allBookings);
+    }
+    return allBookings;
+  }
+
   // Helper to extract ONLY undispatched jobs for a booking
   function getUndispatchedJobs(booking) {
-    if (booking.status === 'dispatched' || booking.status === 'completed' || booking.status === 'cancelled' || booking.status === 'rejected') {
+    if (booking.status === 'completed' || booking.status === 'cancelled' || booking.status === 'rejected') {
       return [];
     }
     const rawItinerary = booking.itinerary || [];
     const validItems = rawItinerary.filter(it => it.detail || it.destination);
     if (validItems.length === 0) {
-      if (!booking.isDispatchedDirectly) {
+      if (booking.status !== 'dispatched') {
         return [{
           no: 1,
           detail: booking.requestedVehicle || 'คำขอใช้รถทั่วไป',
@@ -973,8 +1197,13 @@ export function renderAdminView(container) {
     const existing = document.getElementById(modalId);
     if (existing) existing.remove();
 
+    syncBookingsWithSchedule();
     const allBookings = getAllBookings();
-    let currentFilter = 'today'; // 'today' | 'pending' | 'all'
+    
+    // Default to 'today' if today has pending jobs, otherwise default to 'pending' to always show available work
+    const undispatchedInit = allBookings.filter(b => getUndispatchedJobs(b).length > 0);
+    const countTodayInit = undispatchedInit.filter(b => b.usageDate === selectedDate).length;
+    let currentFilter = countTodayInit > 0 ? 'today' : 'pending';
 
     function renderModalContent() {
       // Filter out bookings that have no undispatched jobs left
@@ -987,6 +1216,9 @@ export function renderAdminView(container) {
       let filtered = undispatchedBookings;
       if (currentFilter === 'today') {
         filtered = undispatchedBookings.filter(b => b.usageDate === selectedDate);
+        if (filtered.length === 0 && countPending > 0) {
+          filtered = undispatchedBookings.filter(b => b.status === 'pending_approval' || b.status === 'approved' || b.status === 'partially_dispatched');
+        }
       } else if (currentFilter === 'pending') {
         filtered = undispatchedBookings.filter(b => b.status === 'pending_approval' || b.status === 'approved' || b.status === 'partially_dispatched');
       }
@@ -1042,10 +1274,10 @@ export function renderAdminView(container) {
                   </div>
                 </div>
               ` : filtered.map(b => {
-                const uDate = formatThaiDate(b.usageDate);
-                const undispatchedItems = getUndispatchedJobs(b);
+        const uDate = formatThaiDate(b.usageDate);
+        const undispatchedItems = getUndispatchedJobs(b);
 
-                return `
+        return `
                   <div class="booker-card-item" id="card-${b.id}" style="margin-bottom: 14px; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 12px 16px;">
                     <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px;">
                       <div>
@@ -1081,15 +1313,15 @@ export function renderAdminView(container) {
 
                       <div style="display: flex; flex-direction: column; gap: 6px;">
                         ${undispatchedItems.map((item, idx) => {
-                          const itemNo = item.no || idx + 1;
-                          const cleanJobDesc = [
-                            item.detail ? item.detail.trim() : '',
-                            item.destination ? `ที่ ${item.destination.trim()}` : '',
-                            item.time ? `(เวลา ${item.time} น.)` : '',
-                            item.note ? `[${item.note.trim()}]` : ''
-                          ].filter(Boolean).join(' ');
+          const itemNo = item.no || idx + 1;
+          const cleanJobDesc = [
+            item.detail ? item.detail.trim() : '',
+            item.destination ? `ที่ ${item.destination.trim()}` : '',
+            item.time ? `(เวลา ${item.time} น.)` : '',
+            item.note ? `[${item.note.trim()}]` : ''
+          ].filter(Boolean).join(' ');
 
-                          return `
+          return `
                             <div class="job-choice-row" data-target-chk="chk-${b.id}-${itemNo}" style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; transition: all 0.15s ease;">
                               <input 
                                 type="checkbox" 
@@ -1107,12 +1339,12 @@ export function renderAdminView(container) {
                               </label>
                             </div>
                           `;
-                        }).join('')}
+        }).join('')}
                       </div>
                     </div>
                   </div>
                 `;
-              }).join('')}
+      }).join('')}
             </div>
 
             <!-- Modal Footer: Single button at the bottom right corner as requested -->
@@ -1257,6 +1489,7 @@ export function renderAdminView(container) {
                   it.dispatchedToVehicle = targetRow.plate;
                   it.dispatchedDate = selectedDate;
                   it.dispatchedRowNo = targetRow.no;
+                  it.dispatchedRowId = targetRow.id;
                   pickedStops.push(it);
                 }
               });
@@ -1353,6 +1586,7 @@ export function renderAdminView(container) {
       it.dispatchedToVehicle = row.plate;
       it.dispatchedDate = selectedDate;
       it.dispatchedRowNo = row.no;
+      it.dispatchedRowId = row.id;
     });
 
     const stopsText = activeStops.map(item => {
@@ -1512,6 +1746,7 @@ export function renderAdminView(container) {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       saveCurrentSchedule();
+      syncBookingsWithSchedule();
     }, 400);
   }
 
