@@ -146,10 +146,23 @@ export function renderAdminView(container) {
             ${rows.length === 0 ? `
               <tr>
                 <td colspan="8" style="text-align: center; padding: 2rem; color: #64748b;">
-                  ยังไม่มีข้อมูลการจัดรถในวันนี้ คลิกปุ่ม <strong>+ เพิ่มรถ/แถวใหม่</strong> หรือ <strong>🔄 โหลดแบบ 30 ต.ค.</strong>
+                  ยังไม่มีข้อมูลการจัดรถในวันนี้ คลิกปุ่ม <strong>+ เพิ่มรถ/แถวใหม่</strong> หรือดึงงานจาก <strong>📥 งาน Booker</strong>
                 </td>
               </tr>
-            ` : rows.map((row, index) => renderVehicleRowGroup(row, index)).join('')}
+            ` : (() => {
+              const defaultBookers = ['K.ลัดดา', 'K.สุชานรี', 'K.สมชาย', 'K.นฤมล', 'K.ภานุวัตร', 'K.วิภา'];
+              const allBookings = getAllBookings();
+              const bookerPool = [...defaultBookers];
+              allBookings.forEach(b => {
+                if (b.bookerName) {
+                  const f = formatBookerName(b.bookerName);
+                  if (f && !bookerPool.includes(f)) {
+                    bookerPool.push(f);
+                  }
+                }
+              });
+              return rows.map((row, index) => renderVehicleRowGroup(row, index, bookerPool)).join('');
+            })()}
           </tbody>
         </table>
 
@@ -158,7 +171,7 @@ export function renderAdminView(container) {
   }
 
   // Render a vehicle group (Main car row + Sub-row itinerary + Sub-row comment)
-  function renderVehicleRowGroup(row, index) {
+  function renderVehicleRowGroup(row, index, bookerPool = []) {
     const plateClass = row.plateColor === 'green' ? 'plate-bg-green' : (row.plateColor === 'yellow' ? 'plate-bg-yellow' : 'plate-bg-default');
     const timeClass = row.timeColor === 'pink' ? 'time-bg-pink' : '';
     const hasItinerary = !!(row.itineraryText && row.itineraryText.trim());
@@ -345,16 +358,40 @@ export function renderAdminView(container) {
           </div>
         </td>
 
-        <!-- ผู้จอง -->
+        <!-- ผู้จอง (ถ้ามีมากกว่า 1 ให้ / และ ใส่ชื่อผู้จองอีกคนได้เลย) -->
         <td class="col-booker">
-          <input 
-            type="text" 
-            class="dispatch-cell-input text-center" 
-            data-field="booker" 
-            data-row-id="${row.id}" 
-            value="${escapeHtml(row.booker || '')}" 
-            placeholder=""
-          />
+          <div class="cell-combobox-wrap">
+            <input 
+              type="text" 
+              class="dispatch-cell-input text-center cell-combobox-input" 
+              data-field="booker" 
+              data-row-id="${row.id}" 
+              value="${escapeHtml(row.booker || '')}" 
+              placeholder="K.ชื่อ1/K.ชื่อ2"
+              autocomplete="off"
+            />
+            <button 
+              type="button" 
+              class="btn-cell-dropdown-arrow no-print" 
+              data-toggle-dropdown="booker-${row.id}" 
+              tabindex="-1"
+              title="เลือกชื่อผู้จอง (หากมีมากกว่า 1 คน จะใส่ / ให้อัตโนมัติ)"
+            >
+              ▾
+            </button>
+            <div class="cell-dropdown-menu no-print" id="dropdown-booker-${row.id}" style="display: none; min-width: 170px;">
+              ${bookerPool.map(bName => `
+                <div 
+                  class="cell-opt-item" 
+                  data-field="booker" 
+                  data-val="${escapeHtml(bName)}" 
+                  data-row-id="${row.id}"
+                >
+                  <strong>${escapeHtml(bName)}</strong>
+                </div>
+              `).join('')}
+            </div>
+          </div>
         </td>
 
         <!-- Non-print Actions -->
@@ -733,7 +770,11 @@ export function renderAdminView(container) {
         const targetRow = rows.find(r => r.id === rowId);
 
         if (targetRow && field) {
-          targetRow[field] = val;
+          if (field === 'booker') {
+            targetRow.booker = mergeBookerNames(targetRow.booker, val);
+          } else {
+            targetRow[field] = val;
+          }
 
           // Smart auto-linking between fields
           if (field === 'plate') {
@@ -1202,12 +1243,7 @@ export function renderAdminView(container) {
             if (booking.department && (!targetRow.department || targetRow.department.trim() === '')) {
               targetRow.department = mapDeptCode(booking.department);
             }
-            const bookerFormatted = `K.${booking.bookerName}`;
-            if (!targetRow.booker || targetRow.booker.trim() === '') {
-              targetRow.booker = bookerFormatted;
-            } else if (!targetRow.booker.includes(booking.bookerName)) {
-              targetRow.booker += ` / ${bookerFormatted}`;
-            }
+            targetRow.booker = mergeBookerNames(targetRow.booker, booking.bookerName);
 
             // Extract and mark selected jobs as dispatched
             const selectedItemNos = selections[bId];
@@ -1305,12 +1341,7 @@ export function renderAdminView(container) {
     if (booking.department && (!row.department || row.department.trim() === '')) {
       row.department = mapDeptCode(booking.department);
     }
-    const bookerFormatted = `K.${booking.bookerName}`;
-    if (!row.booker || row.booker.trim() === '') {
-      row.booker = bookerFormatted;
-    } else if (!row.booker.includes(booking.bookerName)) {
-      row.booker += ` / ${bookerFormatted}`;
-    }
+    row.booker = mergeBookerNames(row.booker, booking.bookerName);
 
     const allStops = (booking.itinerary || []).filter(item => item.detail || item.destination);
     const activeStops = (selectedJobIndices && Array.isArray(selectedJobIndices) && selectedJobIndices.length > 0)
@@ -1359,6 +1390,36 @@ export function renderAdminView(container) {
     saveCurrentSchedule();
     render();
     showToast(`✓ ดึงข้อมูลงาน (${activeStops.length} ลำดับ) ของ ${booking.bookerName} ลงรถคันที่ ${row.no} เรียบร้อยแล้ว`);
+  }
+
+  // Helper to format booker name with K. (e.g. "ลัดดา" -> "K.ลัดดา")
+  function formatBookerName(name) {
+    if (!name) return '';
+    let clean = name.trim();
+    if (clean.startsWith('K.') || clean.startsWith('k.')) {
+      return clean;
+    }
+    if (clean.startsWith('คุณ')) {
+      return `K.${clean.replace(/^คุณ\s*/, '')}`;
+    }
+    clean = clean.replace(/^(นาย|นางสาว|นาง)\s*/, '');
+    const firstName = clean.split(' ')[0];
+    return `K.${firstName}`;
+  }
+
+  // Helper to merge booker names: if more than 1, separate with "/" without duplicating (e.g. "K.ลัดดา/K.สุชานรี")
+  function mergeBookerNames(existing, newBooker) {
+    const newFormatted = formatBookerName(newBooker);
+    if (!newFormatted) return existing || '';
+    if (!existing || existing.trim() === '') {
+      return newFormatted;
+    }
+    // Check if new name already exists in existing string to prevent duplicates
+    const rawNew = newFormatted.replace(/^K\./i, '').trim();
+    if (existing.includes(rawNew)) {
+      return existing;
+    }
+    return `${existing.trim()}/${newFormatted}`;
   }
 
   // Quick helper to map department name to abbreviation if needed
