@@ -127,19 +127,27 @@ export const DEPARTMENTS = [
 ];
 
 export const VEHICLE_TYPES = [
-  { id: 'v_van_commuter', label: 'รถตู้ส่วนกลาง (Toyota Commuter 13 ที่นั่ง)', plate: 'ฮภ-4521 กทม.', capacity: 13 },
-  { id: 'v_van_vip', label: 'รถตู้ VIP ผู้บริหาร (Hyundai Staria 7 ที่นั่ง)', plate: 'นข-8899 กทม.', capacity: 7 },
-  { id: 'v_pickup_4d', label: 'รถกระบะ 4 ประตู (Isuzu D-Max 5 ที่นั่ง)', plate: 'บย-3104 สมุทรปราการ', capacity: 5 },
-  { id: 'v_sedan_civic', label: 'รถเก๋งสำนักงาน (Honda Civic 4 ที่นั่ง)', plate: '8กศ-1205 กทม.', capacity: 4 },
-  { id: 'v_truck_cargo', label: 'รถกระบะตู้ทึบขนของ (Toyota Hilux Revo 2 ที่นั่ง)', plate: 'ผต-7741 นนทบุรี', capacity: 2 },
-  { id: 'v_custom', label: 'ระบุประเภทอื่น / รถเช่าภายนอก', plate: '-', capacity: 0 }
+  { id: 'v_sedan_6kt1381', label: '6กถ-1381 (เก๋ง)', plate: '6กถ-1381', capacity: 4, color: 'yellow' },
+  { id: 'v_sedan_6kt1382', label: '6กถ-1382 (เก๋ง)', plate: '6กถ-1382', capacity: 4, color: 'yellow' },
+  { id: 'v_sedan_4kc7837', label: '4ขจ-7837 (เก๋ง)', plate: '4ขจ-7837', capacity: 4, color: 'yellow' },
+  { id: 'v_sedan_6kp7214', label: '6ขภ-7214 (เก๋ง)', plate: '6ขภ-7214', capacity: 4, color: 'yellow' },
+  { id: 'v_sedan_ng4202', label: 'งล-4202 (เก๋ง)', plate: 'งล-4202', capacity: 4, color: 'yellow' },
+  { id: 'v_sedan_7kc2606', label: '7ขจ-2606 (เก๋ง)', plate: '7ขจ-2606', capacity: 4, color: 'green' },
+  { id: 'v_sedan_7kp4299', label: '7ขภ-4299 (เก๋ง)', plate: '7ขภ-4299', capacity: 4, color: 'green' },
+  { id: 'v_van_commuter', label: 'รถตู้ส่วนกลาง (Toyota Commuter 13 ที่นั่ง)', plate: 'ฮภ-4521 กทม.', capacity: 13, color: 'default' },
+  { id: 'v_van_vip', label: 'รถตู้ VIP ผู้บริหาร (Hyundai Staria 7 ที่นั่ง)', plate: 'นข-8899 กทม.', capacity: 7, color: 'default' },
+  { id: 'v_pickup_4d', label: 'รถกระบะ 4 ประตู (Isuzu D-Max 5 ที่นั่ง)', plate: 'บย-3104 สมุทรปราการ', capacity: 5, color: 'default' },
+  { id: 'v_truck_cargo', label: 'รถกระบะตู้ทึบขนของ (Toyota Hilux Revo 2 ที่นั่ง)', plate: 'ผต-7741 นนทบุรี', capacity: 2, color: 'default' },
+  { id: 'v_custom', label: 'ระบุประเภทอื่น / รถเช่าภายนอก', plate: '-', capacity: 0, color: 'default' }
 ];
 
 export const DRIVER_POOL = [
-  { id: 'drv_1', name: 'นายสมศักดิ์ ขับปลอดภัย', phone: '081-234-5678', license: 'ท.2-948123', status: 'พร้อมรับงาน' },
-  { id: 'drv_2', name: 'นายวิชัย ถึงที่หมาย', phone: '089-876-5432', license: 'ท.2-887145', status: 'พร้อมรับงาน' },
-  { id: 'drv_3', name: 'นายอนุสรณ์ ทางสะดวก', phone: '086-555-1234', license: 'ท.2-710923', status: 'ติดภารกิจ' },
-  { id: 'drv_self', name: 'พนักงานขับเอง (ได้รับอนุญาตแล้ว)', phone: '-', license: 'ส่วนบุคคล', status: 'พร้อมรับงาน' }
+  { id: 'drv_5', name: 'วัชรินทร์', phone: '081-762-3726', license: 'ท.2-110293', status: 'พร้อมรับงาน', code: '5' },
+  { id: 'drv_2', name: 'ปิยะวัฒน์', phone: '084-861-4388', license: 'ท.2-554219', status: 'พร้อมรับงาน', code: '2' },
+  { id: 'drv_1', name: 'นายสมศักดิ์ ขับปลอดภัย', phone: '081-234-5678', license: 'ท.2-948123', status: 'พร้อมรับงาน', code: '1' },
+  { id: 'drv_3', name: 'นายวิชัย ถึงที่หมาย', phone: '089-876-5432', license: 'ท.2-887145', status: 'พร้อมรับงาน', code: '3' },
+  { id: 'drv_4', name: 'นายอนุสรณ์ ทางสะดวก', phone: '086-555-1234', license: 'ท.2-710923', status: 'ติดภารกิจ', code: '4' },
+  { id: 'drv_self', name: 'พนักงานขับเอง (ได้รับอนุญาตแล้ว)', phone: '-', license: 'ส่วนบุคคล', status: 'พร้อมรับงาน', code: '-' }
 ];
 
 // Initial Seed Data with varied statuses
@@ -429,3 +437,195 @@ export function setActiveRole(role) {
   localStorage.setItem(CURRENT_ROLE_KEY, role);
   window.dispatchEvent(new CustomEvent('role_changed', { detail: role }));
 }
+
+// ============================================================================
+// Daily Vehicle Dispatch Schedule ("ตารางจัดรถ") Data Store & Helpers
+// ============================================================================
+export const DISPATCH_SCHEDULES_KEY = 'car_daily_dispatch_schedules_v1';
+export const DEMO_DISPATCH_DATE = '2026-10-30'; // 30 ตุลาคม 2569
+
+export function getDefaultFleetDispatchRows() {
+  return [
+    {
+      id: 'disp-row-1',
+      no: '1',
+      plate: '6กถ-1381 (เก๋ง)',
+      plateColor: 'yellow',
+      driverCode: '5',
+      driverName: 'วัชรินทร์',
+      time: '08.00',
+      timeColor: 'default',
+      department: 'ACC/OFF',
+      booker: 'K.ลัดดา/K.สุชานรี',
+      itineraryLines: [
+        'ส่งเอกสาร บ.เอ-พลา ไฮเทค ต.บึง ศรีราชา / รับเช็ค บ.แน็ชเชอรัล อ.บ้านบึง ชลบุรี / แจ้งหนี้+ส่งเล่มรายงาน บ.เพรซิเดนท์ เบเกอรี่ บางชัน กทม.เวลา 13.00-16.30 น. /',
+        '18.00 น. สแตนบายรับ เจ้าหน้าที่ STC 3 ท่าน ที่สนามบินสุวรรณภูมิ เครื่องลง 18.20 น. ติดต่อ K.ดา (STC) 084-8614388/ 081-7623726',
+        'รับไปส่งที่โรงแรมเอ็มเอส รีสอร์ท ศรีราชา'
+      ],
+      comment: '',
+      linkedBookingIds: []
+    },
+    {
+      id: 'disp-row-2',
+      no: '2',
+      plate: '6กถ-1382 (เก๋ง)',
+      plateColor: 'yellow',
+      driverCode: '2',
+      driverName: 'ปิยะวัฒน์',
+      time: '06.30',
+      timeColor: 'pink',
+      department: 'ACC',
+      booker: 'K.ลัดดา',
+      itineraryLines: [
+        'ส่งผล+วางบิล บ.ยูมิคอร์ อ.บ้านค่าย ระยอง / ส่งผล+วางบิล นิติเอสเซ็นระยอง 2 อ.เมือง ระยอง / ส่งผล+วางบิล นิติบริกซ์ตันระยอง อ.เมือง ระยอง /',
+        'รับเช็ค นิติเอสเซ็นระยอง 1 อ.เมือง ระยอง / รับเช็ค นิติศุภาลัยระยอง อ.เมือง ระยอง / ส่งงาน+แจ้งหนี้ +วางบิล บ.สยามเอ็นไวรอน อ.ปลวกแดง /',
+        'รับเช็ค บ.วิค อ.ปลวกแดง เวลา 13.00 - 17.00 น.'
+      ],
+      comment: '',
+      linkedBookingIds: []
+    },
+    {
+      id: 'disp-row-3',
+      no: '3',
+      plate: '4ขจ-7837 (เก๋ง)',
+      plateColor: 'yellow',
+      driverCode: '#N/A',
+      driverName: '',
+      time: '',
+      timeColor: 'default',
+      department: '',
+      booker: '',
+      itineraryLines: [],
+      comment: 'สลับใช้งานกับแชมปิ้ง วันที่ 29/10/2569',
+      linkedBookingIds: []
+    },
+    {
+      id: 'disp-row-4',
+      no: '4',
+      plate: '6ขภ-7214 (เก๋ง)',
+      plateColor: 'yellow',
+      driverCode: '#N/A',
+      driverName: '',
+      time: '',
+      timeColor: 'default',
+      department: '',
+      booker: '',
+      itineraryLines: [],
+      comment: 'สลับใช้งานกับแชมปิ้ง วันที่ 29/10/2569',
+      linkedBookingIds: []
+    },
+    {
+      id: 'disp-row-5',
+      no: '5',
+      plate: 'งล-4202 (เก๋ง)',
+      plateColor: 'yellow',
+      driverCode: '#N/A',
+      driverName: '',
+      time: '',
+      timeColor: 'default',
+      department: '',
+      booker: '',
+      itineraryLines: [],
+      comment: 'สลับใช้งานกับแชมปิ้ง วันที่ 29/10/2569',
+      linkedBookingIds: []
+    },
+    {
+      id: 'disp-row-6',
+      no: '6',
+      plate: '7ขจ-2606 (เก๋ง)',
+      plateColor: 'green',
+      driverCode: '#N/A',
+      driverName: '',
+      time: '',
+      timeColor: 'default',
+      department: '',
+      booker: '',
+      itineraryLines: [],
+      comment: '',
+      linkedBookingIds: []
+    },
+    {
+      id: 'disp-row-7',
+      no: '7',
+      plate: '7ขภ-4299 (เก๋ง)',
+      plateColor: 'green',
+      driverCode: '#N/A',
+      driverName: '',
+      time: '',
+      timeColor: 'default',
+      department: '',
+      booker: '',
+      itineraryLines: [],
+      comment: '',
+      linkedBookingIds: []
+    }
+  ];
+}
+
+// Helper to get blank fleet template for a new day
+export function getBlankFleetRows() {
+  const defaults = getDefaultFleetDispatchRows();
+  return defaults.map((row, idx) => ({
+    ...row,
+    id: `disp-row-${Date.now()}-${idx + 1}`,
+    driverCode: '#N/A',
+    driverName: '',
+    time: '',
+    timeColor: 'default',
+    department: '',
+    booker: '',
+    itineraryLines: [],
+    comment: '',
+    linkedBookingIds: []
+  }));
+}
+
+export function getAllDispatchSchedules() {
+  try {
+    const raw = localStorage.getItem(DISPATCH_SCHEDULES_KEY);
+    if (!raw) {
+      // Seed default schedule for DEMO_DISPATCH_DATE and today
+      const today = getTodayISODate();
+      const seedObj = {
+        [DEMO_DISPATCH_DATE]: getDefaultFleetDispatchRows(),
+        [today]: getDefaultFleetDispatchRows()
+      };
+      localStorage.setItem(DISPATCH_SCHEDULES_KEY, JSON.stringify(seedObj));
+      return seedObj;
+    }
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error('Error reading dispatch schedules', e);
+    return {};
+  }
+}
+
+export function getDispatchSchedule(isoDate) {
+  const all = getAllDispatchSchedules();
+  if (all[isoDate]) {
+    return all[isoDate];
+  }
+  // If not yet saved for this date, provide default fleet rows (or blank fleet rows)
+  if (isoDate === DEMO_DISPATCH_DATE) {
+    return getDefaultFleetDispatchRows();
+  }
+  return getBlankFleetRows();
+}
+
+export function saveDispatchSchedule(isoDate, rows) {
+  try {
+    const all = getAllDispatchSchedules();
+    all[isoDate] = rows;
+    localStorage.setItem(DISPATCH_SCHEDULES_KEY, JSON.stringify(all));
+    window.dispatchEvent(new CustomEvent('dispatch_schedule_updated', { detail: { date: isoDate, rows } }));
+  } catch (e) {
+    console.error('Error saving dispatch schedule', e);
+  }
+}
+
+export function resetDispatchScheduleToDefault(isoDate) {
+  const rows = getDefaultFleetDispatchRows();
+  saveDispatchSchedule(isoDate, rows);
+  return rows;
+}
+
