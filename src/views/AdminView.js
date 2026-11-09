@@ -162,6 +162,32 @@ export function renderAdminView(container) {
           </tbody>
         </table>
 
+        <!-- Datalists for Autocomplete & Suggestions -->
+        <datalist id="vehicle-plate-datalist">
+          ${VEHICLE_TYPES.map(v => `<option value="${escapeHtml(v.label)}">${v.color === 'green' ? '🟢 สีเขียว' : (v.color === 'yellow' ? '🟡 สีเหลือง' : '')}</option>`).join('')}
+        </datalist>
+        <datalist id="driver-code-datalist">
+          <option value="5">5 (วัชรินทร์)</option>
+          <option value="2">2 (ปิยะวัฒน์)</option>
+          <option value="1">1 (สมศักดิ์)</option>
+          <option value="3">3 (วิชัย)</option>
+          <option value="4">4 (อนุสรณ์)</option>
+          <option value="#N/A">#N/A</option>
+        </datalist>
+        <datalist id="driver-name-datalist">
+          ${DRIVER_POOL.map(d => `<option value="${escapeHtml(d.name)}">${d.code ? `รหัส ${d.code} | ` : ''}${d.phone}</option>`).join('')}
+        </datalist>
+        <datalist id="department-datalist">
+          <option value="ACC/OFF">ACC/OFF (บัญชี/สำนักงาน)</option>
+          <option value="ACC">ACC (ฝ่ายบัญชีและการเงิน)</option>
+          <option value="SALE">SALE (ฝ่ายขายและการตลาด)</option>
+          <option value="IT/ENG">IT/ENG (วิศวกรรม/ไอที)</option>
+          <option value="HR">HR (ฝ่ายทรัพยากรบุคคล)</option>
+          <option value="PUR">PUR (ฝ่ายจัดซื้อ)</option>
+          <option value="PROD">PROD (ฝ่ายผลิต)</option>
+          <option value="QA">QA (ฝ่ายประกันคุณภาพ)</option>
+        </datalist>
+
       </div>
     `;
   }
@@ -189,22 +215,52 @@ export function renderAdminView(container) {
           />
         </td>
 
-        <!-- ทะเบียนรถ -->
+        <!-- ทะเบียนรถ (ตัวเลือกที่พิมพ์แก้ไขได้อิสระ) -->
         <td class="col-plate ${plateClass}">
-          <input 
-            type="text" 
-            class="dispatch-cell-input text-center font-bold" 
-            data-field="plate" 
-            data-row-id="${row.id}" 
-            value="${escapeHtml(row.plate || '')}" 
-            placeholder="ทะเบียน (ประเภทรถ)"
-          />
+          <div class="plate-combobox-wrap">
+            <input 
+              type="text" 
+              list="vehicle-plate-datalist" 
+              class="dispatch-cell-input text-center font-bold dispatch-plate-input" 
+              data-field="plate" 
+              data-row-id="${row.id}" 
+              value="${escapeHtml(row.plate || '')}" 
+              placeholder="พิมพ์/เลือกทะเบียน"
+              autocomplete="off"
+            />
+            <button 
+              type="button" 
+              class="btn-plate-dropdown-arrow no-print" 
+              data-action="toggle-plate-menu" 
+              data-row-id="${row.id}" 
+              title="คลิกเพื่อเลือกทะเบียนรถจากรายการ (หรือพิมพ์เองได้)"
+              tabindex="-1"
+            >
+              ▾
+            </button>
+            <div class="plate-custom-dropdown-menu no-print" id="plate-dropdown-${row.id}" style="display: none;">
+              ${VEHICLE_TYPES.map(v => `
+                <div 
+                  class="plate-opt-item" 
+                  data-plate-val="${escapeHtml(v.label)}" 
+                  data-color="${v.color || 'yellow'}"
+                  data-row-id="${row.id}"
+                >
+                  <span>${escapeHtml(v.label)}</span>
+                  <span class="plate-opt-badge ${v.color || 'yellow'}">
+                    ${v.color === 'green' ? '🟢 สีเขียว' : (v.color === 'yellow' ? '🟡 สีเหลือง' : '⚪ ทั่วไป')}
+                  </span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
         </td>
 
         <!-- รหัส -->
         <td class="col-code">
           <input 
             type="text" 
+            list="driver-code-datalist"
             class="dispatch-cell-input text-center font-semibold" 
             data-field="driverCode" 
             data-row-id="${row.id}" 
@@ -217,6 +273,7 @@ export function renderAdminView(container) {
         <td class="col-driver">
           <input 
             type="text" 
+            list="driver-name-datalist"
             class="dispatch-cell-input text-center" 
             data-field="driverName" 
             data-row-id="${row.id}" 
@@ -241,6 +298,7 @@ export function renderAdminView(container) {
         <td class="col-dept">
           <input 
             type="text" 
+            list="department-datalist"
             class="dispatch-cell-input text-center" 
             data-field="department" 
             data-row-id="${row.id}" 
@@ -599,11 +657,76 @@ export function renderAdminView(container) {
         const targetRow = rows.find(r => r.id === rowId);
         if (targetRow && field) {
           targetRow[field] = val;
+
+          // If editing plate, auto-detect color from VEHICLE_TYPES
+          if (field === 'plate') {
+            const matched = VEHICLE_TYPES.find(v => v.label.toLowerCase() === val.trim().toLowerCase() || v.plate.toLowerCase() === val.trim().toLowerCase());
+            if (matched && matched.color) {
+              targetRow.plateColor = matched.color;
+              const td = e.target.closest('td.col-plate');
+              if (td) {
+                td.className = `col-plate plate-bg-${matched.color}`;
+              }
+            }
+          }
+
           // Auto-save debounced
           debounceAutoSave();
         }
       });
     });
+
+    // Plate combobox dropdown toggle and click to select
+    container.querySelectorAll('.btn-plate-dropdown-arrow').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const rowId = btn.getAttribute('data-row-id');
+        const menu = document.getElementById(`plate-dropdown-${rowId}`);
+        if (menu) {
+          const isVisible = menu.style.display !== 'none';
+          container.querySelectorAll('.plate-custom-dropdown-menu').forEach(m => { m.style.display = 'none'; });
+          menu.style.display = isVisible ? 'none' : 'block';
+        }
+      });
+    });
+
+    container.querySelectorAll('.dispatch-plate-input').forEach(input => {
+      input.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const rowId = input.getAttribute('data-row-id');
+        const menu = document.getElementById(`plate-dropdown-${rowId}`);
+        if (menu && menu.style.display === 'none') {
+          container.querySelectorAll('.plate-custom-dropdown-menu').forEach(m => { m.style.display = 'none'; });
+          menu.style.display = 'block';
+        }
+      });
+    });
+
+    container.querySelectorAll('.plate-opt-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const plateVal = item.getAttribute('data-plate-val');
+        const color = item.getAttribute('data-color');
+        const rowId = item.getAttribute('data-row-id');
+        const targetRow = rows.find(r => r.id === rowId);
+        if (targetRow) {
+          targetRow.plate = plateVal;
+          targetRow.plateColor = color;
+          saveCurrentSchedule();
+          render();
+        }
+      });
+    });
+
+    // Close open dropdowns when clicking anywhere outside
+    const handleOutsideClick = (e) => {
+      if (!e.target.closest('.plate-combobox-wrap')) {
+        container.querySelectorAll('.plate-custom-dropdown-menu').forEach(m => { m.style.display = 'none'; });
+      }
+    };
+    document.removeEventListener('click', container._outsideClickHandler);
+    container._outsideClickHandler = handleOutsideClick;
+    document.addEventListener('click', handleOutsideClick);
 
     // Contenteditable itinerary box
     container.querySelectorAll('.dispatch-itinerary-box').forEach(box => {
@@ -655,7 +778,15 @@ export function renderAdminView(container) {
     const row = rows.find(r => r.id === rowId);
     if (!row) return;
 
-    if (action === 'pick-booker') {
+    if (action === 'toggle-plate-menu') {
+      const menu = document.getElementById(`plate-dropdown-${rowId}`);
+      if (menu) {
+        const isVisible = menu.style.display !== 'none';
+        container.querySelectorAll('.plate-custom-dropdown-menu').forEach(m => { m.style.display = 'none'; });
+        menu.style.display = isVisible ? 'none' : 'block';
+      }
+      return;
+    } else if (action === 'pick-booker') {
       openBookerPickerModal(row);
     } else if (action === 'toggle-itinerary') {
       row.showItineraryBox = true;
