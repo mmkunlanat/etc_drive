@@ -9,19 +9,17 @@ import {
   DRIVER_POOL,
   DRIVER_CODES,
   DISPATCH_DEPARTMENTS,
-  DEMO_DISPATCH_DATE,
   getTodayISODate,
   addDaysToDate,
   getDispatchSchedule,
   saveDispatchSchedule,
-  resetDispatchScheduleToDefault,
   getDefaultFleetDispatchRows
 } from '../store.js';
 import { renderPaperModal } from '../components/PaperModal.js';
 
 export function renderAdminView(container) {
-  // Current active date - default to demo date 2026-10-30 (30 ตุลาคม 2569) to match image
-  let selectedDate = DEMO_DISPATCH_DATE;
+  // Current active date - default to today
+  let selectedDate = getTodayISODate();
   let activeTab = 'spreadsheet'; // 'spreadsheet' | 'requests_list'
   let rows = [];
 
@@ -79,9 +77,6 @@ export function renderAdminView(container) {
             <button id="btn-print-schedule" class="btn-outline-blue" style="padding: 6px 12px; font-size: 0.82rem;">
               🖨️ พิมพ์ตารางจัดรถ
             </button>
-            <button id="btn-reset-template" class="btn-ghost-light" style="padding: 6px 10px; font-size: 0.8rem; color: #64748b;" title="คืนค่าตารางรถ 7 คันตามแบบ">
-              🔄 โหลดแบบ 30 ต.ค.
-            </button>
           </div>
         </div>
 
@@ -111,9 +106,6 @@ export function renderAdminView(container) {
           <button id="btn-go-today" class="btn-ghost-light" style="padding: 4px 8px; font-size: 0.8rem; color: #2563eb; font-weight: 600;">
             วันนี้ (${formatThaiDate(getTodayISODate()).short})
           </button>
-          <button id="btn-go-demo-date" class="btn-ghost-light" style="padding: 4px 8px; font-size: 0.8rem; color: #0284c7; font-weight: 600;">
-            ภาพตัวอย่าง (30 ต.ค. 2569)
-          </button>
         </div>
 
         <div style="font-size: 0.82rem; color: #64748b;">
@@ -133,9 +125,6 @@ export function renderAdminView(container) {
         <div class="dispatch-date-subheading">
           <div>
             ประจำวันที่ ${thaiDate.day} ${thaiDate.monthName} ${thaiDate.buddhistYear}
-          </div>
-          <div class="no-print" style="font-size: 0.82rem; font-weight: 400; color: #64748b;">
-            จำนวนรถที่พร้อมจัด: <strong>${rows.length} คัน</strong>
           </div>
         </div>
 
@@ -586,7 +575,6 @@ export function renderAdminView(container) {
     const prevDayBtn = document.getElementById('btn-prev-day');
     const nextDayBtn = document.getElementById('btn-next-day');
     const todayBtn = document.getElementById('btn-go-today');
-    const demoDateBtn = document.getElementById('btn-go-demo-date');
 
     if (dateInput) {
       dateInput.addEventListener('change', (e) => {
@@ -619,15 +607,6 @@ export function renderAdminView(container) {
       todayBtn.addEventListener('click', () => {
         saveCurrentSchedule();
         selectedDate = getTodayISODate();
-        loadSchedule();
-        render();
-      });
-    }
-
-    if (demoDateBtn) {
-      demoDateBtn.addEventListener('click', () => {
-        saveCurrentSchedule();
-        selectedDate = DEMO_DISPATCH_DATE;
         loadSchedule();
         render();
       });
@@ -672,18 +651,6 @@ export function renderAdminView(container) {
       printBtn.addEventListener('click', () => {
         saveCurrentSchedule();
         window.print();
-      });
-    }
-
-    const resetBtn = document.getElementById('btn-reset-template');
-    if (resetBtn) {
-      resetBtn.addEventListener('click', () => {
-        if (confirm('คุณต้องการรีเซ็ตตารางจัดรถของวันที่เลือกนี้ ให้ตรงตามแบบภาพตัวอย่าง (7 คัน) หรือไม่?')) {
-          rows = resetDispatchScheduleToDefault(selectedDate);
-          loadSchedule();
-          render();
-          showToast('โหลดตารางตามภาพตัวอย่างเรียบร้อยแล้ว');
-        }
       });
     }
 
