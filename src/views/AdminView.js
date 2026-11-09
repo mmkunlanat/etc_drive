@@ -830,6 +830,7 @@ export function renderAdminView(container) {
       row.showItineraryBox = true;
       render();
     } else if (action === 'clear-itinerary') {
+      releaseLinkedBookings(row);
       row.showItineraryBox = false;
       row.itineraryText = '';
       saveCurrentSchedule();
@@ -860,6 +861,7 @@ export function renderAdminView(container) {
       render();
     } else if (action === 'delete-row') {
       if (confirm(`คุณต้องการลบรถแถวที่ ${row.no} (${row.plate}) ออกจากตารางหรือไม่?`)) {
+        releaseLinkedBookings(row);
         rows = rows.filter(r => r.id !== rowId);
         // re-index no
         rows.forEach((r, idx) => { r.no = String(idx + 1); });
@@ -870,7 +872,61 @@ export function renderAdminView(container) {
     }
   }
 
-  // Booker Request Picker Modal - allows Admin to select a booking to fill into the car row
+  // Release jobs back to pool if a car row is cleared or deleted
+  function releaseLinkedBookings(row) {
+    if (!row.linkedBookingIds || row.linkedBookingIds.length === 0) return;
+    const allBookings = getAllBookings();
+    let hasChanges = false;
+    row.linkedBookingIds.forEach(bId => {
+      const booking = allBookings.find(b => b.id === bId);
+      if (booking) {
+        if (booking.itinerary && Array.isArray(booking.itinerary)) {
+          booking.itinerary.forEach(it => {
+            if (it.dispatchedToVehicle === row.plate || it.dispatchedRowNo === row.no) {
+              it.dispatched = false;
+              delete it.dispatchedToVehicle;
+              delete it.dispatchedDate;
+              delete it.dispatchedRowNo;
+              hasChanges = true;
+            }
+          });
+        }
+        delete booking.isDispatchedDirectly;
+        booking.status = 'approved';
+        booking.statusLabel = 'อนุมัติแล้ว (รอจัดสรรรถ/ยืนยัน)';
+        hasChanges = true;
+      }
+    });
+    if (hasChanges) {
+      saveAllBookings(allBookings);
+    }
+    row.linkedBookingIds = [];
+  }
+
+  // Helper to extract ONLY undispatched jobs for a booking
+  function getUndispatchedJobs(booking) {
+    if (booking.status === 'dispatched' || booking.status === 'completed' || booking.status === 'cancelled' || booking.status === 'rejected') {
+      return [];
+    }
+    const rawItinerary = booking.itinerary || [];
+    const validItems = rawItinerary.filter(it => it.detail || it.destination);
+    if (validItems.length === 0) {
+      if (!booking.isDispatchedDirectly) {
+        return [{
+          no: 1,
+          detail: booking.requestedVehicle || 'คำขอใช้รถทั่วไป',
+          destination: booking.notes || 'ตามที่ระบุในแบบฟอร์ม',
+          time: booking.startTime || '',
+          note: '',
+          isSynthetic: true
+        }];
+      }
+      return [];
+    }
+    return validItems.filter(it => !it.dispatched);
+  }
+
+  // Booker Request Picker Modal - allows Admin to select undispatched jobs to fill into the car row
   function openBookerPickerModal(targetRow) {
     const modalId = 'booker-picker-modal';
     const existing = document.getElementById(modalId);
@@ -880,19 +936,27 @@ export function renderAdminView(container) {
     let currentFilter = 'today'; // 'today' | 'pending' | 'all'
 
     function renderModalContent() {
-      let filtered = allBookings;
+      // Filter out bookings that have no undispatched jobs left
+      const undispatchedBookings = allBookings.filter(b => getUndispatchedJobs(b).length > 0);
+
+      const countToday = undispatchedBookings.filter(b => b.usageDate === selectedDate).length;
+      const countPending = undispatchedBookings.filter(b => b.status === 'pending_approval' || b.status === 'approved' || b.status === 'partially_dispatched').length;
+      const countAll = undispatchedBookings.length;
+
+      let filtered = undispatchedBookings;
       if (currentFilter === 'today') {
-        filtered = allBookings.filter(b => b.usageDate === selectedDate);
+        filtered = undispatchedBookings.filter(b => b.usageDate === selectedDate);
       } else if (currentFilter === 'pending') {
-        filtered = allBookings.filter(b => b.status === 'pending_approval' || b.status === 'approved');
+        filtered = undispatchedBookings.filter(b => b.status === 'pending_approval' || b.status === 'approved' || b.status === 'partially_dispatched');
       }
 
       const todayThai = formatThaiDate(selectedDate);
 
       return `
         <div id="${modalId}" class="booker-picker-modal-backdrop">
-          <div class="booker-picker-dialog">
-            <div class="booker-picker-header">
+          <div class="booker-picker-dialog" style="max-height: 92vh; display: flex; flex-direction: column;">
+            <!-- Modal Header -->
+            <div class="booker-picker-header" style="flex-shrink: 0;">
               <div style="display: flex; align-items: center; gap: 8px;">
                 <span style="font-size: 1.3rem;">📋</span>
                 <div>
@@ -907,37 +971,41 @@ export function renderAdminView(container) {
               <button id="btn-close-booker-picker" class="btn-ghost-light" style="font-size: 1.1rem;">✕</button>
             </div>
 
-            <div style="background: #f1f5f9; padding: 10px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <!-- Filter Tabs -->
+            <div style="background: #f1f5f9; padding: 10px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; flex-shrink: 0;">
               <div class="role-nav-group" style="background: #e2e8f0; padding: 2px;">
                 <button class="role-tab-btn ${currentFilter === 'today' ? 'active' : ''}" id="filter-picker-today" style="font-size: 0.78rem; padding: 4px 10px;">
-                  📅 คำขอประจำวัน (${todayThai.short})
+                  📅 คำขอประจำวัน (${countToday})
                 </button>
                 <button class="role-tab-btn ${currentFilter === 'pending' ? 'active' : ''}" id="filter-picker-pending" style="font-size: 0.78rem; padding: 4px 10px;">
-                  🚨 รอจัดสรรทั้งหมด (${allBookings.filter(b => b.status === 'pending_approval' || b.status === 'approved').length})
+                  🚨 รอจัดสรรทั้งหมด (${countPending})
                 </button>
                 <button class="role-tab-btn ${currentFilter === 'all' ? 'active' : ''}" id="filter-picker-all" style="font-size: 0.78rem; padding: 4px 10px;">
-                  📋 คำขอทั้งหมด (${allBookings.length})
+                  📋 คำขอทั้งหมด (${countAll})
                 </button>
               </div>
 
               <div style="font-size: 0.78rem; color: #64748b;">
-                พบ <strong>${filtered.length}</strong> รายการ
+                พบงานที่ยังไม่ได้จัด <strong>${filtered.length}</strong> คำขอ
               </div>
             </div>
 
-            <div class="booker-picker-body">
+            <!-- Modal Body (List of bookings with ONLY undispatched jobs) -->
+            <div class="booker-picker-body" style="flex: 1; overflow-y: auto; padding: 16px 20px;">
               ${filtered.length === 0 ? `
                 <div style="text-align: center; padding: 3rem; color: #94a3b8;">
-                  <div style="font-size: 2.2rem; margin-bottom: 8px;">📭</div>
-                  <div>ไม่พบคำขอในหมวดหมู่นี้</div>
-                  <div style="font-size: 0.82rem; margin-top: 6px;">ลองคลิกแท็บ "คำขอทั้งหมด" หรือ "รอจัดสรรทั้งหมด" เพื่อเลือกงานข้ามวันได้</div>
+                  <div style="font-size: 2.2rem; margin-bottom: 8px;">🎉</div>
+                  <div style="font-weight: 600; color: #475569; font-size: 1rem;">ไม่มีงานค้างรอจัดในหมวดหมู่นี้</div>
+                  <div style="font-size: 0.82rem; margin-top: 6px; color: #94a3b8;">
+                    งานทั้งหมดได้รับการจัดรถเรียบร้อยแล้ว หรือคลิกแท็บ "คำขอทั้งหมด" เพื่อดูงานวันอื่น
+                  </div>
                 </div>
               ` : filtered.map(b => {
                 const uDate = formatThaiDate(b.usageDate);
-                const itineraryItems = (b.itinerary || []).filter(item => item.detail || item.destination);
+                const undispatchedItems = getUndispatchedJobs(b);
 
                 return `
-                  <div class="booker-card-item">
+                  <div class="booker-card-item" id="card-${b.id}" style="margin-bottom: 14px; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 12px 16px;">
                     <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px;">
                       <div>
                         <span style="font-weight: 700; color: #1e40af; font-size: 0.95rem;">${b.id}</span>
@@ -947,33 +1015,31 @@ export function renderAdminView(container) {
                       <span class="status-badge ${b.status}" style="font-size: 0.75rem;">${b.statusLabel || b.status}</span>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px; font-size: 0.82rem; color: #475569; margin-bottom: 10px; background: #fff; padding: 6px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 6px; font-size: 0.82rem; color: #475569; margin-bottom: 10px; background: #f8fafc; padding: 6px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
                       <div>📅 <strong>วันที่ใช้งาน:</strong> ${uDate.short}</div>
                       <div>⏰ <strong>เวลา:</strong> ${b.startTime} - ${b.endTime} น.</div>
                       <div>🚘 <strong>รถที่ต้องการ:</strong> ${b.requestedVehicle || '-'}</div>
                       <div>📞 <strong>โทร:</strong> ${b.bookerPhone || '-'}</div>
                     </div>
 
-                    <!-- แสดงตัวเลือกกรอกเฉพาะลำดับงาน 1-6 ที่ Booker ส่งคำขอมา -->
-                    <div style="background: #ffffff; border: 1.5px solid #bfdbfe; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;">
+                    <!-- แสดงตัวเลือกลำดับงานที่ยังไม่ได้จัด -->
+                    <div style="background: #ffffff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 12px;">
                       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; gap: 6px;">
-                        <span style="font-weight: 700; color: #1e3a8a; font-size: 0.86rem; display: flex; align-items: center; gap: 6px;">
-                          <span>📍</span> ตัวเลือกลำดับงาน 1-6 ที่ Booker ส่งคำขอมา (${itineraryItems.length} งาน):
+                        <span style="font-weight: 700; color: #1e3a8a; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
+                          <span>📍</span> ตัวเลือกลำดับงานที่ยังไม่ได้จัด (${undispatchedItems.length} งาน):
                         </span>
                         <div style="display: flex; gap: 6px;">
                           <button type="button" class="btn-check-all-jobs" data-booking-id="${b.id}" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-weight: 600;">
-                            ✓ เลือกทั้งหมด (1-${itineraryItems.length})
+                            ✓ เลือกทั้งหมด (${undispatchedItems.length})
                           </button>
                           <button type="button" class="btn-uncheck-all-jobs" data-booking-id="${b.id}" style="background: #f8fafc; border: 1px solid #cbd5e1; color: #64748b; font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; cursor: pointer;">
-                            ✕ ล้างการเลือก
+                            ✕ ล้าง
                           </button>
                         </div>
                       </div>
 
-                      <div style="display: flex; flex-direction: column; gap: 6px;" id="choices-container-${b.id}">
-                        ${itineraryItems.length === 0 ? `
-                          <div style="font-size: 0.8rem; color: #94a3b8; padding: 6px;">ไม่มีรายละเอียดลำดับงานที่ระบุไว้</div>
-                        ` : itineraryItems.map((item, idx) => {
+                      <div style="display: flex; flex-direction: column; gap: 6px;">
+                        ${undispatchedItems.map((item, idx) => {
                           const itemNo = item.no || idx + 1;
                           const cleanJobDesc = [
                             item.detail ? item.detail.trim() : '',
@@ -983,52 +1049,54 @@ export function renderAdminView(container) {
                           ].filter(Boolean).join(' ');
 
                           return `
-                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
-                              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.84rem;">
-                                <input 
-                                  type="checkbox" 
-                                  class="job-chk-${b.id}" 
-                                  data-item-index="${idx}" 
-                                  data-item-no="${itemNo}"
-                                  checked 
-                                  style="cursor: pointer; width: 16px; height: 16px;" 
-                                />
-                                <span style="font-weight: 700; color: #1e40af; background: #dbeafe; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem; white-space: nowrap;">
+                            <div class="job-choice-row" data-target-chk="chk-${b.id}-${itemNo}" style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; transition: all 0.15s ease;">
+                              <input 
+                                type="checkbox" 
+                                id="chk-${b.id}-${itemNo}"
+                                class="job-picker-checkbox job-chk-${b.id}" 
+                                data-booking-id="${b.id}" 
+                                data-item-no="${itemNo}" 
+                                style="cursor: pointer; width: 18px; height: 18px; flex-shrink: 0;" 
+                              />
+                              <label for="chk-${b.id}-${itemNo}" style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.85rem;">
+                                <span style="font-weight: 700; color: #1e40af; background: #dbeafe; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; white-space: nowrap;">
                                   ลำดับที่ ${itemNo}
                                 </span>
                                 <span style="color: #1e293b; line-height: 1.4;">${escapeHtml(cleanJobDesc)}</span>
                               </label>
-
-                              <!-- ปุ่มลัดดึงเฉพาะงานลำดับนี้ -->
-                              <button 
-                                type="button" 
-                                class="btn-pick-single-job" 
-                                data-booking-id="${b.id}" 
-                                data-item-index="${idx}"
-                                title="ดึงเฉพาะลำดับงานที่ ${itemNo} ใส่ในรถคันนี้"
-                                style="white-space: nowrap; font-size: 0.72rem; padding: 3px 8px; background: #e0f2fe; border: 1px solid #7dd3fc; color: #0369a1; border-radius: 4px; cursor: pointer; font-weight: 600;"
-                              >
-                                + ใส่เฉพาะงาน ${itemNo}
-                              </button>
                             </div>
                           `;
                         }).join('')}
                       </div>
                     </div>
-
-                    <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                      <button 
-                        type="button" 
-                        class="btn-primary btn-apply-booker-job" 
-                        data-booking-id="${b.id}"
-                        style="padding: 7px 16px; font-size: 0.84rem; background: #0284c7; font-weight: 600; display: flex; align-items: center; gap: 6px;"
-                      >
-                        ✓ ดึงลำดับงานที่เลือก ใส่ในรถคันที่ ${targetRow.no}
-                      </button>
-                    </div>
                   </div>
                 `;
               }).join('')}
+            </div>
+
+            <!-- Modal Footer: Single button at the bottom right corner as requested -->
+            <div class="booker-picker-footer" style="padding: 12px 24px; background: #ffffff; border-top: 1.5px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; box-shadow: 0 -4px 12px rgba(0,0,0,0.04);">
+              <div id="picker-selection-info" style="font-size: 0.88rem; color: #475569; display: flex; align-items: center; gap: 8px;">
+                <span style="display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #0284c7;"></span>
+                <span>เลือกลำดับงานแล้ว: <strong id="lbl-selected-count" style="color: #0284c7; font-size: 1rem;">0</strong> รายการ</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <button 
+                  type="button" 
+                  id="btn-cancel-picker" 
+                  style="padding: 9px 18px; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; color: #64748b; background: #fff; font-weight: 600;"
+                >
+                  ยกเลิก
+                </button>
+                <button 
+                  type="button" 
+                  id="btn-apply-selected-jobs-main" 
+                  class="btn-primary" 
+                  style="padding: 9px 24px; font-size: 0.92rem; background: #0284c7; font-weight: 700; border-radius: 6px; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 6px rgba(2, 132, 199, 0.35); cursor: pointer;"
+                >
+                  ✓ ดึงลำดับงานที่เลือก ใส่ในรถคันที่ ${targetRow.no}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1044,10 +1112,36 @@ export function renderAdminView(container) {
       const close = () => modal.remove();
 
       const closeBtn = document.getElementById('btn-close-booker-picker');
+      const cancelBtn = document.getElementById('btn-cancel-picker');
       if (closeBtn) closeBtn.addEventListener('click', close);
+      if (cancelBtn) cancelBtn.addEventListener('click', close);
 
       modal.addEventListener('click', (e) => {
         if (e.target === modal) close();
+      });
+
+      // Update selection count & highlights
+      const updateSelectionCounter = () => {
+        const checked = modal.querySelectorAll('.job-picker-checkbox:checked');
+        const countSpan = document.getElementById('lbl-selected-count');
+        if (countSpan) countSpan.textContent = String(checked.length);
+
+        modal.querySelectorAll('.job-choice-row').forEach(rowEl => {
+          const chkId = rowEl.getAttribute('data-target-chk');
+          const chk = document.getElementById(chkId);
+          if (chk && chk.checked) {
+            rowEl.style.background = '#eff6ff';
+            rowEl.style.borderColor = '#93c5fd';
+          } else {
+            rowEl.style.background = '#f8fafc';
+            rowEl.style.borderColor = '#e2e8f0';
+          }
+        });
+      };
+
+      // Checkbox changes
+      modal.querySelectorAll('.job-picker-checkbox').forEach(chk => {
+        chk.addEventListener('change', updateSelectionCounter);
       });
 
       // Filter tabs
@@ -1064,6 +1158,7 @@ export function renderAdminView(container) {
         btn.addEventListener('click', () => {
           const bId = btn.getAttribute('data-booking-id');
           modal.querySelectorAll(`.job-chk-${bId}`).forEach(chk => { chk.checked = true; });
+          updateSelectionCounter();
         });
       });
 
@@ -1071,39 +1166,125 @@ export function renderAdminView(container) {
         btn.addEventListener('click', () => {
           const bId = btn.getAttribute('data-booking-id');
           modal.querySelectorAll(`.job-chk-${bId}`).forEach(chk => { chk.checked = false; });
+          updateSelectionCounter();
         });
       });
 
-      // Quick button to pick a single job leg
-      modal.querySelectorAll('.btn-pick-single-job').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const bId = btn.getAttribute('data-booking-id');
-          const idx = parseInt(btn.getAttribute('data-item-index'), 10);
-          const booking = allBookings.find(b => b.id === bId);
-          if (booking) {
-            applyBookingToRow(targetRow, booking, [idx]);
-            close();
+      // Single apply button at the bottom right corner
+      const applyBtn = document.getElementById('btn-apply-selected-jobs-main');
+      if (applyBtn) {
+        applyBtn.addEventListener('click', () => {
+          const checkedBoxes = Array.from(modal.querySelectorAll('.job-picker-checkbox:checked'));
+          if (checkedBoxes.length === 0) {
+            alert(`กรุณาเลือกลำดับงานอย่างน้อย 1 งาน เพื่อจัดใส่ในรถคันที่ ${targetRow.no}`);
+            return;
           }
-        });
-      });
 
-      // Apply button for checked job legs
-      modal.querySelectorAll('.btn-apply-booker-job').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const bId = btn.getAttribute('data-booking-id');
-          const booking = allBookings.find(b => b.id === bId);
-          if (booking) {
-            const checkedBoxes = Array.from(modal.querySelectorAll(`.job-chk-${bId}:checked`));
-            if (checkedBoxes.length === 0) {
-              alert('กรุณาเลือกอย่างน้อย 1 ลำดับงานที่ต้องการดึง');
-              return;
+          // Group checked jobs by bookingId
+          const selections = {};
+          checkedBoxes.forEach(chk => {
+            const bId = chk.getAttribute('data-booking-id');
+            const itemNo = parseInt(chk.getAttribute('data-item-no'), 10);
+            if (!selections[bId]) selections[bId] = [];
+            selections[bId].push(itemNo);
+          });
+
+          const allCollectedTexts = [];
+
+          Object.keys(selections).forEach(bId => {
+            const booking = allBookings.find(b => b.id === bId);
+            if (!booking) return;
+
+            // Fill basic vehicle row fields if empty
+            if (booking.startTime && (!targetRow.time || targetRow.time.trim() === '')) {
+              targetRow.time = booking.startTime.replace(':', '.');
             }
-            const selectedIndices = checkedBoxes.map(chk => parseInt(chk.getAttribute('data-item-index'), 10));
-            applyBookingToRow(targetRow, booking, selectedIndices);
-            close();
+            if (booking.department && (!targetRow.department || targetRow.department.trim() === '')) {
+              targetRow.department = mapDeptCode(booking.department);
+            }
+            const bookerFormatted = `K.${booking.bookerName}`;
+            if (!targetRow.booker || targetRow.booker.trim() === '') {
+              targetRow.booker = bookerFormatted;
+            } else if (!targetRow.booker.includes(booking.bookerName)) {
+              targetRow.booker += ` / ${bookerFormatted}`;
+            }
+
+            // Extract and mark selected jobs as dispatched
+            const selectedItemNos = selections[bId];
+            const pickedStops = [];
+
+            if (booking.itinerary && booking.itinerary.length > 0) {
+              booking.itinerary.forEach(it => {
+                const itNo = it.no || 1;
+                if (selectedItemNos.includes(itNo)) {
+                  it.dispatched = true;
+                  it.dispatchedToVehicle = targetRow.plate;
+                  it.dispatchedDate = selectedDate;
+                  it.dispatchedRowNo = targetRow.no;
+                  pickedStops.push(it);
+                }
+              });
+
+              // Check if all items in this booking are dispatched
+              const remaining = booking.itinerary.filter(it => (it.detail || it.destination) && !it.dispatched);
+              if (remaining.length === 0) {
+                booking.status = 'dispatched';
+                booking.statusLabel = 'จัดรถแล้ว (ตารางจัดรถ)';
+              } else {
+                booking.status = 'partially_dispatched';
+                booking.statusLabel = `จัดรถแล้วบางส่วน (${booking.itinerary.length - remaining.length}/${booking.itinerary.length} งาน)`;
+              }
+            } else {
+              booking.status = 'dispatched';
+              booking.statusLabel = 'จัดรถแล้ว (ตารางจัดรถ)';
+              booking.isDispatchedDirectly = true;
+              pickedStops.push({
+                detail: booking.requestedVehicle || 'เดินทางทั่วไป',
+                destination: booking.notes || ''
+              });
+            }
+
+            booking.assignedVehicle = targetRow.plate;
+            booking.assignedDriver = targetRow.driverName ? `${targetRow.driverName}` : 'ฝ่ายสำนักงานจัดสรรแล้ว';
+            updateBooking(booking.id, booking);
+
+            // Build text for this booking's picked stops
+            const stopsText = pickedStops.map(item => {
+              const parts = [];
+              if (item.detail) parts.push(item.detail.trim());
+              if (item.destination) parts.push(`ที่ ${item.destination.trim()}`);
+              if (item.time) parts.push(`เวลา ${item.time} น.`);
+              return parts.join(' ');
+            }).filter(Boolean).join(' / ');
+
+            if (stopsText) {
+              allCollectedTexts.push(stopsText);
+            }
+
+            if (!targetRow.linkedBookingIds) targetRow.linkedBookingIds = [];
+            if (!targetRow.linkedBookingIds.includes(booking.id)) {
+              targetRow.linkedBookingIds.push(booking.id);
+            }
+          });
+
+          // Save all bookings
+          saveAllBookings(allBookings);
+
+          // Append or set itinerary text
+          const combinedNewText = allCollectedTexts.join('\n');
+          if (targetRow.itineraryText && targetRow.itineraryText.trim()) {
+            targetRow.itineraryText = `${targetRow.itineraryText.trim()}\n${combinedNewText}`;
+          } else {
+            targetRow.itineraryText = combinedNewText;
           }
+          targetRow.showItineraryBox = true;
+
+          saveCurrentSchedule();
+          close();
+          render();
+          showToast(`✓ ดึงลำดับงานที่เลือก (${checkedBoxes.length} รายการ) ใส่ในรถคันที่ ${targetRow.no} เรียบร้อยแล้ว`);
         });
-      });
+      }
     }
 
     function reRenderModal() {
@@ -1116,28 +1297,32 @@ export function renderAdminView(container) {
     attachPickerEvents();
   }
 
-  // Populate row with booking data - ONLY the selected job legs 1-6
+  // Populate row with booking data - ONLY undispatched job legs
   function applyBookingToRow(row, booking, selectedJobIndices = null) {
-    // 1. Time
-    if (booking.startTime) {
+    if (booking.startTime && (!row.time || row.time.trim() === '')) {
       row.time = booking.startTime.replace(':', '.');
     }
-
-    // 2. Department
-    if (booking.department) {
+    if (booking.department && (!row.department || row.department.trim() === '')) {
       row.department = mapDeptCode(booking.department);
     }
+    const bookerFormatted = `K.${booking.bookerName}`;
+    if (!row.booker || row.booker.trim() === '') {
+      row.booker = bookerFormatted;
+    } else if (!row.booker.includes(booking.bookerName)) {
+      row.booker += ` / ${bookerFormatted}`;
+    }
 
-    // 3. Booker
-    row.booker = `K.${booking.bookerName}`;
-
-    // 4. Build itinerary text: ONLY the selected job legs (ลำดับงาน 1-6) that Booker sent
     const allStops = (booking.itinerary || []).filter(item => item.detail || item.destination);
-
-    // If specific indices selected, pick only those
     const activeStops = (selectedJobIndices && Array.isArray(selectedJobIndices) && selectedJobIndices.length > 0)
       ? selectedJobIndices.map(idx => allStops[idx]).filter(Boolean)
-      : allStops;
+      : allStops.filter(it => !it.dispatched);
+
+    activeStops.forEach(it => {
+      it.dispatched = true;
+      it.dispatchedToVehicle = row.plate;
+      it.dispatchedDate = selectedDate;
+      it.dispatchedRowNo = row.no;
+    });
 
     const stopsText = activeStops.map(item => {
       const parts = [];
@@ -1147,7 +1332,6 @@ export function renderAdminView(container) {
       return parts.join(' ');
     }).filter(Boolean).join(' / ');
 
-    // Fill ONLY the job legs 1-6 that booker sent
     if (row.itineraryText && row.itineraryText.trim()) {
       row.itineraryText = `${row.itineraryText.trim()}\n${stopsText}`;
     } else {
@@ -1155,19 +1339,22 @@ export function renderAdminView(container) {
     }
     row.showItineraryBox = true;
 
-    // Link booking ID
     if (!row.linkedBookingIds) row.linkedBookingIds = [];
     if (!row.linkedBookingIds.includes(booking.id)) {
       row.linkedBookingIds.push(booking.id);
     }
 
-    // Update booking in store as dispatched
-    updateBooking(booking.id, {
-      assignedVehicle: row.plate,
-      assignedDriver: row.driverName ? `${row.driverName}` : 'ฝ่ายสำนักงานจัดสรรแล้ว',
-      status: 'dispatched',
-      statusLabel: 'จัดรถแล้ว (ตารางจัดรถ)'
-    });
+    const remaining = (booking.itinerary || []).filter(it => (it.detail || it.destination) && !it.dispatched);
+    if (remaining.length === 0) {
+      booking.status = 'dispatched';
+      booking.statusLabel = 'จัดรถแล้ว (ตารางจัดรถ)';
+    } else {
+      booking.status = 'partially_dispatched';
+      booking.statusLabel = `จัดรถแล้วบางส่วน (${booking.itinerary.length - remaining.length}/${booking.itinerary.length} งาน)`;
+    }
+    booking.assignedVehicle = row.plate;
+    booking.assignedDriver = row.driverName ? `${row.driverName}` : 'ฝ่ายสำนักงานจัดสรรแล้ว';
+    updateBooking(booking.id, booking);
 
     saveCurrentSchedule();
     render();
