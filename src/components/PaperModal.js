@@ -1,9 +1,41 @@
 // PaperModal.js - High-fidelity authentic replica of vehicle booking form
 import { formatThaiDate, formatSubmissionTime } from '../store.js';
 
-export function renderPaperModal(booking, onClose) {
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+export function renderPaperModal(booking, optionsOrOnClose) {
+  let onClose = null;
+  let onEdit = null;
+  let onConfirm = null;
+  let editText = 'แก้ไข';
+  let confirmText = 'ยืนยัน';
+
+  if (typeof optionsOrOnClose === 'function') {
+    onClose = optionsOrOnClose;
+  } else if (optionsOrOnClose && typeof optionsOrOnClose === 'object') {
+    onClose = optionsOrOnClose.onClose;
+    onEdit = optionsOrOnClose.onEdit;
+    onConfirm = optionsOrOnClose.onConfirm;
+    if (optionsOrOnClose.editText) editText = optionsOrOnClose.editText;
+    if (optionsOrOnClose.confirmText) confirmText = optionsOrOnClose.confirmText;
+  }
+
   const existing = document.getElementById('paper-modal-backdrop');
-  if (existing) existing.remove();
+  if (existing) {
+    if (typeof existing.remove === 'function') {
+      existing.remove();
+    } else if (existing.parentNode) {
+      existing.parentNode.removeChild(existing);
+    }
+  }
 
   const bookingThai = formatThaiDate(booking.bookingDate);
   const usageThai = formatThaiDate(booking.usageDate);
@@ -43,6 +75,21 @@ export function renderPaperModal(booking, onClose) {
           </div>
         </div>
         <div class="paper-modal-body">
+          ${booking.status === 'rejected' ? `
+            <div class="paper-rejected-alert">
+              <div class="paper-rejected-icon">✕</div>
+              <div class="paper-rejected-body">
+                <div class="paper-rejected-title">คำขอนี้ไม่ได้รับการอนุมัติ (Rejected)</div>
+                <div class="paper-rejected-reason">
+                  <strong>เหตุผลจากผู้อนุมัติ:</strong> ${escapeHtml(booking.approverRemark || 'ไม่ระบุเหตุผล')}
+                </div>
+                ${booking.approverSignature ? `
+                  <div class="paper-rejected-signer">ผู้พิจารณา: ${escapeHtml(booking.approverSignature)}</div>
+                ` : ''}
+              </div>
+            </div>
+          ` : ''}
+
           <!-- Official Paper Sheet -->
           <div class="official-paper-sheet" id="printable-paper">
             
@@ -139,8 +186,8 @@ export function renderPaperModal(booking, onClose) {
                   </td>
                   <td>
                     <div style="font-size: 11px; color: #4b6b94; margin-bottom: 6px;">ลงชื่อผู้อนุมัติ</div>
-                    <div style="min-height: 35px; display: flex; align-items: center; justify-content: center; font-family: cursive; font-size: 16px; color: #1e3a8a;">
-                      ${booking.approverSignature || '...........................................'}
+                    <div style="min-height: 35px; display: flex; align-items: center; justify-content: center; font-size: 15px; color: ${booking.status === 'rejected' ? '#dc2626' : '#1e3a8a'}; font-family: ${booking.status === 'rejected' ? 'inherit' : 'cursive'}; font-weight: ${booking.status === 'rejected' ? '700' : 'normal'};">
+                      ${booking.status === 'rejected' ? '[ ไม่อนุมัติ ]' : (booking.approverSignature || '...........................................')}
                     </div>
                     <div class="sig-name-line">
                       (${booking.approverSignature ? booking.approverSignature : '...........................................'})
@@ -175,19 +222,36 @@ export function renderPaperModal(booking, onClose) {
 
           </div>
         </div>
+
+        <!-- Modal Footer with Edit & Confirm Actions at Bottom-Right -->
+        <div class="paper-modal-footer no-print">
+          <div class="paper-footer-actions">
+            <button type="button" id="btn-paper-edit" class="btn-paper-footer-edit">
+              ${editText}
+            </button>
+            <button type="button" id="btn-paper-confirm" class="btn-paper-footer-confirm">
+              ${confirmText}
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   `;
 
   document.body.insertAdjacentHTML('beforeend', modalHtml);
+  document.body.classList.add('has-paper-modal');
 
   // Close handlers
   const backdrop = document.getElementById('paper-modal-backdrop');
   const closeBtn = document.getElementById('btn-close-paper-modal');
   const printBtn = document.getElementById('btn-print-paper');
+  const editBtn = document.getElementById('btn-paper-edit');
+  const confirmBtn = document.getElementById('btn-paper-confirm');
 
   const close = () => {
     window.removeEventListener('keydown', handleKey);
+    document.body.classList.remove('has-paper-modal');
     backdrop.remove();
     if (onClose) onClose();
   };
@@ -205,4 +269,26 @@ export function renderPaperModal(booking, onClose) {
   printBtn.addEventListener('click', () => {
     window.print();
   });
+
+  if (editBtn) {
+    editBtn.addEventListener('click', () => {
+      close();
+      if (onEdit) {
+        onEdit(booking);
+      } else {
+        window.dispatchEvent(new CustomEvent('edit_booking_in_form', { detail: booking }));
+      }
+    });
+  }
+
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', () => {
+      close();
+      if (onConfirm) {
+        onConfirm(booking);
+      } else {
+        window.dispatchEvent(new CustomEvent('confirm_booking_paper', { detail: booking }));
+      }
+    });
+  }
 }

@@ -36,8 +36,37 @@ export function renderAdminView(container) {
       comment: r.comment || '',
       plateColor: r.plateColor || 'yellow',
       timeColor: r.timeColor || 'default',
-      linkedBookingIds: r.linkedBookingIds || []
+      linkedBookingIds: r.linkedBookingIds || [],
+      vehicleStatus: r.vehicleStatus || null
     }));
+  }
+
+  // Determine if a vehicle row is available or busy
+  function isRowAvailable(row) {
+    if (!row) return true;
+    if (row.vehicleStatus === 'available') return true;
+    if (row.vehicleStatus === 'busy' || row.vehicleStatus === 'maintenance') return false;
+
+    const hasItinerary = !!(row.itineraryText && row.itineraryText.trim());
+    const hasBooker = !!(row.booker && row.booker.trim());
+    const hasLinked = Array.isArray(row.linkedBookingIds) && row.linkedBookingIds.length > 0;
+    const hasDriver = !!(row.driverName && row.driverName.trim() && row.driverName !== '#N/A');
+    const hasTime = !!(row.time && row.time.trim());
+    const hasBusyComment = !!(row.comment && /ซ่อม|ศูนย์|สลับ|เช่า|เสีย|ไม่พร้อม/i.test(row.comment.trim()));
+
+    if (hasItinerary || hasBooker || hasLinked || hasBusyComment || (hasDriver && hasTime)) {
+      return false; // ไม่ว่าง
+    }
+    return true; // ว่าง
+  }
+
+  // Check if a specific plate is available in the current schedule
+  function isPlateAvailableInSchedule(plateLabel, allRows, excludeRowId = null) {
+    if (!plateLabel) return true;
+    const cleanPlate = plateLabel.trim().toLowerCase();
+    const otherRows = allRows.filter(r => r.id !== excludeRowId && (r.plate || '').trim().toLowerCase() === cleanPlate);
+    if (otherRows.length === 0) return true;
+    return !otherRows.some(r => !isRowAvailable(r));
   }
 
   loadSchedule();
@@ -47,20 +76,7 @@ export function renderAdminView(container) {
     syncBookingsWithSchedule();
     const thaiDate = formatThaiDate(selectedDate);
     const bookings = getAllBookings();
- admin
     const pendingDispatchCount = bookings.filter(b => b.status === 'pending_approval' || b.status === 'approved' || b.status === 'partially_dispatched').length;
-
-
-    // Filter
-    let filtered = bookings;
-    if (activeFilter === 'needs_dispatch') {
-      filtered = bookings.filter(b => b.status === 'approved');
-    } else if (activeFilter === 'dispatched') {
-      filtered = bookings.filter(b => b.status === 'dispatched' || b.status === 'completed');
-    }
-
-    const needsDispatchCount = bookings.filter(b => b.status === 'approved').length;
- dev
 
     container.innerHTML = `
       <div class="dispatch-portal-container">
@@ -110,9 +126,9 @@ export function renderAdminView(container) {
   function renderSpreadsheetView(thaiDate) {
     return `
       <!-- Date Navigation Toolbar (Hidden in Print) -->
-      <div class="dispatch-top-toolbar no-print" style="margin-bottom: 1rem; background: #f8fafc; border: 1px solid #cbd5e1;">
+      <div class="dispatch-top-toolbar no-print" style="margin-bottom: 0.75rem; background: #f8fafc; border: 1px solid #cbd5e1;">
         <div class="dispatch-date-nav">
-          <span style="font-weight: 700; color: #002060; font-size: 0.95rem;">📅 เลือกวันที่จัดรถ:</span>
+          <span style="font-weight: 700; color: #002060; font-size: 0.95rem;">เลือกวันที่จัดรถ:</span>
           <button id="btn-prev-day" class="btn-secondary" style="padding: 4px 10px; font-size: 0.82rem;">◀ วันก่อนหน้า</button>
           <input 
             type="date" 
@@ -127,7 +143,7 @@ export function renderAdminView(container) {
         </div>
 
         <div style="font-size: 0.82rem; color: #64748b;">
-          💡 <strong>ทิป:</strong> สามารถคลิกพิมพ์แก้ไขข้อมูลในตารางได้โดยตรง / เลือกงานที่ Booker ส่งมา / ใส่คอมเม้นในแต่ละคัน
+          <strong>ทิป:</strong> สามารถคลิกพิมพ์แก้ไขข้อมูลในตารางได้โดยตรง / เลือกงานที่ Booker ส่งมา / ใส่คอมเมนต์ในแต่ละคัน
         </div>
       </div>
 
@@ -209,6 +225,7 @@ export function renderAdminView(container) {
             data-row-id="${row.id}" 
             value="${row.no || index + 1}" 
           />
+          <span class="cell-print-text print-only font-bold" data-field="no">${row.no || index + 1}</span>
         </td>
 
         <!-- ทะเบียนรถ (ตัวเลือกที่พิมพ์แก้ไขได้) -->
@@ -232,23 +249,32 @@ export function renderAdminView(container) {
             >
               ▾
             </button>
-            <div class="cell-dropdown-menu no-print" id="dropdown-plate-${row.id}" style="display: none; min-width: 200px;">
-              ${VEHICLE_TYPES.map(v => `
-                <div 
-                  class="cell-opt-item" 
-                  data-field="plate" 
-                  data-val="${escapeHtml(v.label)}" 
-                  data-color="${v.color || 'yellow'}" 
-                  data-row-id="${row.id}"
-                >
-                  <span>${escapeHtml(v.label)}</span>
-                  <span class="cell-opt-badge ${v.color || 'yellow'}">
-                    ${v.color === 'green' ? '🟢 เขียว' : (v.color === 'yellow' ? '🟡 เหลือง' : '⚪ ทั่วไป')}
-                  </span>
-                </div>
-              `).join('')}
+            <div class="cell-dropdown-menu no-print" id="dropdown-plate-${row.id}" style="display: none; min-width: 230px;">
+              ${VEHICLE_TYPES.map(v => {
+                const optAvail = isPlateAvailableInSchedule(v.label, rows, row.id);
+                return `
+                  <div 
+                    class="cell-opt-item" 
+                    data-field="plate" 
+                    data-val="${escapeHtml(v.label)}" 
+                    data-color="${v.color || 'yellow'}" 
+                    data-row-id="${row.id}"
+                  >
+                    <span>${escapeHtml(v.label)}</span>
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                      <span class="opt-status-pill ${optAvail ? 'pill-avail' : 'pill-busy'}">
+                        ${optAvail ? 'ว่าง' : 'ไม่ว่าง'}
+                      </span>
+                      <span class="cell-opt-badge ${v.color || 'yellow'}">
+                        ${v.color === 'green' ? 'เขียว' : (v.color === 'yellow' ? 'เหลือง' : 'ทั่วไป')}
+                      </span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
             </div>
           </div>
+          <span class="cell-print-text print-only font-bold" data-field="plate">${escapeHtml(row.plate || '')}</span>
         </td>
 
         <!-- รหัส (ตัวเลือกที่พิมพ์แก้ไขได้) -->
@@ -287,6 +313,7 @@ export function renderAdminView(container) {
               `).join('')}
             </div>
           </div>
+          <span class="cell-print-text print-only font-semibold" data-field="driverCode">${escapeHtml(row.driverCode || '')}</span>
         </td>
 
         <!-- พนักงานขับรถ (ตัวเลือกที่พิมพ์แก้ไขได้) -->
@@ -325,6 +352,7 @@ export function renderAdminView(container) {
               `).join('')}
             </div>
           </div>
+          <span class="cell-print-text print-only" data-field="driverName">${escapeHtml(row.driverName || '')}</span>
         </td>
 
         <!-- เวลา -->
@@ -337,6 +365,7 @@ export function renderAdminView(container) {
             value="${escapeHtml(row.time || '')}" 
             placeholder=""
           />
+          <span class="cell-print-text print-only" data-field="time">${escapeHtml(row.time || '')}</span>
         </td>
 
         <!-- ฝ่าย/แผนก (ตัวเลือกที่พิมพ์แก้ไขได้) -->
@@ -374,6 +403,7 @@ export function renderAdminView(container) {
               `).join('')}
             </div>
           </div>
+          <span class="cell-print-text print-only" data-field="department">${escapeHtml(row.department || '')}</span>
         </td>
 
         <!-- ผู้จอง (ถ้ามีมากกว่า 1 ให้ / และ ใส่ชื่อผู้จองอีกคนได้เลย) -->
@@ -410,6 +440,7 @@ export function renderAdminView(container) {
               `).join('')}
             </div>
           </div>
+          <span class="cell-print-text print-only font-bold" data-field="booker">${escapeHtml(row.booker || '')}</span>
         </td>
 
         <!-- Non-print Actions -->
@@ -501,13 +532,16 @@ export function renderAdminView(container) {
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
               <input 
                 type="text" 
-                class="dispatch-comment-input" 
+                class="dispatch-comment-input no-print" 
                 data-field="comment" 
                 data-row-id="${row.id}" 
                 value="${escapeHtml(row.comment || '')}" 
                 placeholder="พิมพ์คอมเม้นในงานนี้ (เช่น สลับใช้งานกับแชมปิ้ง วันที่ 29/10/2569)" 
                 autofocus
               />
+              <div class="dispatch-comment-print-text print-only">
+                ${escapeHtml(row.comment || '')}
+              </div>
               <button 
                 type="button" 
                 class="no-print" 
@@ -572,7 +606,15 @@ export function renderAdminView(container) {
 
       return `
                   <tr style="${isNeedsDispatch ? 'background-color: #f0fdf4;' : ''}">
-                    <td><strong style="color: #1e40af;">${b.id}</strong></td>
+                    <td>
+                      <strong style="color: #1e40af;">${b.id}</strong>
+                      <div style="font-size: 0.72rem; color: #475569; margin-top: 2px;">
+                        ส่งฟอร์ม: <strong>${formatSubmissionTime(b)}</strong>
+                      </div>
+                      <div style="font-size: 0.68rem; color: #94a3b8;">
+                        ยื่นเมื่อ ${formatThaiDate(b.bookingDate).short}
+                      </div>
+                    </td>
                     <td>
                       <div style="font-weight: 600;">${uThai.short}</div>
                       <div style="font-size: 0.78rem; color: #64748b;">${b.startTime} - ${b.endTime} น.</div>
@@ -605,64 +647,10 @@ export function renderAdminView(container) {
                       </div>
                     </td>
                   </tr>
-admin
                 `;
-    }).join('')}
+              }).join('')}
             </tbody>
           </table>
-
-                ` : filtered.map(item => {
-      const uThai = formatThaiDate(item.usageDate);
-      const isApprovedNeedsDispatch = item.status === 'approved';
-
-      return `
-                    <tr style="${isApprovedNeedsDispatch ? 'background-color: #f0fdf4;' : ''}">
-                      <td>
-                        <strong style="color: #1e40af;">${item.id}</strong>
-                        <div style="font-size: 0.72rem; color: #475569; margin-top: 2px;">
-                           ส่งฟอร์ม: <strong>${formatSubmissionTime(item)}</strong>
-                        </div>
-                        <div style="font-size: 0.68rem; color: #94a3b8;">
-                          ยื่นเมื่อ ${formatThaiDate(item.bookingDate).short}
-                        </div>
-                      </td>
-                      <td>
-                        <div style="font-weight: 600;">${uThai.short}</div>
-                        <div style="font-size: 0.78rem; color: var(--slate-500);">${item.startTime} - ${item.endTime} น.</div>
-                      </td>
-                      <td>
-                        <div><strong>${item.bookerName}</strong></div>
-                        <div style="font-size: 0.75rem; color: var(--slate-500);">${item.department}</div>
-                        <div style="font-size: 0.72rem; color: #2563eb;">โทร: ${item.bookerPhone || '-'}</div>
-                      </td>
-                      <td>
-                        <div>🚘 <strong>${item.assignedVehicle || item.requestedVehicle || '-'}</strong></div>
-                        <div style="font-size: 0.78rem; color: ${item.assignedDriver ? '#059669' : '#d97706'};">
-                          👨‍✈️ ${item.assignedDriver || '⏳ ยังไม่ได้จัดคนขับ'}
-                        </div>
-                      </td>
-                      <td>
-                        <span class="status-badge ${item.status}">
-                          ${item.statusLabel}
-                        </span>
-                      </td>
-                      <td style="text-align: center;">
-                        <div style="display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
-                          <button class="btn-primary btn-open-dispatch" data-id="${item.id}" style="padding: 4px 10px; font-size: 0.78rem; background: ${isApprovedNeedsDispatch ? '#059669' : '#2563eb'};">
-                            ${item.assignedVehicle ? '✏️ แก้ไขรถ/คนขับ' : '⚡ จัดสรรรถและคนขับ'}
-                          </button>
-                          <button class="btn-outline-blue btn-admin-view-paper" data-id="${item.id}" style="padding: 4px 8px; font-size: 0.78rem;">
-                            📄 แบบฟอร์ม
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  `;
-    }).join('')}
-              </tbody>
-            </table>
-          </div>
- dev
         </div>
       </div>
     `;
@@ -758,7 +746,39 @@ admin
     const printBtn = document.getElementById('btn-print-schedule');
     if (printBtn) {
       printBtn.addEventListener('click', () => {
+        if (activeTab !== 'spreadsheet') {
+          activeTab = 'spreadsheet';
+          render();
+        }
         saveCurrentSchedule();
+
+        // Update all companion .cell-print-text and .dispatch-comment-print-text elements
+        container.querySelectorAll('.dispatch-main-tr').forEach(tr => {
+          const rowId = tr.getAttribute('data-row-id');
+          const r = rows.find(x => x.id === rowId);
+          if (r) {
+            tr.querySelectorAll('.cell-print-text').forEach(span => {
+              const field = span.getAttribute('data-field');
+              if (field && r[field] !== undefined) {
+                span.textContent = r[field] || '';
+              }
+            });
+          }
+        });
+        container.querySelectorAll('.dispatch-comment-tr').forEach(tr => {
+          const rowId = tr.getAttribute('data-row-id');
+          const r = rows.find(x => x.id === rowId);
+          if (r) {
+            const span = tr.querySelector('.dispatch-comment-print-text');
+            if (span) span.textContent = r.comment || '';
+          }
+        });
+
+        // Sync input values to DOM attribute for fallback
+        container.querySelectorAll('input').forEach(input => {
+          input.setAttribute('value', input.value);
+        });
+
         window.print();
       });
     }
@@ -915,7 +935,16 @@ admin
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
         const b = getAllBookings().find(x => x.id === id);
-        if (b) renderPaperModal(b);
+        if (b) {
+          renderPaperModal(b, {
+            onEdit: (booking) => {
+              window.dispatchEvent(new CustomEvent('edit_booking_in_form', { detail: booking }));
+            },
+            onConfirm: (booking) => {
+              showToast(`ยืนยันการตรวจสอบคำขอ ${booking.id} เรียบร้อยแล้ว`);
+            }
+          });
+        }
       });
     });
 
@@ -936,7 +965,14 @@ admin
     const row = rows.find(r => r.id === rowId);
     if (!row) return;
 
-    if (action === 'toggle-plate-menu') {
+    if (action === 'toggle-vehicle-status') {
+      const currentAvail = isRowAvailable(row);
+      row.vehicleStatus = currentAvail ? 'busy' : 'available';
+      saveCurrentSchedule();
+      render();
+      showToast(`เปลี่ยนสถานะรถ ${row.plate} เป็น "${row.vehicleStatus === 'available' ? 'ว่าง' : 'ไม่ว่าง'}" เรียบร้อยแล้ว`);
+      return;
+    } else if (action === 'toggle-plate-menu') {
       const menu = document.getElementById(`plate-dropdown-${rowId}`);
       if (menu) {
         const isVisible = menu.style.display !== 'none';
@@ -1763,20 +1799,32 @@ admin
               กรุณาเลือกรถในตารางจัดรถวันที่ <strong>${formatThaiDate(selectedDate).short}</strong>:
             </p>
             <div style="display: flex; flex-direction: column; gap: 8px;">
-              ${rows.map((row, idx) => `
+              ${rows.map((row, idx) => {
+                const rowAvail = isRowAvailable(row);
+                return `
                 <button 
                   type="button" 
                   class="btn-select-target-row" 
                   data-row-id="${row.id}" 
-                  style="text-align: left; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: space-between;"
+                  style="text-align: left; padding: 10px 14px; border: 1.5px solid ${rowAvail ? '#86efac' : '#cbd5e1'}; border-radius: 8px; background: ${rowAvail ? '#f0fdf4' : '#f8fafc'}; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: space-between;"
                 >
                   <div>
-                    <strong>คันที่ ${row.no || idx + 1}: ${row.plate}</strong>
-                    <div style="font-size: 0.78rem; color: #64748b;">คนขับ: ${row.driverName || 'ยังไม่ระบุ'} | เวลา: ${row.time || '-'}</div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <strong>คันที่ ${row.no || idx + 1}: ${escapeHtml(row.plate || '')}</strong>
+                      <span class="target-picker-status-tag ${rowAvail ? 'tag-avail' : 'tag-busy'}">
+                        ${rowAvail ? 'ว่าง' : 'ไม่ว่าง'}
+                      </span>
+                    </div>
+                    <div style="font-size: 0.78rem; color: #64748b; margin-top: 3px;">
+                      คนขับ: ${row.driverName || 'ยังไม่ระบุ'} | เวลา: ${row.time || '-'} ${row.booker ? `| ผู้จอง: ${escapeHtml(row.booker)}` : ''}
+                    </div>
                   </div>
-                  <span style="color: #0284c7; font-weight: 600;">เลือกคันนี้ ➔</span>
+                  <span style="color: ${rowAvail ? '#15803d' : '#0284c7'}; font-weight: 600; font-size: 0.85rem;">
+                    ${rowAvail ? 'เลือกรถว่างคันนี้ ➔' : 'จัดใส่คันนี้ ➔'}
+                  </span>
                 </button>
-              `).join('')}
+              `;
+              }).join('')}
             </div>
           </div>
         </div>

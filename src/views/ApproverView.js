@@ -7,6 +7,16 @@ import {
 } from '../store.js';
 import { renderPaperModal } from '../components/PaperModal.js';
 
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function renderApproverView(container) {
   let activeTab = 'pending'; // 'pending' | 'history'
 
@@ -57,8 +67,8 @@ export function renderApproverView(container) {
   function renderPendingSection(pendingList) {
     if (pendingList.length === 0) {
       return `
-        <div class="content-card" style="text-align: center; padding: 3rem 1rem;">
-          <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎉</div>
+        <div class="content-card" style="text-align: center; padding: 3rem 1rem; max-width: 560px; margin: 1rem auto;">
+          <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📋</div>
           <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--slate-800);">ไม่มีรายการรออนุมัติในขณะนี้</h3>
           <p style="color: var(--slate-500); font-size: 0.9rem; margin-top: 4px;">
             ทุกคำขอได้รับการพิจารณาเรียบร้อยแล้ว หรือยังไม่มีคำขอใหม่จากผู้ใต้บังคับบัญชา
@@ -72,15 +82,16 @@ export function renderApproverView(container) {
         ${pendingList.map(req => {
       const usageThai = formatThaiDate(req.usageDate);
       const bookingThai = formatThaiDate(req.bookingDate);
+      const itineraryItems = Array.isArray(req.itinerary) && req.itinerary.length > 0 ? req.itinerary : [];
 
       return `
             <div class="approval-card" data-id="${req.id}">
-              <div>
+              <div class="approval-card-main-content">
                 <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--slate-100); padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
                   <div>
                     <strong style="color: #1e40af; font-size: 1.05rem;">${req.id}</strong>
                     <div style="font-size: 0.74rem; color: #475569; margin-top: 2px;">
-                       ส่งฟอร์ม: <strong>${formatSubmissionTime(req)}</strong> (${bookingThai.short})
+                      ส่งฟอร์ม: <strong>${formatSubmissionTime(req)}</strong> (${bookingThai.short})
                     </div>
                   </div>
                   <button class="btn-outline-blue btn-view-paper-form" data-id="${req.id}" style="padding: 3px 8px; font-size: 0.75rem;">
@@ -91,48 +102,91 @@ export function renderApproverView(container) {
                 <div class="approval-card-body">
                   <div class="info-row">
                     <span class="label">ผู้ขอใช้รถ:</span>
-                    <span class="val">${req.bookerName} (${req.department})</span>
+                    <span class="val">${escapeHtml(req.bookerName)} (${escapeHtml(req.department)})</span>
                   </div>
                   <div class="info-row">
                     <span class="label">เบอร์โทรติดต่อ:</span>
-                    <span class="val">${req.bookerPhone || '-'}</span>
+                    <span class="val">${escapeHtml(req.bookerPhone || '-')}</span>
                   </div>
                   <div class="info-row">
                     <span class="label">วันที่ใช้งาน:</span>
-                    <span class="val" style="color: #1e3a8a;">${usageThai.full}</span>
+                    <span class="val" style="color: #1e3a8a; font-weight: 600;">${usageThai.full}</span>
                   </div>
                   <div class="info-row">
                     <span class="label">ช่วงเวลา:</span>
                     <span class="val">${req.startTime} - ${req.endTime} น.</span>
                   </div>
-                  <div class="info-row">
-                    <span class="label">รถที่ขอ:</span>
-                    <span class="val">${req.requestedVehicle || 'ตามการจัดสรรส่วนกลาง'}</span>
-                  </div>
                   ${req.assignedDriver ? `
                     <div class="info-row">
                       <span class="label">พนักงานขับรถ:</span>
-                      <span class="val" style="color: #059669;">${req.assignedDriver}</span>
+                      <span class="val" style="color: #059669;">${escapeHtml(req.assignedDriver)}</span>
                     </div>
                   ` : ''}
                 </div>
 
-                <div style="background: #f8fafc; border-radius: 6px; padding: 0.75rem; margin: 0.75rem 0; font-size: 0.82rem;">
-                  <strong style="color: var(--slate-700);">เส้นทาง / ปลายทาง (${req.itinerary ? req.itinerary.length : 0} จุดหมาย):</strong>
-                  <ul style="padding-left: 1.25rem; margin-top: 4px; color: var(--slate-600);">
-                    ${req.itinerary && req.itinerary.map(item => `
-                      <li><strong>${item.destination || '-'}</strong>: ${item.detail || '-'}</li>
-                    `).join('')}
-                  </ul>
+                <!-- Itinerary items 1 - 6 with all details -->
+                <div class="approver-itinerary-box">
+                  <div class="approver-itinerary-header">
+                    <span style="font-weight: 700; color: #1e293b; font-size: 0.82rem;">
+                      รายละเอียดภารกิจและสถานที่ (ลำดับ 1 - 6)
+                    </span>
+                    <span class="approver-count-tag">${itineraryItems.length} รายการ</span>
+                  </div>
+
+                  <div class="approver-table-wrap">
+                    <table class="approver-mini-table">
+                      <thead>
+                        <tr>
+                          <th style="width: 40px; text-align: center;">ลำดับ</th>
+                          <th>ภารกิจ / วัตถุประสงค์</th>
+                          <th style="width: 110px; text-align: center;">เวลา / ผู้โดยสาร</th>
+                          <th style="width: 140px;">สถานที่ปลายทาง</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${itineraryItems.length === 0 ? `
+                          <tr>
+                            <td colspan="4" style="text-align: center; color: var(--slate-400); padding: 8px;">
+                              - ไม่มีข้อมูลแผนการเดินทาง -
+                            </td>
+                          </tr>
+                        ` : itineraryItems.map((item, idx) => {
+                          const rowNo = item.no || (idx + 1);
+                          const timeStr = item.time ? `${item.time} น.` : '';
+                          const passStr = item.passengers ? `${item.passengers} คน` : '';
+                          const timePassengers = item.note || [timeStr, passStr].filter(Boolean).join(' / ') || '-';
+                          return `
+                            <tr>
+                              <td style="text-align: center; font-weight: 700; color: #1d4ed8;">${rowNo}.)</td>
+                              <td style="font-weight: 500; color: #1e293b; line-height: 1.35;">${escapeHtml(item.detail || '-')}</td>
+                              <td style="text-align: center; white-space: nowrap;">
+                                <span class="time-pass-tag">${escapeHtml(timePassengers)}</span>
+                              </td>
+                              <td style="color: #334155; line-height: 1.35;">
+                                <span style="color: #2563eb; font-weight: 600;">📍</span> ${escapeHtml(item.destination || '-')}
+                              </td>
+                            </tr>
+                          `;
+                        }).join('')}
+                      </tbody>
+                    </table>
+                  </div>
+
                   ${req.notes ? `
-                    <div style="margin-top: 6px; color: var(--slate-500); font-size: 0.78rem;">
-                      <em>ผู้โดยสาร/หมายเหตุ: ${req.notes}</em>
+                    <div class="approver-card-notes">
+                      <span style="font-weight: 600; color: #475569;">หมายเหตุ / ผู้โดยสารร่วม:</span>
+                      <span style="color: #1e293b; margin-left: 4px;">${escapeHtml(req.notes)}</span>
                     </div>
-                  ` : ''}
+                  ` : `
+                    <div class="approver-card-notes" style="color: var(--slate-400);">
+                      <span style="font-weight: 600; color: #475569;">หมายเหตุ:</span>
+                      <span style="margin-left: 4px;">- ไม่มีระบุเพิ่มเติม -</span>
+                    </div>
+                  `}
                 </div>
 
                 <!-- Approver Sign-off Input -->
-                <div style="margin-top: 0.75rem;">
+                <div class="approver-sign-inputs" style="margin-top: 0.5rem; flex-shrink: 0;">
                   <label style="font-size: 0.78rem; font-weight: 600; color: var(--slate-700); display: block; margin-bottom: 3px;">
                     ลงชื่อผู้อนุมัติ (ชื่อ-นามสกุล / ตำแหน่ง):
                   </label>
@@ -146,14 +200,14 @@ export function renderApproverView(container) {
                   <input 
                     type="text" 
                     class="form-control approver-remark-input" 
-                    placeholder="ความเห็นหรือหมายเหตุเพิ่มเติม (ถ้ามี)" 
-                    style="font-size: 0.8rem; padding: 4px 8px; margin-top: 4px;" 
+                    placeholder="ความเห็นหรือเหตุผลที่ไม่อนุมัติ / หมายเหตุประกอบ" 
+                    style="font-size: 0.8rem; padding: 6px 8px; margin-top: 5px;" 
                   />
                 </div>
               </div>
 
               <!-- Action buttons -->
-              <div style="display: flex; gap: 8px; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--slate-100);">
+              <div class="approval-card-actions">
                 <button class="btn-primary btn-approve-req" data-id="${req.id}" style="flex: 1; justify-content: center; background: #059669; font-size: 0.85rem; padding: 7px 10px;">
                   ✓ อนุมัติคำขอ
                 </button>
@@ -182,9 +236,8 @@ export function renderApproverView(container) {
                 <th>รหัสคำขอ</th>
                 <th>วันที่ใช้งาน</th>
                 <th>ผู้ขอใช้รถ & แผนก</th>
-                <th>รถที่ขอ</th>
                 <th>ผู้อนุมัติ</th>
-                <th>สถานะ</th>
+                <th>สถานะ / ความเห็น</th>
                 <th style="text-align: center;">ดูแบบฟอร์ม</th>
               </tr>
             </thead>
@@ -203,11 +256,15 @@ export function renderApproverView(container) {
                       </div>
                     </td>
                     <td>${uThai.short} (${h.startTime} - ${h.endTime} น.)</td>
-                    <td>${h.bookerName} <div style="font-size: 0.75rem; color: var(--slate-400);">${h.department}</div></td>
-                    <td>${h.requestedVehicle || '-'}</td>
-                    <td>${h.approverSignature || '-'}</td>
+                    <td>${escapeHtml(h.bookerName)} <div style="font-size: 0.75rem; color: var(--slate-400);">${escapeHtml(h.department)}</div></td>
+                    <td>${escapeHtml(h.approverSignature || '-')}</td>
                     <td>
                       <span class="status-badge ${h.status}">${h.statusLabel}</span>
+                      ${h.approverRemark ? `
+                        <div style="font-size: 0.72rem; color: ${h.status === 'rejected' ? '#dc2626' : 'var(--slate-500)'}; margin-top: 3px; max-width: 220px; line-height: 1.3;">
+                          <strong style="color: ${h.status === 'rejected' ? '#b91c1c' : 'inherit'};">${h.status === 'rejected' ? 'เหตุผล: ' : 'ความเห็น: '}</strong>${escapeHtml(h.approverRemark)}
+                        </div>
+                      ` : ''}
                     </td>
                     <td style="text-align: center;">
                       <button class="btn-outline-blue btn-view-paper-form" data-id="${h.id}" style="padding: 3px 8px; font-size: 0.75rem;">
@@ -235,7 +292,25 @@ export function renderApproverView(container) {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
         const b = getAllBookings().find(x => x.id === id);
-        if (b) renderPaperModal(b);
+        if (b) {
+          renderPaperModal(b, {
+            onEdit: (booking) => {
+              window.dispatchEvent(new CustomEvent('edit_booking_in_form', { detail: booking }));
+            },
+            onConfirm: (booking) => {
+              if (booking.status === 'pending_approval') {
+                updateBooking(booking.id, {
+                  status: 'approved',
+                  statusLabel: 'อนุมัติแล้ว (รอจัดสรรรถ/คนขับ)',
+                  approverSignature: 'ผู้อนุมัติฝ่าย',
+                  approverRemark: 'อนุมัติตามระเบียบการใช้รถ'
+                });
+                showToast(`อนุมัติคำขอ ${booking.id} สำเร็จแล้ว`);
+                render();
+              }
+            }
+          });
+        }
       });
     });
 
@@ -261,14 +336,23 @@ export function renderApproverView(container) {
     container.querySelectorAll('.btn-reject-req').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
-        const reason = prompt('กรุณาระบุเหตุผลที่ไม่อนุมัติคำขอนี้:', 'ติดภารกิจอื่น / ไม่สอดคล้องกับระเบียบการใช้รถส่วนกลาง');
-        if (reason !== null) {
+        const card = btn.closest('.approval-card');
+        const sigName = card ? (card.querySelector('.approver-name-input')?.value.trim() || 'ผู้อนุมัติฝ่าย') : 'ผู้อนุมัติฝ่าย';
+        const inputRemark = card ? card.querySelector('.approver-remark-input')?.value.trim() : '';
+
+        let reason = inputRemark;
+        if (!reason) {
+          reason = prompt('กรุณาระบุเหตุผลที่ไม่อนุมัติคำขอนี้ เพื่อแจ้งให้ผู้ขอทราบ:', 'ติดภารกิจอื่น / ไม่สอดคล้องกับระเบียบการใช้รถส่วนกลาง');
+        }
+
+        if (reason !== null && reason.trim()) {
           updateBooking(id, {
             status: 'rejected',
             statusLabel: 'ไม่อนุมัติ',
-            approverRemark: reason
+            approverSignature: sigName,
+            approverRemark: reason.trim()
           });
-          showToast(`บันทึกผลไม่อนุมัติคำขอ ${id} แล้ว`);
+          showToast(`บันทึกผลไม่อนุมัติคำขอ ${id} เรียบร้อยแล้ว`);
           render();
         }
       });
