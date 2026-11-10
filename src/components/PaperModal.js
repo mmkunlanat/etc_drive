@@ -1,6 +1,16 @@
 // PaperModal.js - High-fidelity authentic replica of vehicle booking form
 import { formatThaiDate, formatSubmissionTime } from '../store.js';
 
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function renderPaperModal(booking, optionsOrOnClose) {
   let onClose = null;
   let onEdit = null;
@@ -65,6 +75,21 @@ export function renderPaperModal(booking, optionsOrOnClose) {
           </div>
         </div>
         <div class="paper-modal-body">
+          ${booking.status === 'rejected' ? `
+            <div class="paper-rejected-alert">
+              <div class="paper-rejected-icon">✕</div>
+              <div class="paper-rejected-body">
+                <div class="paper-rejected-title">คำขอนี้ไม่ได้รับการอนุมัติ (Rejected)</div>
+                <div class="paper-rejected-reason">
+                  <strong>เหตุผลจากผู้อนุมัติ:</strong> ${escapeHtml(booking.approverRemark || 'ไม่ระบุเหตุผล')}
+                </div>
+                ${booking.approverSignature ? `
+                  <div class="paper-rejected-signer">ผู้พิจารณา: ${escapeHtml(booking.approverSignature)}</div>
+                ` : ''}
+              </div>
+            </div>
+          ` : ''}
+
           <!-- Official Paper Sheet -->
           <div class="official-paper-sheet" id="printable-paper">
             
@@ -161,8 +186,8 @@ export function renderPaperModal(booking, optionsOrOnClose) {
                   </td>
                   <td>
                     <div style="font-size: 11px; color: #4b6b94; margin-bottom: 6px;">ลงชื่อผู้อนุมัติ</div>
-                    <div style="min-height: 35px; display: flex; align-items: center; justify-content: center; font-family: cursive; font-size: 16px; color: #1e3a8a;">
-                      ${booking.approverSignature || '...........................................'}
+                    <div style="min-height: 35px; display: flex; align-items: center; justify-content: center; font-size: 15px; color: ${booking.status === 'rejected' ? '#dc2626' : '#1e3a8a'}; font-family: ${booking.status === 'rejected' ? 'inherit' : 'cursive'}; font-weight: ${booking.status === 'rejected' ? '700' : 'normal'};">
+                      ${booking.status === 'rejected' ? '[ ไม่อนุมัติ ]' : (booking.approverSignature || '...........................................')}
                     </div>
                     <div class="sig-name-line">
                       (${booking.approverSignature ? booking.approverSignature : '...........................................'})
