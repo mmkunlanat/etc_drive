@@ -27,7 +27,6 @@ function initApp() {
           <div class="brand-text">
             <h1>
               <span>ระบบใบขออนุมัติการใช้รถ</span>
-              <span class="form-tag">FM-OFF-001</span>
             </h1>
             <p>Car Booking & Fleet Dispatch Management System</p>
           </div>
@@ -36,20 +35,20 @@ function initApp() {
         <!-- Role Switcher: Supports Booker (now) and Future Roles (Driver, Approver, Admin) -->
         <nav class="role-nav-group" aria-label="Role Switcher">
           <button id="role-btn-booker" class="role-tab-btn ${currentRole === 'booker' ? 'active' : ''}" data-role="booker">
-            <span>🧑‍💼 ผู้จอง (Booker)</span>
+            <span> ผู้จอง (Booker)</span>
           </button>
 
           <button id="role-btn-driver" class="role-tab-btn ${currentRole === 'driver' ? 'active' : ''}" data-role="driver">
-            <span>🚗 พนักงานขับรถ (Driver)</span>
+            <span> พนักงานขับรถ (Driver)</span>
           </button>
 
           <button id="role-btn-approver" class="role-tab-btn ${currentRole === 'approver' ? 'active' : ''}" data-role="approver">
-            <span>👔 ผู้อนุมัติ (Approver)</span>
+            <span> ผู้อนุมัติ (Approver)</span>
             ${pendingApprovals > 0 ? `<span class="role-badge" style="background: #ef4444; color: #fff;">${pendingApprovals}</span>` : ''}
           </button>
 
           <button id="role-btn-admin" class="role-tab-btn ${currentRole === 'admin' ? 'active' : ''}" data-role="admin">
-            <span>⚙️ แอดมิน/จัดรถ (Admin)</span>
+            <span> แอดมิน (Admin)</span>
             ${pendingDispatch > 0 ? `<span class="role-badge" style="background: #f59e0b; color: #fff;">${pendingDispatch}</span>` : ''}
           </button>
         </nav>

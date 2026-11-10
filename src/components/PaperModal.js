@@ -1,5 +1,5 @@
-// PaperModal.js - High-fidelity authentic replica of form FM-OFF-001/3/01-06-66
-import { formatThaiDate } from '../store.js';
+// PaperModal.js - High-fidelity authentic replica of vehicle booking form
+import { formatThaiDate, formatSubmissionTime } from '../store.js';
 
 export function renderPaperModal(booking, onClose) {
   const existing = document.getElementById('paper-modal-backdrop');
@@ -12,11 +12,12 @@ export function renderPaperModal(booking, onClose) {
   const rows = [];
   const maxRows = 6;
   for (let i = 0; i < maxRows; i++) {
-    const item = (booking.itinerary && booking.itinerary[i]) || { detail: '', note: '', destination: '' };
+    const item = (booking.itinerary && booking.itinerary[i]) || { detail: '', note: '', time: '', passengers: '', destination: '' };
+    const noteText = item.note || [item.time ? `${item.time} น.` : '', item.passengers ? `${item.passengers} คน` : ''].filter(Boolean).join(' / ');
     rows.push({
       no: i + 1,
       detail: item.detail || '',
-      note: item.note || '',
+      note: noteText,
       destination: item.destination || ''
     });
   }
@@ -28,8 +29,8 @@ export function renderPaperModal(booking, onClose) {
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 1.2rem;">📄</span>
             <div>
-              <strong style="font-size: 0.95rem;">แบบฟอร์มเอกสารทางการ: FM-OFF-001</strong>
-              <div style="font-size: 0.75rem; color: #94a3b8;">รหัสคำขอ: ${booking.id} (${booking.statusLabel})</div>
+              <strong style="font-size: 0.95rem;">แบบฟอร์มเอกสารทางการ</strong>
+              <div style="font-size: 0.75rem; color: #94a3b8;">รหัสคำขอ: ${booking.id} (${booking.statusLabel}) • ส่งฟอร์ม: ${formatSubmissionTime(booking)}</div>
             </div>
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
@@ -48,7 +49,7 @@ export function renderPaperModal(booking, onClose) {
             <div class="paper-top-right-meta">
               <div class="meta-line">
                 <span>วันที่จอง</span>
-                <span class="dotted-line">${bookingThai.short || '-'}</span>
+                <span class="dotted-line">${bookingThai.short || '-'} (เวลา ${formatSubmissionTime(booking)})</span>
               </div>
             </div>
 
@@ -169,7 +170,7 @@ export function renderPaperModal(booking, onClose) {
                 <span>หมายเหตุ : กรุณากรอกรายละเอียดให้ครบถ้วน และส่ง </span>
                 <span class="paper-footer-warning">"ใบขออนุมัติการใช้รถ" ภายใน 15.00 น.</span>
               </div>
-              <div class="paper-form-code">${booking.formCode || 'FM-OFF-001/3/01-06-66'}</div>
+              <div class="paper-form-code">${booking.formCode || ''}</div>
             </div>
 
           </div>

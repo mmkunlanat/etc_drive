@@ -62,6 +62,26 @@ export function formatThaiDate(isoDateStr) {
   };
 }
 
+// Format submission time helper e.g. "08:45 น."
+export function formatSubmissionTime(booking) {
+  if (!booking) return '-';
+  if (booking.submissionTime) {
+    const clean = String(booking.submissionTime).trim().replace(/ น\.?$/, '');
+    return `${clean} น.`;
+  }
+  if (booking.createdAt) {
+    try {
+      const d = new Date(booking.createdAt);
+      if (!isNaN(d.getTime())) {
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        return `${hh}:${mm} น.`;
+      }
+    } catch (e) {}
+  }
+  return '-';
+}
+
 // Rule validator: Booking must be made at least 1 day before usage
 export function validateBookingAdvance(bookingDateStr, usageDateStr) {
   if (!bookingDateStr || !usageDateStr) {
@@ -152,8 +172,9 @@ function getInitialSeedBookings() {
   return [
     {
       id: 'REQ-2026-001',
-      formCode: 'FM-OFF-001/3/01-06-66',
+      formCode: '',
       bookingDate: yesterday,
+      submissionTime: '08:45',
       usageDate: today,
       startTime: '09:00',
       endTime: '16:30',
@@ -178,12 +199,13 @@ function getInitialSeedBookings() {
       approverSignature: 'เกรียงไกร มีอำนาจ (ผู้จัดการฝ่ายขาย)',
       approverRemark: 'อนุมัติเพื่อสนับสนุนงานขายลูกค้ารายใหญ่',
       adminSignature: 'สิริมา จัดสรรดี (ฝ่ายสำนักงาน)',
-      createdAt: new Date().toISOString()
+      createdAt: `${yesterday}T08:45:00.000Z`
     },
     {
       id: 'REQ-2026-002',
-      formCode: 'FM-OFF-001/3/01-06-66',
+      formCode: '',
       bookingDate: today,
+      submissionTime: '09:20',
       usageDate: tomorrow,
       startTime: '08:30',
       endTime: '12:00',
@@ -207,12 +229,13 @@ function getInitialSeedBookings() {
       approverSignature: '',
       approverRemark: '',
       adminSignature: '',
-      createdAt: new Date().toISOString()
+      createdAt: `${today}T09:20:00.000Z`
     },
     {
       id: 'REQ-2026-003',
-      formCode: 'FM-OFF-001/3/01-06-66',
+      formCode: '',
       bookingDate: today,
+      submissionTime: '10:15',
       usageDate: next2Days,
       startTime: '10:00',
       endTime: '18:00',
@@ -236,7 +259,7 @@ function getInitialSeedBookings() {
       approverSignature: 'ชัยรัตน์ ประเสริฐสุข (ผู้อำนวยการฝ่ายบริหาร)',
       approverRemark: 'อนุมัติตามระเบียบการรับรองแขกต่างประเทศ',
       adminSignature: '',
-      createdAt: new Date().toISOString()
+      createdAt: `${today}T10:15:00.000Z`
     }
   ];
 }
@@ -250,7 +273,29 @@ export function getAllBookings() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
       return seed;
     }
-    return JSON.parse(raw);
+    const bookings = JSON.parse(raw);
+    return bookings.map(b => {
+      let subTime = b.submissionTime;
+      if (!subTime && b.createdAt) {
+        try {
+          const d = new Date(b.createdAt);
+          if (!isNaN(d.getTime())) {
+            subTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+          }
+        } catch (e) {}
+      }
+      if (!subTime) {
+        if (b.id === 'REQ-2026-001') subTime = '08:45';
+        else if (b.id === 'REQ-2026-002') subTime = '09:20';
+        else if (b.id === 'REQ-2026-003') subTime = '10:15';
+        else subTime = '08:30';
+      }
+      return {
+        ...b,
+        submissionTime: subTime,
+        formCode: (b.formCode || '').replace(/FM-OFF-001[^\s]*/g, '').trim()
+      };
+    });
   } catch (e) {
     console.error('Error reading localStorage', e);
     return getInitialSeedBookings();
@@ -271,10 +316,14 @@ export function createBooking(data) {
   const nextIdNum = bookings.length + 1;
   const newId = `REQ-2026-${String(nextIdNum).padStart(3, '0')}`;
   
+  const now = new Date();
+  const nowTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
   const newBooking = {
     id: newId,
-    formCode: 'FM-OFF-001/3/01-06-66',
+    formCode: '',
     bookingDate: data.bookingDate || getTodayISODate(),
+    submissionTime: data.submissionTime || nowTime,
     usageDate: data.usageDate,
     startTime: data.startTime || '08:30',
     endTime: data.endTime || '17:00',
@@ -297,7 +346,7 @@ export function createBooking(data) {
     approverSignature: '',
     approverRemark: '',
     adminSignature: '',
-    createdAt: new Date().toISOString()
+    createdAt: now.toISOString()
   };
 
   bookings.unshift(newBooking);
@@ -326,6 +375,94 @@ export function resetToSeedData() {
   const seed = getInitialSeedBookings();
   saveAllBookings(seed);
   return seed;
+}
+
+// Quick Templates Store
+const QUICK_TEMPLATES_KEY = 'car_booking_quick_templates_v1';
+
+export const DEFAULT_QUICK_TEMPLATES = [
+  {
+    id: 'tpl_customer',
+    name: '🤝 พบลูกค้า',
+    rows: [
+      { no: 1, detail: 'เดินทางไปพบลูกค้าเพื่อส่งมอบสัญญาและประชุมนำเสนอโครงการ', time: '10:00', passengers: '3', note: '10:00 น. / 3 คน', destination: 'นิคมอุตสาหกรรมบางปู จ.สมุทรปราการ' },
+      { no: 2, detail: 'เดินทางกลับสำนักงานใหญ่', time: '14:30', passengers: '3', note: '14:30 น. / 3 คน', destination: 'สำนักงานใหญ่ พระราม 9' }
+    ]
+  },
+  {
+    id: 'tpl_airport',
+    name: '✈️ สนามบิน',
+    rows: [
+      { no: 1, detail: 'ไปรับผู้บริหารและคณะดูงานจากต่างประเทศ', time: '09:30', passengers: '4', note: '09:30 น. / 4 คน', destination: 'สนามบินสุวรรณภูมิ ประตู 4' },
+      { no: 2, detail: 'ส่งคณะผู้บริหารเข้าที่พักและศูนย์ประชุม', time: '13:00', passengers: '4', note: '13:00 น. / 4 คน', destination: 'โรงแรม แกรนด์ เซนเตอร์พอยต์ เพลินจิต' }
+    ]
+  },
+  {
+    id: 'tpl_cargo',
+    name: '📦 ส่งของ',
+    rows: [
+      { no: 1, detail: 'ขนส่งอุปกรณ์เครื่องมือและอะไหล่ซ่อมบำรุง', time: '08:30', passengers: '2', note: '08:30 น. / 2 คน', destination: 'คลังสินค้า บางนา กม.19' },
+      { no: 2, detail: 'นำส่งเอกสารตรวจรับสินค้า', time: '13:30', passengers: '2', note: '13:30 น. / 2 คน', destination: 'สาขานิคมพัฒนา จ.ระยอง' }
+    ]
+  }
+];
+
+export function getQuickTemplates() {
+  try {
+    const raw = localStorage.getItem(QUICK_TEMPLATES_KEY);
+    if (!raw) {
+      localStorage.setItem(QUICK_TEMPLATES_KEY, JSON.stringify(DEFAULT_QUICK_TEMPLATES));
+      return DEFAULT_QUICK_TEMPLATES;
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_QUICK_TEMPLATES;
+  } catch (e) {
+    console.error('Error reading quick templates', e);
+    return DEFAULT_QUICK_TEMPLATES;
+  }
+}
+
+export function saveQuickTemplates(templates) {
+  try {
+    localStorage.setItem(QUICK_TEMPLATES_KEY, JSON.stringify(templates));
+    window.dispatchEvent(new CustomEvent('quick_templates_updated', { detail: templates }));
+  } catch (e) {
+    console.error('Error saving quick templates', e);
+  }
+}
+
+export function addQuickTemplate(tpl) {
+  const templates = getQuickTemplates();
+  const newTpl = {
+    ...tpl,
+    id: tpl.id || `tpl_${Date.now()}`
+  };
+  templates.push(newTpl);
+  saveQuickTemplates(templates);
+  return newTpl;
+}
+
+export function updateQuickTemplate(id, updatedFields) {
+  const templates = getQuickTemplates();
+  const idx = templates.findIndex(t => t.id === id);
+  if (idx !== -1) {
+    templates[idx] = { ...templates[idx], ...updatedFields };
+    saveQuickTemplates(templates);
+    return templates[idx];
+  }
+  return null;
+}
+
+export function deleteQuickTemplate(id) {
+  let templates = getQuickTemplates();
+  templates = templates.filter(t => t.id !== id);
+  saveQuickTemplates(templates);
+  return templates;
+}
+
+export function resetQuickTemplates() {
+  saveQuickTemplates(DEFAULT_QUICK_TEMPLATES);
+  return DEFAULT_QUICK_TEMPLATES;
 }
 
 // Current active role

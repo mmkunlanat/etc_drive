@@ -1,6 +1,7 @@
 // ApproverView.js - Department Head Approver Portal (หน้าผู้อนุมัติ)
 import {
   formatThaiDate,
+  formatSubmissionTime,
   getAllBookings,
   updateBooking
 } from '../store.js';
@@ -29,7 +30,7 @@ export function renderApproverView(container) {
                   ระบบพิจารณาอนุมัติการใช้รถ (Approver Portal)
                 </h2>
                 <p style="font-size: 0.85rem; color: #94a3b8;">
-                  สำหรับหัวหน้าฝ่าย / ผู้จัดการแผนก พิจารณาตรวจสอบความจำเป็นและอนุมัติใบขอใช้รถ FM-OFF-001
+                  สำหรับหัวหน้าฝ่าย / ผู้จัดการแผนก พิจารณาตรวจสอบความจำเป็นและอนุมัติใบขอใช้รถ
                 </p>
               </div>
             </div>
@@ -69,19 +70,21 @@ export function renderApproverView(container) {
     return `
       <div class="approver-grid">
         ${pendingList.map(req => {
-          const usageThai = formatThaiDate(req.usageDate);
-          const bookingThai = formatThaiDate(req.bookingDate);
+      const usageThai = formatThaiDate(req.usageDate);
+      const bookingThai = formatThaiDate(req.bookingDate);
 
-          return `
+      return `
             <div class="approval-card" data-id="${req.id}">
               <div>
                 <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--slate-100); padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
                   <div>
                     <strong style="color: #1e40af; font-size: 1.05rem;">${req.id}</strong>
-                    <div style="font-size: 0.75rem; color: var(--slate-400);">ส่งเมื่อ: ${bookingThai.short}</div>
+                    <div style="font-size: 0.74rem; color: #475569; margin-top: 2px;">
+                       ส่งฟอร์ม: <strong>${formatSubmissionTime(req)}</strong> (${bookingThai.short})
+                    </div>
                   </div>
                   <button class="btn-outline-blue btn-view-paper-form" data-id="${req.id}" style="padding: 3px 8px; font-size: 0.75rem;">
-                    📄 แบบฟอร์ม FM-OFF-001
+                    📄 แบบฟอร์ม
                   </button>
                 </div>
 
@@ -161,7 +164,7 @@ export function renderApproverView(container) {
 
             </div>
           `;
-        }).join('')}
+    }).join('')}
       </div>
     `;
   }
@@ -187,10 +190,18 @@ export function renderApproverView(container) {
             </thead>
             <tbody>
               ${historyList.map(h => {
-                const uThai = formatThaiDate(h.usageDate);
-                return `
+      const uThai = formatThaiDate(h.usageDate);
+      return `
                   <tr>
-                    <td><strong>${h.id}</strong></td>
+                    <td>
+                      <strong style="color: #1e40af;">${h.id}</strong>
+                      <div style="font-size: 0.72rem; color: #475569; margin-top: 2px;">
+                         ส่งฟอร์ม: <strong>${formatSubmissionTime(h)}</strong>
+                      </div>
+                      <div style="font-size: 0.68rem; color: #94a3b8;">
+                        ${formatThaiDate(h.bookingDate).short}
+                      </div>
+                    </td>
                     <td>${uThai.short} (${h.startTime} - ${h.endTime} น.)</td>
                     <td>${h.bookerName} <div style="font-size: 0.75rem; color: var(--slate-400);">${h.department}</div></td>
                     <td>${h.requestedVehicle || '-'}</td>
@@ -200,12 +211,12 @@ export function renderApproverView(container) {
                     </td>
                     <td style="text-align: center;">
                       <button class="btn-outline-blue btn-view-paper-form" data-id="${h.id}" style="padding: 3px 8px; font-size: 0.75rem;">
-                        📄 FM-OFF-001
+                        📄 แบบฟอร์ม
                       </button>
                     </td>
                   </tr>
                 `;
-              }).join('')}
+    }).join('')}
             </tbody>
           </table>
         </div>
