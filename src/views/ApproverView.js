@@ -86,7 +86,7 @@ export function renderApproverView(container) {
 
       return `
             <div class="approval-card" data-id="${req.id}">
-              <div>
+              <div class="approval-card-main-content">
                 <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--slate-100); padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
                   <div>
                     <strong style="color: #1e40af; font-size: 1.05rem;">${req.id}</strong>
@@ -177,11 +177,16 @@ export function renderApproverView(container) {
                       <span style="font-weight: 600; color: #475569;">หมายเหตุ / ผู้โดยสารร่วม:</span>
                       <span style="color: #1e293b; margin-left: 4px;">${escapeHtml(req.notes)}</span>
                     </div>
-                  ` : ''}
+                  ` : `
+                    <div class="approver-card-notes" style="color: var(--slate-400);">
+                      <span style="font-weight: 600; color: #475569;">หมายเหตุ:</span>
+                      <span style="margin-left: 4px;">- ไม่มีระบุเพิ่มเติม -</span>
+                    </div>
+                  `}
                 </div>
 
                 <!-- Approver Sign-off Input -->
-                <div style="margin-top: 0.75rem;">
+                <div class="approver-sign-inputs" style="margin-top: 0.5rem; flex-shrink: 0;">
                   <label style="font-size: 0.78rem; font-weight: 600; color: var(--slate-700); display: block; margin-bottom: 3px;">
                     ลงชื่อผู้อนุมัติ (ชื่อ-นามสกุล / ตำแหน่ง):
                   </label>
@@ -202,7 +207,7 @@ export function renderApproverView(container) {
               </div>
 
               <!-- Action buttons -->
-              <div style="display: flex; gap: 8px; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--slate-100);">
+              <div class="approval-card-actions">
                 <button class="btn-primary btn-approve-req" data-id="${req.id}" style="flex: 1; justify-content: center; background: #059669; font-size: 0.85rem; padding: 7px 10px;">
                   ✓ อนุมัติคำขอ
                 </button>
