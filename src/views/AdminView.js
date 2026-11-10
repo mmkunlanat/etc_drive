@@ -1,6 +1,7 @@
 // AdminView.js - Fleet & Dispatch Admin Portal (หน้าแอดมิน / ฝ่ายสำนักงาน ผู้จัดรถ)
 import {
   formatThaiDate,
+  formatSubmissionTime,
   getAllBookings,
   updateBooking,
   VEHICLE_TYPES,
@@ -101,6 +102,12 @@ export function renderAdminView(container) {
                     <tr style="${isApprovedNeedsDispatch ? 'background-color: #f0fdf4;' : ''}">
                       <td>
                         <strong style="color: #1e40af;">${item.id}</strong>
+                        <div style="font-size: 0.72rem; color: #475569; margin-top: 2px;">
+                          ⏰ ส่งฟอร์ม: <strong>${formatSubmissionTime(item)}</strong>
+                        </div>
+                        <div style="font-size: 0.68rem; color: #94a3b8;">
+                          ยื่นเมื่อ ${formatThaiDate(item.bookingDate).short}
+                        </div>
                       </td>
                       <td>
                         <div style="font-weight: 600;">${uThai.short}</div>
