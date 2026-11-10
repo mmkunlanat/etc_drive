@@ -21,8 +21,8 @@ export function renderDriverView(container) {
     // Filter jobs assigned to this driver for today (or matching date/driver)
     const todayTrips = allBookings.filter(b => {
       // Matches driver assignment or driver id, and date is today (or dispatched status)
-      const isMyDriver = b.assignedDriverId === selectedDriverId || 
-                         (b.assignedDriver && b.assignedDriver.includes(currentDriver.name));
+      const isMyDriver = b.assignedDriverId === selectedDriverId ||
+        (b.assignedDriver && b.assignedDriver.includes(currentDriver.name));
       const isToday = b.usageDate === todayIso;
       return isMyDriver && (b.status === 'dispatched' || b.status === 'completed' || isToday);
     });
@@ -103,7 +103,7 @@ export function renderDriverView(container) {
         
         <div class="trip-card-header">
           <div class="trip-time-badge">
-            <span>⏰</span>
+            <span></span>
             <span>เวลา ${trip.startTime} - ${trip.endTime} น.</span>
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
@@ -124,8 +124,8 @@ export function renderDriverView(container) {
 
         <div class="trip-route-timeline">
           ${trip.itinerary && trip.itinerary.map((step, idx) => {
-            const isLast = idx === trip.itinerary.length - 1;
-            return `
+      const isLast = idx === trip.itinerary.length - 1;
+      return `
               <div class="route-step ${isLast ? 'finish' : ''}">
                 <div class="step-dest">
                   ${idx + 1}. ${step.destination || 'ไม่ได้ระบุ'}
@@ -140,7 +140,7 @@ export function renderDriverView(container) {
                 ` : ''}
               </div>
             `;
-          }).join('')}
+    }).join('')}
         </div>
 
         <!-- Passenger & Booker info -->
@@ -163,7 +163,7 @@ export function renderDriverView(container) {
             ` : ''}
 
             <button class="btn-secondary-sm btn-driver-view-paper" data-id="${trip.id}">
-              📄 ดูใบงาน FM-OFF-001
+              📄 ดูใบงาน
             </button>
           </div>
         </div>
