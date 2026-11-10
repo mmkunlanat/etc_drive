@@ -15,7 +15,7 @@ export function renderAdminView(container) {
 
   function render() {
     const bookings = getAllBookings();
-    
+
     // Filter
     let filtered = bookings;
     if (activeFilter === 'needs_dispatch') {
@@ -95,15 +95,15 @@ export function renderAdminView(container) {
                     </td>
                   </tr>
                 ` : filtered.map(item => {
-                  const uThai = formatThaiDate(item.usageDate);
-                  const isApprovedNeedsDispatch = item.status === 'approved';
+      const uThai = formatThaiDate(item.usageDate);
+      const isApprovedNeedsDispatch = item.status === 'approved';
 
-                  return `
+      return `
                     <tr style="${isApprovedNeedsDispatch ? 'background-color: #f0fdf4;' : ''}">
                       <td>
                         <strong style="color: #1e40af;">${item.id}</strong>
                         <div style="font-size: 0.72rem; color: #475569; margin-top: 2px;">
-                          ⏰ ส่งฟอร์ม: <strong>${formatSubmissionTime(item)}</strong>
+                           ส่งฟอร์ม: <strong>${formatSubmissionTime(item)}</strong>
                         </div>
                         <div style="font-size: 0.68rem; color: #94a3b8;">
                           ยื่นเมื่อ ${formatThaiDate(item.bookingDate).short}
@@ -141,7 +141,7 @@ export function renderAdminView(container) {
                       </td>
                     </tr>
                   `;
-                }).join('')}
+    }).join('')}
               </tbody>
             </table>
           </div>

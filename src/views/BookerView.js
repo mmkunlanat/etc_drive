@@ -231,7 +231,7 @@ export function renderBookerView(container) {
             <span>ผู้จองต้องกรอกข้อมูลล่วงหน้าก่อนวันใช้งาน <strong>อย่างน้อย 1 วัน</strong> และส่งภายในเวลา <strong>15.00 น.</strong></span>
           </div>
           <div class="notice-time-status">
-            <span>⏰ เวลาปัจจุบัน: ${timeCheck.currentTime}</span>
+            <span> เวลาปัจจุบัน: ${timeCheck.currentTime}</span>
             <span style="color: ${timeCheck.isPast15 ? '#b45309' : '#059669'};">
               (${timeCheck.isPast15 ? 'เลย 15:00 น. แล้ว' : 'อยู่ในเกณฑ์เวลาปกติ'})
             </span>
@@ -371,7 +371,7 @@ export function renderBookerView(container) {
 
             <div class="form-group">
               <label class="form-label" for="startTime">
-                <span>⏰ ตั้งแต่เวลา</span>
+                <span> ตั้งแต่เวลา</span>
                 <span class="required">*</span>
               </label>
               <div class="input-group">
@@ -392,7 +392,7 @@ export function renderBookerView(container) {
 
             <div class="form-group">
               <label class="form-label" for="endTime">
-                <span>⏰ ถึงเวลา</span>
+                <span> ถึงเวลา</span>
                 <span class="required">*</span>
               </label>
               <div class="input-group">
@@ -445,7 +445,7 @@ export function renderBookerView(container) {
                   <tr>
                     <th style="width: 55px; text-align: center;">ลำดับที่</th>
                     <th>รายละเอียด (ภารกิจ / สิ่งของ / วัตถุประสงค์) <span class="required" style="color: #dc2626;">*</span></th>
-                    <th style="width: 125px;">⏰ เวลา</th>
+                    <th style="width: 125px;"> เวลา</th>
                     <th style="width: 140px;">👥 จำนวนคน</th>
                     <th style="width: 260px;">สถานที่ (ปลายทาง / จุดแวะ) <span class="required" style="color: #dc2626;">*</span></th>
                     <th style="width: 50px; text-align: center;">ลบ</th>
@@ -578,15 +578,15 @@ export function renderBookerView(container) {
         <div class="card-header-flex">
           <div class="card-title-group">
             <h2>
-              <span>📋</span>
-              <span>ประวัติการจองของฉัน</span>
+              <span></span>
+              <span></span>
             </h2>
             <p>ติดตามตารางการใช้รถ ตรวจสอบสถานะคำขอ และพิมพ์แบบฟอร์ม</p>
           </div>
           <div class="history-top-actions">
             <button type="button" id="btn-open-cal-modal" class="btn-outline-blue" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 0.85rem; font-weight: 600;">
               <span>📅</span>
-              <span>ปฏิทินการใช้รถ</span>
+              <span></span>
             </button>
             <button id="btn-create-new-top" class="btn-primary" style="padding: 6px 14px; font-size: 0.85rem;">
               <span>+ กรอกใบขอใช้รถ</span>
@@ -705,7 +705,7 @@ export function renderBookerView(container) {
                       <span class="mini-item-status-dot dot-${b.status}"></span>
                       <div class="mini-item-info">
                         <div class="mini-item-title">${firstDest} (${b.id})</div>
-                        <div class="mini-item-sub">⏰ ใช้รถ ${b.startTime} น. • ส่งฟอร์ม ${formatSubmissionTime(b)} • ${b.bookerName}</div>
+                        <div class="mini-item-sub"> ใช้รถ ${b.startTime} น. • ส่งฟอร์ม ${formatSubmissionTime(b)} • ${b.bookerName}</div>
                       </div>
                     </div>
                     <button type="button" class="mini-item-view-btn btn-view-paper" data-id="${b.id}" title="ดูใบคำขอ">
@@ -812,7 +812,7 @@ export function renderBookerView(container) {
                   <td>
                     <strong style="color: #1e40af; font-size: 0.95rem;">${b.id}</strong>
                     <div style="font-size: 0.74rem; color: #475569; margin-top: 3px; display: flex; align-items: center; gap: 3px; white-space: nowrap;">
-                      <span style="color: #0284c7; font-size: 0.78rem;">⏰</span>
+                      <span style="color: #0284c7; font-size: 0.78rem;"></span>
                       <span>ส่งฟอร์ม: <strong>${formatSubmissionTime(b)}</strong></span>
                     </div>
                     <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 1px;">
@@ -1711,7 +1711,7 @@ export function renderBookerView(container) {
                   <tr>
                     <th style="width: 45px; text-align: center;">ลำดับ</th>
                     <th>ภารกิจ/รายละเอียด <span class="required" style="color: #dc2626;">*</span></th>
-                    <th style="width: 105px;">⏰ เวลา</th>
+                    <th style="width: 105px;"> เวลา</th>
                     <th style="width: 130px;">👥 จำนวนคน</th>
                     <th style="width: 190px;">📍 สถานที่ <span class="required" style="color: #dc2626;">*</span></th>
                     <th style="width: 40px; text-align: center;">ลบ</th>

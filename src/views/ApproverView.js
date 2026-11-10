@@ -70,17 +70,17 @@ export function renderApproverView(container) {
     return `
       <div class="approver-grid">
         ${pendingList.map(req => {
-          const usageThai = formatThaiDate(req.usageDate);
-          const bookingThai = formatThaiDate(req.bookingDate);
+      const usageThai = formatThaiDate(req.usageDate);
+      const bookingThai = formatThaiDate(req.bookingDate);
 
-          return `
+      return `
             <div class="approval-card" data-id="${req.id}">
               <div>
                 <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--slate-100); padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
                   <div>
                     <strong style="color: #1e40af; font-size: 1.05rem;">${req.id}</strong>
                     <div style="font-size: 0.74rem; color: #475569; margin-top: 2px;">
-                      ⏰ ส่งฟอร์ม: <strong>${formatSubmissionTime(req)}</strong> (${bookingThai.short})
+                       ส่งฟอร์ม: <strong>${formatSubmissionTime(req)}</strong> (${bookingThai.short})
                     </div>
                   </div>
                   <button class="btn-outline-blue btn-view-paper-form" data-id="${req.id}" style="padding: 3px 8px; font-size: 0.75rem;">
@@ -164,7 +164,7 @@ export function renderApproverView(container) {
 
             </div>
           `;
-        }).join('')}
+    }).join('')}
       </div>
     `;
   }
@@ -190,13 +190,13 @@ export function renderApproverView(container) {
             </thead>
             <tbody>
               ${historyList.map(h => {
-                const uThai = formatThaiDate(h.usageDate);
-                return `
+      const uThai = formatThaiDate(h.usageDate);
+      return `
                   <tr>
                     <td>
                       <strong style="color: #1e40af;">${h.id}</strong>
                       <div style="font-size: 0.72rem; color: #475569; margin-top: 2px;">
-                        ⏰ ส่งฟอร์ม: <strong>${formatSubmissionTime(h)}</strong>
+                         ส่งฟอร์ม: <strong>${formatSubmissionTime(h)}</strong>
                       </div>
                       <div style="font-size: 0.68rem; color: #94a3b8;">
                         ${formatThaiDate(h.bookingDate).short}
@@ -216,7 +216,7 @@ export function renderApproverView(container) {
                     </td>
                   </tr>
                 `;
-              }).join('')}
+    }).join('')}
             </tbody>
           </table>
         </div>
