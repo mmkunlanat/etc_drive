@@ -307,10 +307,10 @@ function getInitialSeedBookings() {
       statusLabel: 'จัดรถแล้ว (ตารางจัดรถ)',
       driverJobStatus: 'not_started',
       itinerary: [
-        { no: 1, detail: 'ส่งเอกสาร บ.เอ-พลา ไฮเทค ต.บึง ศรีราชา', note: '', destination: 'ต.บึง ศรีราชา จ.ชลบุรี', dispatched: true, dispatchedToVehicle: '6กถ-1381 (เก๋ง)', dispatchedRowId: 'disp-row-1' },
-        { no: 2, detail: 'รับเช็ค บ.แน็ชเชอรัล อ.บ้านบึง ชลบุรี', note: '', destination: 'อ.บ้านบึง จ.ชลบุรี', dispatched: true, dispatchedToVehicle: '6กถ-1381 (เก๋ง)', dispatchedRowId: 'disp-row-1' },
-        { no: 3, detail: 'แจ้งหนี้+ส่งเล่มรายงาน บ.เพรซิเดนท์ เบเกอรี่ บางชัน กทม.เวลา 13.00-16.30 น.', note: 'เวลา 13.00-16.30 น.', destination: 'บางชัน กทม.', dispatched: true, dispatchedToVehicle: '6กถ-1381 (เก๋ง)', dispatchedRowId: 'disp-row-1' },
-        { no: 4, detail: '18.00 น. สแตนบายรับ เจ้าหน้าที่ STC 3 ท่าน ที่สนามบินสุวรรณภูมิ เครื่องลง 18.20 น. ติดต่อ K.ดา (STC) 084-8614388/ 081-7623726 รับไปส่งที่โรงแรมเอ็มเอส รีสอร์ท ศรีราชา', note: '18.00 น.', destination: 'สนามบินสุวรรณภูมิ -> โรงแรมเอ็มเอส รีสอร์ท ศรีราชา', dispatched: true, dispatchedToVehicle: '6กถ-1381 (เก๋ง)', dispatchedRowId: 'disp-row-1' }
+        { no: 1, destination: 'สนามบินดอนเมือง', detail: 'รับ-ส่งผู้บริหารพบลูกค้า', note: '01:00 น. / 1 คน', time: '01:00', passengers: '1', completed: false, completedAt: null, dispatched: true, dispatchedToVehicle: '6กถ-1381 (เก๋ง)', dispatchedRowId: 'disp-row-1' },
+        { no: 2, destination: 'สนามบินสุวรรณภูมิ', detail: 'ประชุมนำเสนอโครงการ', note: '07:00 น. / 1 คน', time: '07:00', passengers: '1', completed: false, completedAt: null, dispatched: true, dispatchedToVehicle: '6กถ-1381 (เก๋ง)', dispatchedRowId: 'disp-row-1' },
+        { no: 3, destination: 'นิคมอุตสาหกรรมบางปู จ.สมุทรปราการ', detail: 'คลังสินค้า บางนา กม.19', note: '04:00 น. / 1 คน', time: '04:00', passengers: '1', completed: false, completedAt: null, dispatched: true, dispatchedToVehicle: '6กถ-1381 (เก๋ง)', dispatchedRowId: 'disp-row-1' },
+        { no: 4, destination: 'ส่งมอบสัญญาและเอกสาร', detail: 'คลังสินค้า บางนา กม.19', note: '', time: '', passengers: '', completed: false, completedAt: null, dispatched: true, dispatchedToVehicle: '6กถ-1381 (เก๋ง)', dispatchedRowId: 'disp-row-1' }
       ],
       notes: 'ผู้จองร่วม: K.สุชานรี',
       bookerSignature: 'ลัดดา วงศ์สุวรรณ',
@@ -349,6 +349,37 @@ function getInitialSeedBookings() {
       approverSignature: 'สุชาดา บัญชีมั่นคง (ผู้จัดการฝ่ายบัญชี)',
       approverRemark: 'อนุมัติการเดินทาง',
       adminSignature: '',
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: 'REQ-2026-006',
+      formCode: '',
+      bookingDate: today,
+      submissionTime: '11:15',
+      usageDate: tomorrow,
+      startTime: '08:30',
+      endTime: '16:00',
+      bookerName: 'กิตติศักดิ์ พัฒนาการ',
+      bookerPhone: '089-123-4567',
+      department: 'ฝ่ายวิศวกรรมและเทคโนโลยีสารสนเทศ',
+      requestedVehicle: 'รถเก๋งสำนักงาน',
+      assignedVehicle: '6ขภ-7214 (เก๋ง)',
+      requestedDriver: 'ขอพนักงานขับรถของบริษัท',
+      assignedDriver: 'วัชรินทร์',
+      assignedDriverId: 'drv_5',
+      status: 'dispatched',
+      statusLabel: 'จัดรถแล้ว (ตารางจัดรถ)',
+      driverJobStatus: 'not_started',
+      driverConfirmed: false,
+      itinerary: [
+        { no: 1, detail: 'เดินทางไปติดตั้งอุปกรณ์เน็ตเวิร์กและสำรองข้อมูลระบบ', note: '09:30 น. / 2 คน', destination: 'สาขาอมตะนคร จ.ชลบุรี', dispatched: true, dispatchedToVehicle: '6ขภ-7214 (เก๋ง)' },
+        { no: 2, detail: 'เดินทางกลับสำนักงานใหญ่', note: '14:30 น. / 2 คน', destination: 'สำนักงานใหญ่ พระราม 9', dispatched: true, dispatchedToVehicle: '6ขภ-7214 (เก๋ง)' }
+      ],
+      notes: 'ผู้โดยสาร 2 ท่าน มีอุปกรณ์ไอทีและเครื่องมือติดตั้ง',
+      bookerSignature: 'กิตติศักดิ์ พัฒนาการ',
+      approverSignature: 'เกรียงไกร มีอำนาจ (ผู้จัดการฝ่าย)',
+      approverRemark: 'อนุมัติการเดินทางปฏิบัติภารกิจ',
+      adminSignature: 'สิริมา จัดสรรดี (ฝ่ายสำนักงาน)',
       createdAt: new Date().toISOString()
     }
   ];
@@ -617,9 +648,8 @@ export function getDefaultFleetDispatchRows() {
       department: 'ACC/OFF',
       booker: 'K.ลัดดา/K.สุชานรี',
       itineraryLines: [
-        'ส่งเอกสาร บ.เอ-พลา ไฮเทค ต.บึง ศรีราชา / รับเช็ค บ.แน็ชเชอรัล อ.บ้านบึง ชลบุรี / แจ้งหนี้+ส่งเล่มรายงาน บ.เพรซิเดนท์ เบเกอรี่ บางชัน กทม.เวลา 13.00-16.30 น. /',
-        '18.00 น. สแตนบายรับ เจ้าหน้าที่ STC 3 ท่าน ที่สนามบินสุวรรณภูมิ เครื่องลง 18.20 น. ติดต่อ K.ดา (STC) 084-8614388/ 081-7623726',
-        'รับไปส่งที่โรงแรมเอ็มเอส รีสอร์ท ศรีราชา'
+        'สนามบินดอนเมือง (รับ-ส่งผู้บริหารพบลูกค้า 01:00 น. / 1 คน) / สนามบินสุวรรณภูมิ (ประชุมนำเสนอโครงการ 07:00 น. / 1 คน) /',
+        'นิคมอุตสาหกรรมบางปู จ.สมุทรปราการ (คลังสินค้า บางนา กม.19 04:00 น. / 1 คน) / ส่งมอบสัญญาและเอกสาร (คลังสินค้า บางนา กม.19)'
       ],
       comment: '',
       linkedBookingIds: ['REQ-2026-004']
