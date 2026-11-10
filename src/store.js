@@ -286,8 +286,7 @@ function getInitialSeedBookings() {
       approverSignature: 'ชัยรัตน์ ประเสริฐสุข (ผู้อำนวยการฝ่ายบริหาร)',
       approverRemark: 'อนุมัติตามระเบียบการรับรองแขกต่างประเทศ',
       adminSignature: '',
- admin
-      createdAt: new Date().toISOString()
+      createdAt: `${today}T10:15:00.000Z`
     },
     {
       id: 'REQ-2026-004',
@@ -351,9 +350,6 @@ function getInitialSeedBookings() {
       approverRemark: 'อนุมัติการเดินทาง',
       adminSignature: '',
       createdAt: new Date().toISOString()
-
-      createdAt: `${today}T10:15:00.000Z`
- dev
     }
   ];
 }
@@ -368,7 +364,6 @@ export function getAllBookings() {
       return seed;
     }
     const bookings = JSON.parse(raw);
- admin
     let hasMigration = false;
     const seed = getInitialSeedBookings();
     seed.forEach(s => {
@@ -380,10 +375,6 @@ export function getAllBookings() {
     if (hasMigration) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(bookings));
     }
-    return bookings.map(b => ({
-      ...b,
-      formCode: (b.formCode || '').replace(/FM-OFF-001[^\s]*/g, '').trim()
-    }));
 
     return bookings.map(b => {
       let subTime = b.submissionTime;
@@ -407,7 +398,6 @@ export function getAllBookings() {
         formCode: (b.formCode || '').replace(/FM-OFF-001[^\s]*/g, '').trim()
       };
     });
- dev
   } catch (e) {
     console.error('Error reading localStorage', e);
     return getInitialSeedBookings();
@@ -427,12 +417,9 @@ export function createBooking(data) {
   const bookings = getAllBookings();
   const nextIdNum = bookings.length + 1;
   const newId = `REQ-2026-${String(nextIdNum).padStart(3, '0')}`;
- admin
-
   
   const now = new Date();
   const nowTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
- dev
 
   const newBooking = {
     id: newId,

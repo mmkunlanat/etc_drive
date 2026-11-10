@@ -2499,29 +2499,46 @@ body {
   opacity: 1;
 }
 
-/* Print styles for authentic A4 output */
+/* Print Utility Classes */
+.print-only {
+  display: none !important;
+}
+
+/* Print styles for Paper Modal (A4 Portrait Official Form) */
 @media print {
-  body * {
-    visibility: hidden;
+  body.has-paper-modal {
+    background: #ffffff !important;
   }
-  .official-paper-sheet,
-  .official-paper-sheet * {
-    visibility: visible;
-  }
-  .official-paper-sheet {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    border: 1px solid #000;
-    box-shadow: none;
-    padding: 15mm;
-  }
-  .paper-modal-header,
-  .app-header,
-  .btn-primary,
-  .btn-secondary {
+  body.has-paper-modal .app-header,
+  body.has-paper-modal .main-wrapper,
+  body.has-paper-modal .paper-modal-header,
+  body.has-paper-modal .no-print,
+  body.has-paper-modal .toast-box {
     display: none !important;
+  }
+  body.has-paper-modal #paper-modal-backdrop {
+    position: static !important;
+    background: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+  body.has-paper-modal .paper-modal-dialog {
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  body.has-paper-modal .official-paper-sheet {
+    position: static !important;
+    width: 100% !important;
+    border: 1.5px solid #000000 !important;
+    box-shadow: none !important;
+    padding: 10mm 12mm !important;
+    margin: 0 !important;
+    page-break-after: avoid;
   }
 }
 
@@ -3049,75 +3066,155 @@ body {
   background: #eff6ff;
 }
 
-/* Print Styling */
+/* Print Styling for Admin Dispatch Schedule (Landscape Spreadsheet A4) */
 @media print {
   @page {
     size: landscape;
     margin: 8mm 10mm;
   }
-  body {
+  body:not(.has-paper-modal) {
     background: #ffffff !important;
     color: #000000 !important;
-    font-size: 11pt;
+    font-size: 10.5pt;
+    margin: 0 !important;
+    padding: 0 !important;
   }
-  .app-header,
-  .dispatch-top-toolbar,
-  .dispatch-row-action-btn,
-  .btn-plate-dropdown-arrow,
-  .plate-custom-dropdown-menu,
-  .btn-cell-dropdown-arrow,
-  .cell-dropdown-menu,
-  .no-print,
-  .btn-print-hide,
-  .role-nav-group {
+  body:not(.has-paper-modal) .app-header,
+  body:not(.has-paper-modal) .dispatch-top-toolbar,
+  body:not(.has-paper-modal) .dispatch-row-action-btn,
+  body:not(.has-paper-modal) .btn-plate-dropdown-arrow,
+  body:not(.has-paper-modal) .plate-custom-dropdown-menu,
+  body:not(.has-paper-modal) .btn-cell-dropdown-arrow,
+  body:not(.has-paper-modal) .cell-dropdown-menu,
+  body:not(.has-paper-modal) .no-print,
+  body:not(.has-paper-modal) .btn-print-hide,
+  body:not(.has-paper-modal) .role-nav-group,
+  body:not(.has-paper-modal) .col-actions,
+  body:not(.has-paper-modal) .toast-box,
+  body:not(.has-paper-modal) #paper-modal-backdrop {
     display: none !important;
   }
-  .dispatch-portal-container {
+  body:not(.has-paper-modal) .main-wrapper,
+  body:not(.has-paper-modal) .dispatch-portal-container {
     max-width: 100% !important;
+    width: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
   }
-  .dispatch-paper-card {
+  body:not(.has-paper-modal) .dispatch-paper-card {
     border: none !important;
     box-shadow: none !important;
     padding: 0 !important;
     margin: 0 !important;
-  }
-  .dispatch-excel-table {
     width: 100% !important;
+    max-width: 100% !important;
+    background: transparent !important;
+  }
+  body:not(.has-paper-modal) .dispatch-title-heading {
+    color: #000000 !important;
+    font-size: 1.8rem !important;
+    margin: 0 0 4px 0 !important;
+    text-align: center !important;
+    font-weight: 800 !important;
+  }
+  body:not(.has-paper-modal) .dispatch-date-subheading {
+    color: #000000 !important;
+    font-size: 1.05rem !important;
+    margin: 0 0 10px 0 !important;
+    text-align: left !important;
+    font-weight: 700 !important;
+  }
+  body:not(.has-paper-modal) .dispatch-excel-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
     border: 1.5px solid #000000 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    table-layout: auto !important;
   }
-  .dispatch-excel-table th,
-  .dispatch-excel-table td {
+  body:not(.has-paper-modal) .dispatch-excel-table th,
+  body:not(.has-paper-modal) .dispatch-excel-table td {
     border: 1px solid #000000 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    padding: 4px 6px !important;
+    line-height: 1.4 !important;
   }
-  .dispatch-excel-table thead th {
+  body:not(.has-paper-modal) .dispatch-excel-table thead th {
     background-color: #d9d9d9 !important;
+    color: #000000 !important;
+    font-weight: 700 !important;
+    height: 32px !important;
+    font-size: 0.92rem !important;
   }
-  .plate-bg-yellow {
+  body:not(.has-paper-modal) .dispatch-main-tr,
+  body:not(.has-paper-modal) .dispatch-itinerary-tr,
+  body:not(.has-paper-modal) .dispatch-comment-tr {
+    page-break-inside: avoid !important;
+  }
+  body:not(.has-paper-modal) .plate-bg-yellow {
     background-color: #ffff99 !important;
   }
-  .plate-bg-green {
+  body:not(.has-paper-modal) .plate-bg-green {
     background-color: #bbf7d0 !important;
   }
-  .time-bg-pink {
+  body:not(.has-paper-modal) .time-bg-pink {
     background-color: #fbcfe8 !important;
   }
-  .dispatch-comment-cell,
-  .dispatch-comment-tr {
+  body:not(.has-paper-modal) .dispatch-comment-cell,
+  body:not(.has-paper-modal) .dispatch-comment-tr {
     background-color: #ffe6cc !important;
     color: #dc2626 !important;
   }
-  .dispatch-cell-input,
-  .dispatch-itinerary-textarea,
-  .dispatch-comment-input {
+  body:not(.has-paper-modal) .cell-combobox-wrap input,
+  body:not(.has-paper-modal) .col-no input,
+  body:not(.has-paper-modal) .col-time input,
+  body:not(.has-paper-modal) .dispatch-comment-input {
+    display: none !important;
+  }
+  body:not(.has-paper-modal) .cell-print-text {
+    display: block !important;
+    text-align: inherit !important;
+    font-size: inherit !important;
+    font-weight: inherit !important;
+    color: inherit !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+  }
+  body:not(.has-paper-modal) .dispatch-comment-print-text {
+    display: block !important;
+    color: #dc2626 !important;
+    font-weight: 700 !important;
+    font-size: 0.95rem !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+  }
+  body:not(.has-paper-modal) .dispatch-itinerary-cell {
+    background-color: #ffffff !important;
+    border: 1px solid #000000 !important;
+    padding: 6px 10px !important;
+  }
+  body:not(.has-paper-modal) .dispatch-itinerary-box {
     border: none !important;
     background: transparent !important;
     box-shadow: none !important;
     padding: 0 !important;
+    min-height: 0 !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    color: #000000 !important;
+    line-height: 1.5 !important;
+  }
+  body:not(.has-paper-modal) .dispatch-itinerary-box[contenteditable]:empty:before {
+    display: none !important;
+    content: "" !important;
+  }
+  body:not(.has-paper-modal) .dispatch-red-highlight {
+    color: #dc2626 !important;
+    font-weight: 700 !important;
+  }
+  body:not(.has-paper-modal) .dispatch-blue-highlight {
+    color: #0284c7 !important;
+    font-weight: 700 !important;
   }
 }
