@@ -62,6 +62,26 @@ export function formatThaiDate(isoDateStr) {
   };
 }
 
+// Format submission time helper e.g. "08:45 น."
+export function formatSubmissionTime(booking) {
+  if (!booking) return '-';
+  if (booking.submissionTime) {
+    const clean = String(booking.submissionTime).trim().replace(/ น\.?$/, '');
+    return `${clean} น.`;
+  }
+  if (booking.createdAt) {
+    try {
+      const d = new Date(booking.createdAt);
+      if (!isNaN(d.getTime())) {
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        return `${hh}:${mm} น.`;
+      }
+    } catch (e) {}
+  }
+  return '-';
+}
+
 // Rule validator: Booking must be made at least 1 day before usage
 export function validateBookingAdvance(bookingDateStr, usageDateStr) {
   if (!bookingDateStr || !usageDateStr) {
@@ -181,6 +201,7 @@ function getInitialSeedBookings() {
       id: 'REQ-2026-001',
       formCode: '',
       bookingDate: yesterday,
+      submissionTime: '08:45',
       usageDate: today,
       startTime: '09:00',
       endTime: '16:30',
@@ -205,12 +226,13 @@ function getInitialSeedBookings() {
       approverSignature: 'เกรียงไกร มีอำนาจ (ผู้จัดการฝ่ายขาย)',
       approverRemark: 'อนุมัติเพื่อสนับสนุนงานขายลูกค้ารายใหญ่',
       adminSignature: 'สิริมา จัดสรรดี (ฝ่ายสำนักงาน)',
-      createdAt: new Date().toISOString()
+      createdAt: `${yesterday}T08:45:00.000Z`
     },
     {
       id: 'REQ-2026-002',
       formCode: '',
       bookingDate: today,
+      submissionTime: '09:20',
       usageDate: tomorrow,
       startTime: '08:30',
       endTime: '12:00',
@@ -234,12 +256,13 @@ function getInitialSeedBookings() {
       approverSignature: '',
       approverRemark: '',
       adminSignature: '',
-      createdAt: new Date().toISOString()
+      createdAt: `${today}T09:20:00.000Z`
     },
     {
       id: 'REQ-2026-003',
       formCode: '',
       bookingDate: today,
+      submissionTime: '10:15',
       usageDate: next2Days,
       startTime: '10:00',
       endTime: '18:00',
@@ -263,6 +286,7 @@ function getInitialSeedBookings() {
       approverSignature: 'ชัยรัตน์ ประเสริฐสุข (ผู้อำนวยการฝ่ายบริหาร)',
       approverRemark: 'อนุมัติตามระเบียบการรับรองแขกต่างประเทศ',
       adminSignature: '',
+ admin
       createdAt: new Date().toISOString()
     },
     {
@@ -327,6 +351,9 @@ function getInitialSeedBookings() {
       approverRemark: 'อนุมัติการเดินทาง',
       adminSignature: '',
       createdAt: new Date().toISOString()
+
+      createdAt: `${today}T10:15:00.000Z`
+ dev
     }
   ];
 }
@@ -341,6 +368,7 @@ export function getAllBookings() {
       return seed;
     }
     const bookings = JSON.parse(raw);
+ admin
     let hasMigration = false;
     const seed = getInitialSeedBookings();
     seed.forEach(s => {
@@ -356,6 +384,30 @@ export function getAllBookings() {
       ...b,
       formCode: (b.formCode || '').replace(/FM-OFF-001[^\s]*/g, '').trim()
     }));
+
+    return bookings.map(b => {
+      let subTime = b.submissionTime;
+      if (!subTime && b.createdAt) {
+        try {
+          const d = new Date(b.createdAt);
+          if (!isNaN(d.getTime())) {
+            subTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+          }
+        } catch (e) {}
+      }
+      if (!subTime) {
+        if (b.id === 'REQ-2026-001') subTime = '08:45';
+        else if (b.id === 'REQ-2026-002') subTime = '09:20';
+        else if (b.id === 'REQ-2026-003') subTime = '10:15';
+        else subTime = '08:30';
+      }
+      return {
+        ...b,
+        submissionTime: subTime,
+        formCode: (b.formCode || '').replace(/FM-OFF-001[^\s]*/g, '').trim()
+      };
+    });
+ dev
   } catch (e) {
     console.error('Error reading localStorage', e);
     return getInitialSeedBookings();
@@ -375,11 +427,18 @@ export function createBooking(data) {
   const bookings = getAllBookings();
   const nextIdNum = bookings.length + 1;
   const newId = `REQ-2026-${String(nextIdNum).padStart(3, '0')}`;
+ admin
+
+  
+  const now = new Date();
+  const nowTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+ dev
 
   const newBooking = {
     id: newId,
     formCode: '',
     bookingDate: data.bookingDate || getTodayISODate(),
+    submissionTime: data.submissionTime || nowTime,
     usageDate: data.usageDate,
     startTime: data.startTime || '08:30',
     endTime: data.endTime || '17:00',
@@ -402,7 +461,7 @@ export function createBooking(data) {
     approverSignature: '',
     approverRemark: '',
     adminSignature: '',
-    createdAt: new Date().toISOString()
+    createdAt: now.toISOString()
   };
 
   bookings.unshift(newBooking);

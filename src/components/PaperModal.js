@@ -1,5 +1,5 @@
 // PaperModal.js - High-fidelity authentic replica of vehicle booking form
-import { formatThaiDate } from '../store.js';
+import { formatThaiDate, formatSubmissionTime } from '../store.js';
 
 export function renderPaperModal(booking, onClose) {
   const existing = document.getElementById('paper-modal-backdrop');
@@ -30,7 +30,7 @@ export function renderPaperModal(booking, onClose) {
             <span style="font-size: 1.2rem;">📄</span>
             <div>
               <strong style="font-size: 0.95rem;">แบบฟอร์มเอกสารทางการ</strong>
-              <div style="font-size: 0.75rem; color: #94a3b8;">รหัสคำขอ: ${booking.id} (${booking.statusLabel})</div>
+              <div style="font-size: 0.75rem; color: #94a3b8;">รหัสคำขอ: ${booking.id} (${booking.statusLabel}) • ส่งฟอร์ม: ${formatSubmissionTime(booking)}</div>
             </div>
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
@@ -49,7 +49,7 @@ export function renderPaperModal(booking, onClose) {
             <div class="paper-top-right-meta">
               <div class="meta-line">
                 <span>วันที่จอง</span>
-                <span class="dotted-line">${bookingThai.short || '-'}</span>
+                <span class="dotted-line">${bookingThai.short || '-'} (เวลา ${formatSubmissionTime(booking)})</span>
               </div>
             </div>
 
