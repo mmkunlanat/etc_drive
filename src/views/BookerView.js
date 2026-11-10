@@ -191,25 +191,25 @@ export function renderBookerView(container) {
     currentStartTime = b.startTime || '08:30';
     currentEndTime = b.endTime || '17:00';
     currentNotes = b.notes || '';
-    
+
     itineraryRows = (b.itinerary && b.itinerary.length > 0)
       ? JSON.parse(JSON.stringify(b.itinerary)).map((r, i) => {
-          let time = r.time || '';
-          let passengers = r.passengers || '';
-          if (!time && !passengers && r.note) {
-            const p = parseNote(r.note);
-            time = p.time;
-            passengers = p.passengers;
-          }
-          return {
-            no: i + 1,
-            detail: r.detail || '',
-            time,
-            passengers,
-            note: r.note || '',
-            destination: r.destination || ''
-          };
-        })
+        let time = r.time || '';
+        let passengers = r.passengers || '';
+        if (!time && !passengers && r.note) {
+          const p = parseNote(r.note);
+          time = p.time;
+          passengers = p.passengers;
+        }
+        return {
+          no: i + 1,
+          detail: r.detail || '',
+          time,
+          passengers,
+          note: r.note || '',
+          destination: r.destination || ''
+        };
+      })
       : [{ no: 1, detail: '', time: '', passengers: '', note: '', destination: '' }];
 
     activeSubTab = 'form';
@@ -552,7 +552,7 @@ export function renderBookerView(container) {
                   `).join('')}
                 </div>
                 <button type="button" id="btn-manage-keywords" class="quick-keyword-btn-manage" title="จัดการคีย์เวิร์ดด่วน">
-                  จัดการคีย์เวิร์ด
+                  ➕
                 </button>
               </div>
             </div>
@@ -563,9 +563,9 @@ export function renderBookerView(container) {
                   <tr>
                     <th style="width: 55px; text-align: center;">ลำดับที่</th>
                     <th>รายละเอียด (ภารกิจ / สิ่งของ / วัตถุประสงค์) <span class="required" style="color: #dc2626;">*</span></th>
-                    <th style="width: 125px;"> เวลา</th>
-                    <th style="width: 140px;">👥 จำนวนคน</th>
-                    <th style="width: 260px;">สถานที่ (ปลายทาง / จุดแวะ) <span class="required" style="color: #dc2626;">*</span></th>
+                    <th style="width: 145px; text-align: center;">เวลา</th>
+                    <th style="width: 175px; text-align: center;">จำนวนคน</th>
+                    <th style="width: 250px;">สถานที่ (ปลายทาง / จุดแวะ) <span class="required" style="color: #dc2626;">*</span></th>
                     <th style="width: 50px; text-align: center;">ลบ</th>
                   </tr>
                 </thead>
@@ -577,7 +577,7 @@ export function renderBookerView(container) {
 
             <div class="itinerary-actions-footer">
               <button type="button" id="btn-add-row" class="btn-secondary-sm">
-                <span>➕ เพิ่มแถวรายการใหม่</span>
+                <span>+ เพิ่มแถวรายการใหม่</span>
               </button>
               <span style="font-size: 0.8rem; color: var(--slate-500);">
                 * บังคับกรอกอย่างน้อย 1 รายการ และรองรับสูงสุด 6 รายการตรงตามแบบฟอร์ม
@@ -682,7 +682,10 @@ export function renderBookerView(container) {
         <td style="text-align: center;">
           ${itineraryRows.length > 1 ? `
             <button type="button" class="btn-icon-danger btn-delete-row" title="ลบรายการนี้" data-index="${idx}">
-              🗑️
+              <svg style="pointer-events: none;" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
             </button>
           ` : '-'}
         </td>
@@ -1616,9 +1619,7 @@ export function renderBookerView(container) {
             <input type="text" class="form-control kw-edit-input" style="display: none; padding: 4px 8px; font-size: 0.88rem; flex: 1;" value="${escapeHtml(k.text)}" />
           </div>
           <div class="keyword-item-actions">
-            <button type="button" class="btn-primary btn-apply-kw" data-text="${escapeHtml(k.text)}" style="padding: 4px 10px; font-size: 0.8rem;" title="แทรกลงในช่องที่เคอร์เซอร์อยู่">
-              ใช้
-            </button>
+           
             <button type="button" class="btn-secondary btn-edit-kw" data-id="${k.id}" style="padding: 4px 10px; font-size: 0.8rem;" title="แก้ไขคีย์เวิร์ด">
               แก้ไข
             </button>
