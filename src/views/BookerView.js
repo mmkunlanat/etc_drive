@@ -9,12 +9,13 @@ import {
   DEPARTMENTS,
   getAllBookings,
   createBooking,
+  updateBooking,
   deleteBooking,
-  getQuickTemplates,
-  addQuickTemplate,
-  updateQuickTemplate,
-  deleteQuickTemplate,
-  resetQuickTemplates
+  getQuickKeywords,
+  addQuickKeyword,
+  updateQuickKeyword,
+  deleteQuickKeyword,
+  resetQuickKeywords
 } from '../store.js';
 import { renderPaperModal } from '../components/PaperModal.js';
 
@@ -124,9 +125,115 @@ export function renderBookerView(container) {
 
   let currentBookingDate = todayIso;
   let currentUsageDate = defaultUsageIso;
+  let currentBookerName = 'สมชาย รักบริการ';
+  let currentBookerPhone = '081-999-1234';
+  let currentDepartment = 'ฝ่ายขายและการตลาด';
+  let currentStartTime = '08:30';
+  let currentEndTime = '17:00';
+  let currentNotes = 'ผู้โดยสาร 3 ท่าน ได้แก่ สมชาย, วรรณา, กิตติ มีกระเป๋าเอกสารและของที่ระลึก 2 ลัง';
+  let editingBookingId = null;
   let itineraryRows = [
     { no: 1, detail: '', time: '', passengers: '', note: '', destination: '' }
   ];
+  let lastFocusedInput = null;
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function insertKeywordAtCursor(text) {
+    if (!text) return;
+    let target = lastFocusedInput;
+    if (!target || !document.body.contains(target)) {
+      target = container.querySelector('.row-detail') || container.querySelector('.row-destination') || document.getElementById('notes');
+    }
+    if (!target) return;
+
+    target.focus();
+    const start = typeof target.selectionStart === 'number' ? target.selectionStart : target.value.length;
+    const end = typeof target.selectionEnd === 'number' ? target.selectionEnd : start;
+    const val = target.value;
+
+    let insertText = text;
+    if (start > 0 && val[start - 1] !== ' ' && !insertText.startsWith(' ')) {
+      insertText = ' ' + insertText;
+    }
+
+    target.value = val.slice(0, start) + insertText + val.slice(end);
+    const nextPos = start + insertText.length;
+    if (typeof target.setSelectionRange === 'function') {
+      target.setSelectionRange(nextPos, nextPos);
+    }
+
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+
+    target.classList.remove('input-keyword-highlight');
+    void target.offsetWidth;
+    target.classList.add('input-keyword-highlight');
+    setTimeout(() => target.classList.remove('input-keyword-highlight'), 600);
+
+    showToast(`แทรก "${text}" เรียบร้อย`);
+  }
+
+  function loadBookingIntoForm(b) {
+    if (!b) return;
+    editingBookingId = b.id;
+    currentBookingDate = b.bookingDate || todayIso;
+    currentUsageDate = b.usageDate || defaultUsageIso;
+    currentBookerName = b.bookerName || '';
+    currentBookerPhone = b.bookerPhone || '';
+    currentDepartment = b.department || 'ฝ่ายขายและการตลาด';
+    currentStartTime = b.startTime || '08:30';
+    currentEndTime = b.endTime || '17:00';
+    currentNotes = b.notes || '';
+    
+    itineraryRows = (b.itinerary && b.itinerary.length > 0)
+      ? JSON.parse(JSON.stringify(b.itinerary)).map((r, i) => {
+          let time = r.time || '';
+          let passengers = r.passengers || '';
+          if (!time && !passengers && r.note) {
+            const p = parseNote(r.note);
+            time = p.time;
+            passengers = p.passengers;
+          }
+          return {
+            no: i + 1,
+            detail: r.detail || '',
+            time,
+            passengers,
+            note: r.note || '',
+            destination: r.destination || ''
+          };
+        })
+      : [{ no: 1, detail: '', time: '', passengers: '', note: '', destination: '' }];
+
+    activeSubTab = 'form';
+    render();
+
+    setTimeout(() => {
+      const formElem = document.getElementById('vehicle-booking-form');
+      if (formElem) {
+        formElem.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 60);
+
+    showToast(`เปิดคำขอ ${b.id} ในแบบฟอร์มเพื่อแก้ไขข้อมูล`);
+  }
+
+  if (window._bookerEditHandler) {
+    window.removeEventListener('booker_load_edit', window._bookerEditHandler);
+  }
+  window._bookerEditHandler = (e) => {
+    if (e.detail) {
+      loadBookingIntoForm(e.detail);
+    }
+  };
+  window.addEventListener('booker_load_edit', window._bookerEditHandler);
 
   function normalize24hTime(val) {
     if (!val || typeof val !== 'string') return '';
@@ -262,7 +369,7 @@ export function renderBookerView(container) {
   function renderFormSection() {
     const minUsageIso = addDaysToDate(currentBookingDate, 1);
     const validation = validateBookingAdvance(currentBookingDate, currentUsageDate);
-    const templates = getQuickTemplates();
+    const keywords = getQuickKeywords();
 
     return `
       <div class="content-card">
@@ -296,6 +403,18 @@ export function renderBookerView(container) {
           </div>
         </div>
 
+        ${editingBookingId ? `
+          <div class="editing-banner" style="background: #eff6ff; border: 1.5px solid #3b82f6; border-radius: 8px; padding: 12px 18px; margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+            <div>
+              <div style="font-weight: 700; color: #1e40af; font-size: 1rem;">กำลังแก้ไขคำขอ: ${editingBookingId}</div>
+              <div style="font-size: 0.8rem; color: #475569; margin-top: 2px;">คุณสามารถปรับปรุงข้อมูล วัน เวลา และตารางภารกิจ แล้วกด "บันทึกการแก้ไขคำขอ" เพื่ออัปเดต</div>
+            </div>
+            <button type="button" id="btn-cancel-edit" class="btn-ghost-light" style="color: #dc2626; font-size: 0.85rem; font-weight: 600; padding: 5px 12px; border: 1px solid #fca5a5; border-radius: 6px; background: #fff; cursor: pointer;">
+              ✕ ยกเลิกการแก้ไข
+            </button>
+          </div>
+        ` : ''}
+
         <form id="vehicle-booking-form">
           
           <!-- Top Row: Booking Date & Booker Name -->
@@ -322,7 +441,7 @@ export function renderBookerView(container) {
                 <span>ชื่อ-นามสกุล ผู้ขอใช้รถ</span>
                 <span class="required">*</span>
               </label>
-              <input type="text" id="bookerName" class="form-control" placeholder="เช่น นายณัฐพล ทวีสุข" value="สมชาย รักบริการ" required />
+              <input type="text" id="bookerName" class="form-control" placeholder="เช่น นายณัฐพล ทวีสุข" value="${escapeHtml(currentBookerName)}" required />
             </div>
           </div>
 
@@ -335,7 +454,7 @@ export function renderBookerView(container) {
               </label>
               <select id="department" class="form-control" required>
                 <option value="">-- เลือกฝ่าย/แผนก --</option>
-                ${DEPARTMENTS.map(d => `<option value="${d}" ${d === 'ฝ่ายขายและการตลาด' ? 'selected' : ''}>${d}</option>`).join('')}
+                ${DEPARTMENTS.map(d => `<option value="${d}" ${d === currentDepartment ? 'selected' : ''}>${d}</option>`).join('')}
               </select>
             </div>
 
@@ -344,7 +463,7 @@ export function renderBookerView(container) {
                 <span>เบอร์โทรศัพท์ติดต่อ</span>
                 <span class="required">*</span>
               </label>
-              <input type="tel" id="bookerPhone" class="form-control" placeholder="เช่น 081-234-5678" value="081-999-1234" required />
+              <input type="tel" id="bookerPhone" class="form-control" placeholder="เช่น 081-234-5678" value="${escapeHtml(currentBookerPhone)}" required />
             </div>
           </div>
 
@@ -379,7 +498,7 @@ export function renderBookerView(container) {
                   type="text" 
                   id="startTime" 
                   class="form-control time-input-24h" 
-                  value="08:30" 
+                  value="${escapeHtml(currentStartTime)}" 
                   placeholder="08:30" 
                   maxlength="5"
                   list="time-list-24h"
@@ -400,7 +519,7 @@ export function renderBookerView(container) {
                   type="text" 
                   id="endTime" 
                   class="form-control time-input-24h" 
-                  value="17:00" 
+                  value="${escapeHtml(currentEndTime)}" 
                   placeholder="17:00" 
                   maxlength="5"
                   list="time-list-24h"
@@ -420,21 +539,20 @@ export function renderBookerView(container) {
           <div class="itinerary-section">
             <div class="itinerary-header-bar">
               <h3>
-                <span>🗺️</span>
                 <span>ตารางรายละเอียดภารกิจและสถานที่ (ลำดับ 1 - 6)</span>
                 <span class="required" style="font-size: 0.85rem; font-weight: 600; margin-left: 6px; color: #dc2626;">*</span>
               </h3>
-              <div class="quick-templates-group">
-                <span style="font-size: 0.75rem; opacity: 0.9;">เทมเพลตด่วน:</span>
-                <div id="quick-templates-buttons" style="display: inline-flex; gap: 5px; flex-wrap: wrap;">
-                  ${templates.map(t => `
-                    <button type="button" class="quick-tpl-btn" data-id="${t.id}" title="${t.name} (${t.rows.length} รายการ)">
-                      ${t.name}
+              <div class="quick-keywords-group">
+                <span class="quick-keywords-label">คีย์เวิร์ดด่วน:</span>
+                <div id="quick-keywords-buttons" class="quick-keywords-buttons">
+                  ${keywords.map(k => `
+                    <button type="button" class="quick-keyword-btn" data-id="${k.id}" data-text="${escapeHtml(k.text)}" title="คลิกเพื่อแทรกลงในช่องที่เคอร์เซอร์อยู่">
+                      ${escapeHtml(k.text)}
                     </button>
                   `).join('')}
                 </div>
-                <button type="button" id="btn-manage-templates" class="quick-tpl-btn" style="background: rgba(255,255,255,0.25); font-weight: 700; font-size: 0.95rem; padding: 1px 9px; line-height: 1.2;" title="เพิ่มและจัดการเทมเพลตด่วน">
-                  +
+                <button type="button" id="btn-manage-keywords" class="quick-keyword-btn-manage" title="จัดการคีย์เวิร์ดด่วน">
+                  จัดการคีย์เวิร์ด
                 </button>
               </div>
             </div>
@@ -478,7 +596,7 @@ export function renderBookerView(container) {
               class="form-control" 
               rows="3" 
               placeholder="เช่น ผู้โดยสารร่วมเดินทาง 3 ท่าน (คุณสมชาย, คุณวรรณา, คุณกิตติ), มีสัมภาระกล่องตัวอย่างสินค้า 2 กล่อง"
-            >ผู้โดยสาร 3 ท่าน ได้แก่ สมชาย, วรรณา, กิตติ มีกระเป๋าเอกสารและของที่ระลึก 2 ลัง</textarea>
+            >${escapeHtml(currentNotes)}</textarea>
           </div>
 
 
@@ -493,8 +611,8 @@ export function renderBookerView(container) {
               </button>
             </div>
 
-            <button type="submit" id="btn-submit-booking" class="btn-primary">
-              <span>📤 ส่งใบขออนุมัติการใช้รถ</span>
+            <button type="submit" id="btn-submit-booking" class="btn-primary" style="padding: 10px 24px; font-size: 0.95rem;">
+              <span>${editingBookingId ? '💾 บันทึกการแก้ไขคำขอ' : 'ส่งใบขออนุมัติการใช้รถ'}</span>
             </button>
           </div>
 
@@ -1023,7 +1141,16 @@ export function renderBookerView(container) {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
         const b = getAllBookings().find(x => x.id === id);
-        if (b) renderPaperModal(b);
+        if (b) {
+          renderPaperModal(b, {
+            onEdit: (booking) => {
+              loadBookingIntoForm(booking);
+            },
+            onConfirm: (booking) => {
+              showToast(`ยืนยันการตรวจสอบคำขอ ${booking.id} เรียบร้อยแล้ว`);
+            }
+          });
+        }
       });
     });
 
@@ -1039,6 +1166,54 @@ export function renderBookerView(container) {
     });
 
     if (activeSubTab !== 'form') return;
+
+    // Track cursor/focus in form inputs for keyword insertion
+    const trackInputFocus = (el) => {
+      if (!el) return;
+      ['focus', 'click', 'keyup'].forEach(ev => {
+        el.addEventListener(ev, () => {
+          if (el.type !== 'button' && el.type !== 'submit' && el.type !== 'date') {
+            lastFocusedInput = el;
+          }
+        });
+      });
+    };
+    container.querySelectorAll('input, textarea').forEach(trackInputFocus);
+
+    // Keep form fields synced to state
+    const bNameInput = document.getElementById('bookerName');
+    if (bNameInput) bNameInput.addEventListener('input', (e) => { currentBookerName = e.target.value; });
+    const bPhoneInput = document.getElementById('bookerPhone');
+    if (bPhoneInput) bPhoneInput.addEventListener('input', (e) => { currentBookerPhone = e.target.value; });
+    const deptInput = document.getElementById('department');
+    if (deptInput) deptInput.addEventListener('change', (e) => { currentDepartment = e.target.value; });
+    const sTimeInput = document.getElementById('startTime');
+    if (sTimeInput) sTimeInput.addEventListener('input', (e) => { currentStartTime = e.target.value; });
+    const eTimeInput = document.getElementById('endTime');
+    if (eTimeInput) eTimeInput.addEventListener('input', (e) => { currentEndTime = e.target.value; });
+    const notesInput = document.getElementById('notes');
+    if (notesInput) notesInput.addEventListener('input', (e) => { currentNotes = e.target.value; });
+
+    // Cancel edit button
+    const cancelEditBtn = document.getElementById('btn-cancel-edit');
+    if (cancelEditBtn) {
+      cancelEditBtn.addEventListener('click', () => {
+        editingBookingId = null;
+        currentBookingDate = todayIso;
+        currentUsageDate = defaultUsageIso;
+        currentBookerName = 'สมชาย รักบริการ';
+        currentBookerPhone = '081-999-1234';
+        currentDepartment = 'ฝ่ายขายและการตลาด';
+        currentStartTime = '08:30';
+        currentEndTime = '17:00';
+        currentNotes = '';
+        itineraryRows = [
+          { no: 1, detail: '', time: '', passengers: '', note: '', destination: '' }
+        ];
+        render();
+        showToast('ยกเลิกการแก้ไขแล้ว คืนค่าแบบฟอร์ม');
+      });
+    }
 
     // Advance Booking Validation on Usage Date & Booking Date Change
     const usageDateInput = document.getElementById('usageDate');
@@ -1081,7 +1256,7 @@ export function renderBookerView(container) {
           usageDateInput.classList.remove('input-valid');
           usageDateInput.classList.add('input-invalid');
         }
-        if (submitBtn) submitBtn.disabled = true;
+        if (submitBtn) submitBtn.disabled = !editingBookingId;
       }
     };
 
@@ -1172,6 +1347,9 @@ export function renderBookerView(container) {
 
       // Bind 24-hour time formatting & validation
       bind24hTimeInputs(container);
+
+      // Track cursor in row inputs
+      container.querySelectorAll('.row-detail, .row-destination, .row-time, .row-passengers').forEach(trackInputFocus);
     }
     attachRowEvents();
 
@@ -1207,53 +1385,43 @@ export function renderBookerView(container) {
       }
     }
 
-    // Quick template handlers & dynamic buttons
-    function renderQuickTemplateButtons() {
-      const group = container.querySelector('#quick-templates-buttons');
+    // Quick keyword handlers & dynamic buttons
+    function renderQuickKeywordButtons() {
+      const group = container.querySelector('#quick-keywords-buttons');
       if (!group) return;
-      const templates = getQuickTemplates();
-      group.innerHTML = templates.map(t => `
-        <button type="button" class="quick-tpl-btn" data-id="${t.id}" title="${t.name} (${t.rows.length} รายการ)">
-          ${t.name}
+      const keywords = getQuickKeywords();
+      if (keywords.length === 0) {
+        group.innerHTML = `<span style="font-size: 0.75rem; color: rgba(255,255,255,0.7); font-style: italic;">(ไม่มีคีย์เวิร์ด)</span>`;
+        return;
+      }
+      group.innerHTML = keywords.map(k => `
+        <button type="button" class="quick-keyword-btn" data-id="${k.id}" data-text="${escapeHtml(k.text)}" title="คลิกเพื่อแทรกลงในช่องที่เคอร์เซอร์อยู่">
+          ${escapeHtml(k.text)}
         </button>
       `).join('');
 
-      group.querySelectorAll('.quick-tpl-btn').forEach(btn => {
+      group.querySelectorAll('.quick-keyword-btn').forEach(btn => {
+        btn.addEventListener('mousedown', (e) => {
+          e.preventDefault(); // Keep focus and cursor in the target input!
+        });
         btn.addEventListener('click', () => {
-          const id = btn.getAttribute('data-id');
-          const t = getQuickTemplates().find(x => x.id === id);
-          if (t) {
-            itineraryRows = t.rows.map((r, i) => {
-              let time = r.time || '';
-              let passengers = r.passengers || '';
-              if (!time && !passengers && r.note) {
-                const p = parseNote(r.note);
-                time = p.time;
-                passengers = p.passengers;
-              }
-              return {
-                no: i + 1,
-                detail: r.detail || '',
-                time,
-                passengers,
-                note: r.note || [time ? `${time} น.` : '', passengers ? `${passengers} คน` : ''].filter(Boolean).join(' / '),
-                destination: r.destination || ''
-              };
-            });
-            renderTableBody();
-            showToast(`โหลดเทมเพลต "${t.name}" เรียบร้อยแล้ว`);
-          }
+          const text = btn.getAttribute('data-text');
+          insertKeywordAtCursor(text);
         });
       });
     }
 
-    renderQuickTemplateButtons();
+    renderQuickKeywordButtons();
 
-    // Manage templates button
-    const manageTplBtn = document.getElementById('btn-manage-templates');
-    if (manageTplBtn) {
-      manageTplBtn.addEventListener('click', () => {
-        openTemplateManagerModal();
+    window.addEventListener('quick_keywords_updated', () => {
+      renderQuickKeywordButtons();
+    });
+
+    // Manage keywords button
+    const manageKwBtn = document.getElementById('btn-manage-keywords');
+    if (manageKwBtn) {
+      manageKwBtn.addEventListener('click', () => {
+        openKeywordManagerModal();
       });
     }
 
@@ -1273,7 +1441,17 @@ export function renderBookerView(container) {
           return;
         }
         const currentData = getFormData();
-        renderPaperModal(currentData);
+        renderPaperModal(currentData, {
+          onEdit: () => {
+            // Stay on form to edit
+          },
+          onConfirm: () => {
+            const form = document.getElementById('vehicle-booking-form');
+            if (form) {
+              form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', { cancelable: true }));
+            }
+          }
+        });
       });
     }
 
@@ -1282,8 +1460,15 @@ export function renderBookerView(container) {
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
         if (confirm('คุณต้องการล้างข้อมูลในฟอร์มใช่หรือไม่?')) {
+          editingBookingId = null;
           currentBookingDate = todayIso;
           currentUsageDate = defaultUsageIso;
+          currentBookerName = 'สมชาย รักบริการ';
+          currentBookerPhone = '081-999-1234';
+          currentDepartment = 'ฝ่ายขายและการตลาด';
+          currentStartTime = '08:30';
+          currentEndTime = '17:00';
+          currentNotes = '';
           itineraryRows = [
             { no: 1, detail: '', time: '', passengers: '', note: '', destination: '' }
           ];
@@ -1376,101 +1561,130 @@ export function renderBookerView(container) {
         data.endTime = eTime;
         data.itinerary = validRows;
 
-        const created = createBooking(data);
-        showToast(`ส่งใบขออนุมัติการใช้รถรหัส ${created.id} เรียบร้อยแล้ว!`);
+        let resultBooking = null;
+        if (editingBookingId) {
+          updateBooking(editingBookingId, data);
+          showToast(`บันทึกการแก้ไขคำขอ ${editingBookingId} สำเร็จแล้ว!`);
+          resultBooking = getAllBookings().find(x => x.id === editingBookingId);
+          editingBookingId = null;
+        } else {
+          resultBooking = createBooking(data);
+          showToast(`ส่งใบขออนุมัติการใช้รถรหัส ${resultBooking.id} เรียบร้อยแล้ว!`);
+        }
 
         // Switch to history tab to view
         activeSubTab = 'history';
         render();
 
         // Also pop up official form preview
-        renderPaperModal(created);
+        if (resultBooking) {
+          renderPaperModal(resultBooking, {
+            onEdit: (booking) => {
+              loadBookingIntoForm(booking);
+            },
+            onConfirm: () => {
+              showToast(`ยืนยันคำขอ ${resultBooking.id} เรียบร้อยแล้ว`);
+            }
+          });
+        }
       });
     }
   }
 
-  function openTemplateManagerModal() {
-    const modalId = 'tpl-manager-modal-backdrop';
+  function openKeywordManagerModal() {
+    const modalId = 'keyword-manager-modal-backdrop';
     const existing = document.getElementById(modalId);
-    if (existing) existing.remove();
+    if (existing) {
+      if (typeof existing.remove === 'function') existing.remove();
+      else if (existing.parentNode) existing.parentNode.removeChild(existing);
+    }
 
-    function buildListHtml() {
-      const templates = getQuickTemplates();
-      if (templates.length === 0) {
+    function buildKeywordListHtml() {
+      const keywords = getQuickKeywords();
+      if (keywords.length === 0) {
         return `
-          <div style="text-align: center; padding: 2.5rem 1rem; color: var(--slate-500);">
-            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📋</div>
-            <p style="font-weight: 500; font-size: 1rem;">ยังไม่มีเทมเพลตด่วนในระบบ</p>
-            <p style="font-size: 0.8rem; margin-bottom: 1rem;">คุณสามารถสร้างเทมเพลตใหม่ หรือคืนค่าเทมเพลตเริ่มต้นได้</p>
-            <button type="button" id="btn-modal-add-first" class="btn-primary" style="font-size: 0.85rem;">
-              ➕ สร้างเทมเพลตแรก
-            </button>
+          <div style="text-align: center; padding: 2rem 1rem; color: var(--slate-500);">
+            <p style="font-weight: 600; font-size: 0.95rem; color: #334155; margin-bottom: 0.25rem;">ยังไม่มีคีย์เวิร์ดในระบบ</p>
+            <p style="font-size: 0.8rem; margin-bottom: 1rem; color: #64748b;">พิมพ์ข้อความด้านบนเพื่อเพิ่มคีย์เวิร์ด หรือกดคืนค่าเริ่มต้น</p>
           </div>
         `;
       }
-      return templates.map(t => {
-        const routePreview = t.rows.map((r, i) => `${i + 1}. ${r.destination || r.detail || 'จุดหมาย'}`).join(' ➔ ');
-        return `
-          <div class="tpl-list-item" data-id="${t.id}">
-            <div class="tpl-info" style="flex: 1; min-width: 0;">
-              <h4>
-                <span>${t.name}</span>
-                <span style="font-size: 0.72rem; font-weight: normal; background: #e0e7ff; color: #3730a3; padding: 1px 7px; border-radius: 10px;">${t.rows.length} จุดหมาย</span>
-              </h4>
-              <p style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px;">
-                ${routePreview}
-              </p>
-            </div>
-            <div class="tpl-actions">
-              <button type="button" class="btn-primary btn-apply-tpl" data-id="${t.id}" style="padding: 4px 9px; font-size: 0.75rem;" title="ใช้งานเทมเพลตนี้">
-                📥 ใช้
-              </button>
-              <button type="button" class="btn-secondary btn-edit-tpl" data-id="${t.id}" style="padding: 4px 9px; font-size: 0.75rem;" title="แก้ไขเทมเพลต">
-                ✏️ แก้ไข
-              </button>
-              <button type="button" class="btn-icon-danger btn-delete-tpl" data-id="${t.id}" style="width: 28px; height: 28px;" title="ลบเทมเพลต">
-                🗑️
-              </button>
-            </div>
+      return keywords.map(k => `
+        <div class="keyword-list-item" data-id="${k.id}">
+          <div class="keyword-text-badge">
+            <span class="kw-text-display">${escapeHtml(k.text)}</span>
+            <input type="text" class="form-control kw-edit-input" style="display: none; padding: 4px 8px; font-size: 0.88rem; flex: 1;" value="${escapeHtml(k.text)}" />
           </div>
-        `;
-      }).join('');
+          <div class="keyword-item-actions">
+            <button type="button" class="btn-primary btn-apply-kw" data-text="${escapeHtml(k.text)}" style="padding: 4px 10px; font-size: 0.8rem;" title="แทรกลงในช่องที่เคอร์เซอร์อยู่">
+              ใช้
+            </button>
+            <button type="button" class="btn-secondary btn-edit-kw" data-id="${k.id}" style="padding: 4px 10px; font-size: 0.8rem;" title="แก้ไขคีย์เวิร์ด">
+              แก้ไข
+            </button>
+            <button type="button" class="btn-primary btn-save-edit-kw" data-id="${k.id}" style="display: none; padding: 4px 10px; font-size: 0.8rem; background: #059669;" title="บันทึกการแก้ไข">
+              บันทึก
+            </button>
+            <button type="button" class="btn-secondary btn-cancel-edit-kw" data-id="${k.id}" style="display: none; padding: 4px 8px; font-size: 0.8rem;" title="ยกเลิก">
+              ✕
+            </button>
+            <button type="button" class="btn-icon-danger btn-delete-kw" data-id="${k.id}" style="width: 28px; height: 28px;" title="ลบคีย์เวิร์ด">
+              <svg style="pointer-events: none;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      `).join('');
     }
 
     const modalHtml = `
       <div id="${modalId}" class="paper-modal-backdrop">
-        <div class="paper-modal-dialog" style="max-width: 620px;">
+        <div class="paper-modal-dialog" style="max-width: 580px;">
           <div class="paper-modal-header" style="background: linear-gradient(135deg, #1e3a8a, #2563eb);">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 1.25rem;">⚡</span>
-              <div>
-                <strong style="font-size: 0.95rem; color: #fff;">จัดการเทมเพลตด่วน (Quick Templates)</strong>
-                <div style="font-size: 0.75rem; color: #bfdbfe;">เพิ่ม แก้ไข หรือลบเทมเพลตแผนการเดินทาง</div>
-              </div>
+            <div>
+              <strong style="font-size: 0.95rem; color: #fff;">จัดการคีย์เวิร์ดด่วน (Quick Keywords)</strong>
+              <div style="font-size: 0.75rem; color: #bfdbfe;">เพิ่ม แก้ไข หรือลบคีย์เวิร์ดสำหรับแทรกลงในช่องข้อความ</div>
             </div>
-            <button id="btn-close-tpl-modal" class="btn-ghost-light">✕</button>
+            <button id="btn-close-kw-modal" class="btn-ghost-light">✕</button>
           </div>
           <div class="paper-modal-body" style="background: #fff; padding: 1.25rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 8px;">
-              <div style="font-size: 0.85rem; color: var(--slate-600);">
-                รายการเทมเพลตด่วนที่พร้อมใช้งาน
+            
+            <!-- Quick Add Bar -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: var(--radius-md); padding: 10px 12px; margin-bottom: 1rem;">
+              <div style="font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 6px;">
+                เพิ่มคีย์เวิร์ดใหม่
               </div>
-              <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                <button type="button" id="btn-modal-save-current" class="btn-primary" style="padding: 5px 10px; font-size: 0.8rem; background: #059669;" title="บันทึกข้อมูลจากตารางที่กรอกอยู่ในฟอร์มเป็นเทมเพลตใหม่">
-                  💾 บันทึกจากตารางปัจจุบัน
-                </button>
-                <button type="button" id="btn-modal-create-tpl" class="btn-primary" style="padding: 5px 10px; font-size: 0.8rem;">
-                  ➕ สร้างเทมเพลตใหม่
-                </button>
-                <button type="button" id="btn-modal-reset-tpls" class="btn-secondary" style="padding: 5px 10px; font-size: 0.8rem;" title="คืนค่าเป็น 3 เทมเพลตมาตรฐาน">
-                  🔄 คืนค่าเริ่มต้น
+              <div style="display: flex; gap: 6px;">
+                <input 
+                  type="text" 
+                  id="kw-new-input" 
+                  class="form-control" 
+                  placeholder="พิมพ์คีย์เวิร์ด เช่น เดินทางไปตรวจรับมอบงาน..." 
+                  style="font-size: 0.85rem;" 
+                />
+                <button type="button" id="btn-add-new-kw" class="btn-primary" style="white-space: nowrap; padding: 6px 14px; font-size: 0.85rem;">
+                  + เพิ่ม
                 </button>
               </div>
             </div>
 
-            <div id="tpl-modal-list-container" style="max-height: 380px; overflow-y: auto; padding-right: 2px;">
-              ${buildListHtml()}
+            <!-- List Header with Reset Button -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 8px;">
+              <div style="font-size: 0.85rem; font-weight: 600; color: var(--slate-700);">
+                รายการคีย์เวิร์ดที่พร้อมใช้งาน
+              </div>
+              <button type="button" id="btn-reset-default-kws" class="btn-secondary" style="padding: 4px 10px; font-size: 0.78rem;" title="คืนค่าเป็น 10 คีย์เวิร์ดมาตรฐาน">
+                คืนค่าเริ่มต้น
+              </button>
             </div>
+
+            <!-- List Container -->
+            <div id="kw-modal-list-container" style="max-height: 360px; overflow-y: auto; padding-right: 2px;">
+              ${buildKeywordListHtml()}
+            </div>
+
           </div>
         </div>
       </div>
@@ -1480,371 +1694,149 @@ export function renderBookerView(container) {
     const backdrop = document.getElementById(modalId);
     const close = () => {
       backdrop.remove();
-      renderQuickTemplateButtons();
+      renderQuickKeywordButtons();
     };
 
-    document.getElementById('btn-close-tpl-modal')?.addEventListener('click', close);
+    document.getElementById('btn-close-kw-modal')?.addEventListener('click', close);
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop) close();
     });
 
-    function bindListEvents() {
-      const listContainer = document.getElementById('tpl-modal-list-container');
+    const newKwInput = document.getElementById('kw-new-input');
+    const addNewKwBtn = document.getElementById('btn-add-new-kw');
+
+    const handleAddNew = () => {
+      if (!newKwInput) return;
+      const val = newKwInput.value.trim();
+      if (!val) {
+        newKwInput.focus();
+        return;
+      }
+      addQuickKeyword(val);
+      newKwInput.value = '';
+      refreshList();
+      showToast(`เพิ่มคีย์เวิร์ด "${val}" เรียบร้อยแล้ว`);
+      newKwInput.focus();
+    };
+
+    if (addNewKwBtn) addNewKwBtn.addEventListener('click', handleAddNew);
+    if (newKwInput) {
+      newKwInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleAddNew();
+        }
+      });
+      setTimeout(() => newKwInput.focus(), 60);
+    }
+
+    const resetBtn = document.getElementById('btn-reset-default-kws');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        if (confirm('คุณต้องการคืนค่าคีย์เวิร์ดเริ่มต้น ใช่หรือไม่?')) {
+          resetQuickKeywords();
+          refreshList();
+          showToast('คืนค่าคีย์เวิร์ดเริ่มต้นเรียบร้อยแล้ว');
+        }
+      });
+    }
+
+    function refreshList() {
+      const listContainer = document.getElementById('kw-modal-list-container');
+      if (listContainer) {
+        listContainer.innerHTML = buildKeywordListHtml();
+        bindKeywordItemEvents();
+      }
+      renderQuickKeywordButtons();
+    }
+
+    function bindKeywordItemEvents() {
+      const listContainer = document.getElementById('kw-modal-list-container');
       if (!listContainer) return;
 
-      listContainer.querySelectorAll('.btn-apply-tpl').forEach(btn => {
+      // Insert keyword into focused field and close modal
+      listContainer.querySelectorAll('.btn-apply-kw').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const text = btn.getAttribute('data-text');
+          close();
+          insertKeywordAtCursor(text);
+        });
+      });
+
+      // Edit keyword inline
+      listContainer.querySelectorAll('.btn-edit-kw').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const item = btn.closest('.keyword-list-item');
+          if (!item) return;
+          const displaySpan = item.querySelector('.kw-text-display');
+          const editInput = item.querySelector('.kw-edit-input');
+          const saveBtn = item.querySelector('.btn-save-edit-kw');
+          const cancelBtn = item.querySelector('.btn-cancel-edit-kw');
+          const applyBtn = item.querySelector('.btn-apply-kw');
+          const deleteBtn = item.querySelector('.btn-delete-kw');
+
+          displaySpan.style.display = 'none';
+          editInput.style.display = 'block';
+          btn.style.display = 'none';
+          if (applyBtn) applyBtn.style.display = 'none';
+          if (deleteBtn) deleteBtn.style.display = 'none';
+          if (saveBtn) saveBtn.style.display = 'inline-flex';
+          if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+
+          editInput.focus();
+          editInput.select();
+
+          editInput.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              saveBtn.click();
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              cancelBtn.click();
+            }
+          };
+        });
+      });
+
+      // Save edit
+      listContainer.querySelectorAll('.btn-save-edit-kw').forEach(btn => {
         btn.addEventListener('click', () => {
           const id = btn.getAttribute('data-id');
-          const t = getQuickTemplates().find(x => x.id === id);
-          if (t) {
-            itineraryRows = t.rows.map((r, i) => {
-              let time = r.time || '';
-              let passengers = r.passengers || '';
-              if (!time && !passengers && r.note) {
-                const p = parseNote(r.note);
-                time = p.time;
-                passengers = p.passengers;
-              }
-              return {
-                no: i + 1,
-                detail: r.detail || '',
-                time,
-                passengers,
-                note: r.note || [time ? `${time} น.` : '', passengers ? `${passengers} คน` : ''].filter(Boolean).join(' / '),
-                destination: r.destination || ''
-              };
-            });
-            renderTableBody();
-            showToast(`โหลดเทมเพลต "${t.name}" เรียบร้อยแล้ว`);
-            close();
+          const item = btn.closest('.keyword-list-item');
+          const editInput = item?.querySelector('.kw-edit-input');
+          const newVal = editInput ? editInput.value.trim() : '';
+          if (!newVal) {
+            alert('กรุณากรอกข้อความคีย์เวิร์ด');
+            editInput?.focus();
+            return;
           }
+          updateQuickKeyword(id, newVal);
+          showToast(`แก้ไขคีย์เวิร์ดเป็น "${newVal}" เรียบร้อยแล้ว`);
+          refreshList();
         });
       });
 
-      listContainer.querySelectorAll('.btn-edit-tpl').forEach(btn => {
+      // Cancel edit
+      listContainer.querySelectorAll('.btn-cancel-edit-kw').forEach(btn => {
         btn.addEventListener('click', () => {
+          refreshList();
+        });
+      });
+
+      // Delete keyword
+      listContainer.querySelectorAll('.btn-delete-kw').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
           const id = btn.getAttribute('data-id');
-          const t = getQuickTemplates().find(x => x.id === id);
-          if (t) {
-            openTemplateEditorModal(t, () => {
-              listContainer.innerHTML = buildListHtml();
-              bindListEvents();
-              renderQuickTemplateButtons();
-            });
-          }
-        });
-      });
-
-      listContainer.querySelectorAll('.btn-delete-tpl').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const id = btn.getAttribute('data-id');
-          const t = getQuickTemplates().find(x => x.id === id);
-          if (t && confirm(`คุณต้องการลบเทมเพลต "${t.name}" ใช่หรือไม่?`)) {
-            deleteQuickTemplate(id);
-            showToast(`ลบเทมเพลต "${t.name}" เรียบร้อย`);
-            listContainer.innerHTML = buildListHtml();
-            bindListEvents();
-            renderQuickTemplateButtons();
-          }
-        });
-      });
-
-      document.getElementById('btn-modal-add-first')?.addEventListener('click', () => {
-        openTemplateEditorModal(null, () => {
-          listContainer.innerHTML = buildListHtml();
-          bindListEvents();
-          renderQuickTemplateButtons();
+          if (!id) return;
+          deleteQuickKeyword(id);
+          refreshList();
+          showToast('ลบคีย์เวิร์ดเรียบร้อยแล้ว');
         });
       });
     }
 
-    bindListEvents();
-
-    document.getElementById('btn-modal-save-current')?.addEventListener('click', () => {
-      collectCurrentRows();
-      const validRows = itineraryRows.filter(r => r.detail.trim() && r.destination.trim());
-      if (validRows.length === 0) {
-        alert('กรุณากรอกข้อมูลในตารางอย่างน้อย 1 รายการก่อนบันทึกเป็นเทมเพลตด่วน');
-        return;
-      }
-      openTemplateEditorModal({ name: '', rows: validRows }, () => {
-        const listContainer = document.getElementById('tpl-modal-list-container');
-        if (listContainer) {
-          listContainer.innerHTML = buildListHtml();
-          bindListEvents();
-        }
-        renderQuickTemplateButtons();
-      });
-    });
-
-    document.getElementById('btn-modal-create-tpl')?.addEventListener('click', () => {
-      openTemplateEditorModal(null, () => {
-        const listContainer = document.getElementById('tpl-modal-list-container');
-        if (listContainer) {
-          listContainer.innerHTML = buildListHtml();
-          bindListEvents();
-        }
-        renderQuickTemplateButtons();
-      });
-    });
-
-    document.getElementById('btn-modal-reset-tpls')?.addEventListener('click', () => {
-      if (confirm('คุณต้องการคืนค่าเทมเพลตเริ่มต้น (พบลูกค้า, สนามบิน, ส่งของ) ใช่หรือไม่?')) {
-        resetQuickTemplates();
-        showToast('คืนค่าเทมเพลตเริ่มต้นเรียบร้อย');
-        const listContainer = document.getElementById('tpl-modal-list-container');
-        if (listContainer) {
-          listContainer.innerHTML = buildListHtml();
-          bindListEvents();
-        }
-        renderQuickTemplateButtons();
-      }
-    });
-  }
-
-  function openTemplateEditorModal(tplToEdit = null, onSaved = null) {
-    const modalId = 'tpl-editor-modal-backdrop';
-    const existing = document.getElementById(modalId);
-    if (existing) existing.remove();
-
-    const isEdit = !!(tplToEdit && tplToEdit.id);
-    const initialName = tplToEdit ? tplToEdit.name : '';
-    let editorRows = (tplToEdit && tplToEdit.rows && tplToEdit.rows.length > 0)
-      ? JSON.parse(JSON.stringify(tplToEdit.rows)).map((r, i) => {
-        let time = r.time || '';
-        let passengers = r.passengers || '';
-        if (!time && !passengers && r.note) {
-          const p = parseNote(r.note);
-          time = p.time;
-          passengers = p.passengers;
-        }
-        return { no: i + 1, detail: r.detail || '', time, passengers, destination: r.destination || '' };
-      })
-      : [{ no: 1, detail: '', time: '', passengers: '', destination: '' }];
-
-    function renderEditorRowsHtml() {
-      return editorRows.map((r, i) => `
-        <tr data-index="${i}">
-          <td style="text-align: center; font-weight: 600; color: var(--primary);">${i + 1}.)</td>
-          <td>
-            <input type="text" class="form-control tpl-row-detail" placeholder="เช่น ไปพบลูกค้าเพื่อส่งมอบสัญญา" value="${r.detail || ''}" required />
-          </td>
-          <td style="width: 105px;">
-            <input 
-              type="text" 
-              class="form-control tpl-row-time time-input-24h" 
-              value="${r.time || ''}" 
-              placeholder="09:00"
-              maxlength="5"
-              list="time-list-24h"
-              autocomplete="off"
-              style="text-align: center;"
-            />
-          </td>
-          <td style="width: 130px;">
-            <div class="stepper-group">
-              <button type="button" class="btn-stepper btn-tpl-minus" title="ลดจำนวนคน">−</button>
-              <input 
-                type="text" 
-                class="form-control tpl-row-passengers text-center" 
-                placeholder="0" 
-                value="${r.passengers || ''}" 
-              />
-              <button type="button" class="btn-stepper btn-tpl-plus" title="เพิ่มจำนวนคน">+</button>
-              <span class="input-addon">คน</span>
-            </div>
-          </td>
-          <td style="width: 190px;">
-            <input type="text" class="form-control tpl-row-destination" placeholder="เช่น บางปู สมุทรปราการ" value="${r.destination || ''}" required />
-          </td>
-          <td style="text-align: center;">
-            ${editorRows.length > 1 ? `
-              <button type="button" class="btn-icon-danger btn-tpl-delete-row" data-index="${i}" title="ลบแถว">🗑️</button>
-            ` : '-'}
-          </td>
-        </tr>
-      `).join('');
-    }
-
-    const modalHtml = `
-      <div id="${modalId}" class="paper-modal-backdrop" style="z-index: 1050;">
-        <div class="paper-modal-dialog" style="max-width: 720px;">
-          <div class="paper-modal-header" style="background: linear-gradient(135deg, #1e3a8a, #0284c7);">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 1.25rem;">${isEdit ? '✏️' : '➕'}</span>
-              <div>
-                <strong style="font-size: 0.95rem; color: #fff;">${isEdit ? 'แก้ไขเทมเพลตด่วน' : 'สร้างเทมเพลตด่วนใหม่'}</strong>
-                <div style="font-size: 0.75rem; color: #e0f2fe;">กำหนดชื่อและรายละเอียดภารกิจ/สถานที่ (1 - 6 รายการ)</div>
-              </div>
-            </div>
-            <button id="btn-close-editor-modal" class="btn-ghost-light">✕</button>
-          </div>
-          <div class="paper-modal-body" style="background: #fff; padding: 1.25rem;">
-            
-            <div class="form-group" style="margin-bottom: 1rem;">
-              <label class="form-label" for="tpl-name-input">
-                <span>🏷️ ชื่อเทมเพลต</span>
-                <span class="required">*</span>
-              </label>
-              <input 
-                type="text" 
-                id="tpl-name-input" 
-                class="form-control" 
-                placeholder="เช่น 🤝 พบลูกค้ารายใหญ่ หรือ 🚚 นำส่งตัวอย่างสินค้า" 
-                value="${initialName}" 
-                required 
-              />
-            </div>
-
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-              <span style="font-size: 0.85rem; font-weight: 600; color: var(--slate-700);">
-                🗺️ รายการจุดหมาย (สูงสุด 6 แถว)
-              </span>
-              <button type="button" id="btn-tpl-add-row" class="btn-secondary-sm" style="font-size: 0.78rem;">
-                ➕ เพิ่มแถว
-              </button>
-            </div>
-
-            <div class="table-responsive" style="max-height: 260px; overflow-y: auto; border: 1px solid var(--slate-200); border-radius: var(--radius-sm); margin-bottom: 1rem;">
-              <table class="form-table" style="font-size: 0.85rem;">
-                <thead>
-                  <tr>
-                    <th style="width: 45px; text-align: center;">ลำดับ</th>
-                    <th>ภารกิจ/รายละเอียด <span class="required" style="color: #dc2626;">*</span></th>
-                    <th style="width: 105px;"> เวลา</th>
-                    <th style="width: 130px;">👥 จำนวนคน</th>
-                    <th style="width: 190px;">📍 สถานที่ <span class="required" style="color: #dc2626;">*</span></th>
-                    <th style="width: 40px; text-align: center;">ลบ</th>
-                  </tr>
-                </thead>
-                <tbody id="tpl-editor-tbody">
-                  ${renderEditorRowsHtml()}
-                </tbody>
-              </table>
-            </div>
-
-            <div style="display: flex; justify-content: flex-end; gap: 8px;">
-              <button type="button" id="btn-cancel-editor" class="btn-secondary">
-                ยกเลิก
-              </button>
-              <button type="button" id="btn-save-tpl" class="btn-primary">
-                💾 บันทึกเทมเพลต
-              </button>
-            </div>
-
-          </div>
-        </div>
-      </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    const backdrop = document.getElementById(modalId);
-    const close = () => backdrop.remove();
-
-    document.getElementById('btn-close-editor-modal')?.addEventListener('click', close);
-    document.getElementById('btn-cancel-editor')?.addEventListener('click', close);
-
-    function collectEditorRows() {
-      const tbody = document.getElementById('tpl-editor-tbody');
-      if (!tbody) return;
-      const trs = tbody.querySelectorAll('tr');
-      const rows = [];
-      trs.forEach((tr, i) => {
-        const detail = tr.querySelector('.tpl-row-detail')?.value || '';
-        const timeInput = tr.querySelector('.tpl-row-time');
-        const time = timeInput ? normalize24hTime(timeInput.value) : '';
-        const passengers = tr.querySelector('.tpl-row-passengers')?.value || '';
-        const destination = tr.querySelector('.tpl-row-destination')?.value || '';
-        const note = [time ? `${time} น.` : '', passengers ? `${passengers} คน` : ''].filter(Boolean).join(' / ');
-        rows.push({ no: i + 1, detail, time, passengers, note, destination });
-      });
-      editorRows = rows;
-    }
-
-    function rebindEditorRows() {
-      const tbody = document.getElementById('tpl-editor-tbody');
-      if (!tbody) return;
-      tbody.innerHTML = renderEditorRowsHtml();
-      bind24hTimeInputs(backdrop);
-
-      // Stepper buttons for template rows
-      tbody.querySelectorAll('.btn-tpl-minus').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const group = btn.closest('.stepper-group');
-          const input = group?.querySelector('.tpl-row-passengers');
-          if (input) {
-            let val = parseInt(input.value.trim(), 10);
-            if (isNaN(val) || val <= 1) val = 1;
-            else val = val - 1;
-            input.value = val;
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-        });
-      });
-
-      tbody.querySelectorAll('.btn-tpl-plus').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const group = btn.closest('.stepper-group');
-          const input = group?.querySelector('.tpl-row-passengers');
-          if (input) {
-            let val = parseInt(input.value.trim(), 10);
-            if (isNaN(val) || val < 0) val = 0;
-            input.value = val + 1;
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-        });
-      });
-
-      tbody.querySelectorAll('.btn-tpl-delete-row').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const idx = parseInt(btn.getAttribute('data-index'), 10);
-          collectEditorRows();
-          editorRows.splice(idx, 1);
-          rebindEditorRows();
-        });
-      });
-    }
-
-    rebindEditorRows();
-
-    document.getElementById('btn-tpl-add-row')?.addEventListener('click', () => {
-      if (editorRows.length >= 6) {
-        alert('เทมเพลตสามารถมีได้สูงสุด 6 แถว');
-        return;
-      }
-      collectEditorRows();
-      editorRows.push({ no: editorRows.length + 1, detail: '', time: '', passengers: '', destination: '' });
-      rebindEditorRows();
-    });
-
-    document.getElementById('btn-save-tpl')?.addEventListener('click', () => {
-      const nameInput = document.getElementById('tpl-name-input');
-      const name = nameInput ? nameInput.value.trim() : '';
-      if (!name) {
-        alert('กรุณาระบุชื่อเทมเพลต');
-        if (nameInput) nameInput.focus();
-        return;
-      }
-
-      collectEditorRows();
-      const validRows = editorRows.filter(r => r.detail.trim() && r.destination.trim());
-      if (validRows.length === 0) {
-        alert('กรุณากรอกรายละเอียดภารกิจและสถานที่ในเทมเพลตอย่างน้อย 1 รายการ');
-        return;
-      }
-
-      if (isEdit) {
-        updateQuickTemplate(tplToEdit.id, { name, rows: validRows });
-        showToast(`บันทึกการแก้ไขเทมเพลต "${name}" เรียบร้อยแล้ว`);
-      } else {
-        addQuickTemplate({ name, rows: validRows });
-        showToast(`สร้างเทมเพลต "${name}" เรียบร้อยแล้ว`);
-      }
-
-      close();
-      if (onSaved) onSaved();
-      renderQuickTemplateButtons();
-    });
+    bindKeywordItemEvents();
   }
 
   function getFormData() {

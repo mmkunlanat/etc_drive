@@ -98,6 +98,18 @@ function mountView(role, container) {
 }
 
 // Global event listeners
+window.addEventListener('edit_booking_in_form', (e) => {
+  const booking = e.detail;
+  if (!booking) return;
+  if (getActiveRole() !== 'booker') {
+    setActiveRole('booker');
+    initApp();
+  }
+  setTimeout(() => {
+    window.dispatchEvent(new CustomEvent('booker_load_edit', { detail: booking }));
+  }, 50);
+});
+
 window.addEventListener('bookings_updated', () => {
   // Update badges if needed without full reload
   const bookings = getAllBookings();
