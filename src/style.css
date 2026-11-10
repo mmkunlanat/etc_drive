@@ -2567,3 +2567,557 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   Admin Vehicle Dispatch Spreadsheet ("ตารางจัดรถ")
+   Exact design matching official company schedule sheet
+   ========================================================================== */
+
+.dispatch-portal-container {
+  max-width: 1250px;
+  margin: 0 auto;
+  padding: 1rem 0 3rem;
+}
+
+/* Header & Date Bar */
+.dispatch-top-toolbar {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid var(--slate-200);
+  padding: 12px 18px;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.dispatch-date-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dispatch-date-picker-input {
+  border: 1px solid #94a3b8;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0f172a;
+  outline: none;
+  background: #f8fafc;
+}
+.dispatch-date-picker-input:focus {
+  border-color: #2563eb;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.dispatch-paper-card {
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  padding: 24px 28px 36px;
+  margin-bottom: 2rem;
+  overflow-x: auto;
+}
+
+/* Official Header Matching Image */
+.dispatch-title-heading {
+  text-align: center;
+  font-size: 2.1rem;
+  font-weight: 800;
+  color: #002060;
+  margin-bottom: 0.85rem;
+  letter-spacing: 0.5px;
+  font-family: 'Sarabun', 'Prompt', sans-serif;
+}
+
+.dispatch-date-subheading {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #002060;
+  margin-bottom: 1.15rem;
+  font-family: 'Sarabun', 'Prompt', sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Spreadsheet Table */
+.dispatch-excel-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1.5px solid #000000;
+  font-family: 'Sarabun', 'Prompt', sans-serif;
+  color: #000000;
+  background-color: #ffffff;
+}
+
+.dispatch-excel-table th,
+.dispatch-excel-table td {
+  border: 1px solid #000000;
+  padding: 6px 8px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  vertical-align: middle;
+}
+
+.dispatch-excel-table thead th {
+  background-color: #d9d9d9;
+  font-weight: 700;
+  text-align: center;
+  color: #000000;
+  height: 40px;
+  letter-spacing: 0.2px;
+}
+
+/* Columns specific */
+.col-no { width: 55px; text-align: center; font-weight: 600; }
+.col-plate { width: 175px; text-align: center; }
+.col-code { width: 75px; text-align: center; }
+.col-driver { width: 145px; text-align: center; }
+.col-time { width: 95px; text-align: center; }
+.col-dept { width: 130px; text-align: center; }
+.col-booker { width: 175px; text-align: center; }
+.col-actions { width: 90px; text-align: center; }
+
+/* Plate cell colors */
+.plate-bg-yellow {
+  background-color: #ffff99 !important;
+  font-weight: 700;
+  text-align: center;
+}
+.plate-bg-green {
+  background-color: #bbf7d0 !important;
+  font-weight: 700;
+  text-align: center;
+}
+.plate-bg-default {
+  background-color: #ffffff !important;
+  text-align: center;
+}
+
+/* Time pink badge/bg */
+.time-bg-pink {
+  background-color: #fbcfe8 !important;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Itinerary Details Box */
+.dispatch-itinerary-cell {
+  background-color: #ffffff;
+  padding: 8px 12px !important;
+  text-align: left;
+  line-height: 1.6;
+  font-size: 0.92rem;
+  border-top: 1px solid #000000;
+  border-bottom: 1px solid #000000;
+}
+
+.dispatch-itinerary-line {
+  margin-bottom: 4px;
+}
+.dispatch-itinerary-line:last-child {
+  margin-bottom: 0;
+}
+
+/* Red text highlighting for times and airport notes */
+.dispatch-red-highlight {
+  color: #dc2626;
+  font-weight: 600;
+}
+.dispatch-blue-highlight {
+  color: #0284c7;
+  font-weight: 600;
+}
+
+/* Peach Comment Row */
+.dispatch-comment-tr {
+  background-color: #ffe6cc !important;
+}
+
+.dispatch-comment-cell {
+  background-color: #ffe6cc !important;
+  color: #dc2626 !important;
+  font-weight: 700;
+  padding: 8px 14px !important;
+  font-size: 0.95rem;
+  border-top: 1px solid #000000 !important;
+  border-bottom: 1px solid #000000 !important;
+}
+
+/* Inline Editable Inputs */
+.dispatch-cell-input {
+  width: 100%;
+  border: 1px dashed transparent;
+  background: transparent;
+  padding: 3px 5px;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  text-align: inherit;
+  outline: none;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+.dispatch-cell-input:hover {
+  border-color: #94a3b8;
+  background: rgba(255, 255, 255, 0.6);
+}
+.dispatch-cell-input:focus {
+  border-color: #2563eb;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+.dispatch-itinerary-box {
+  width: 100%;
+  border: 1px dashed transparent;
+  background: transparent;
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: #000000;
+  outline: none;
+  min-height: 48px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.dispatch-itinerary-box:hover {
+  border-color: #94a3b8;
+  background: rgba(248, 250, 252, 0.8);
+}
+.dispatch-itinerary-box:focus {
+  border-color: #2563eb;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+.dispatch-itinerary-box[contenteditable]:empty:before {
+  content: attr(placeholder);
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.dispatch-comment-input {
+  width: 100%;
+  border: 1px dashed transparent;
+  background: transparent;
+  color: #dc2626;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 4px 8px;
+  font-family: inherit;
+  outline: none;
+  border-radius: 4px;
+}
+.dispatch-comment-input:hover {
+  border-color: #f87171;
+  background: rgba(255, 255, 255, 0.5);
+}
+.dispatch-comment-input:focus {
+  border-color: #dc2626;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2);
+}
+
+/* Row Action Buttons inside the table (non-print) */
+/* Cell Combobox (Vehicle plate, Driver Code, Driver Name, Department) */
+.cell-combobox-wrap,
+.plate-combobox-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.cell-combobox-wrap .dispatch-cell-input,
+.plate-combobox-wrap .dispatch-cell-input {
+  padding-right: 18px;
+}
+
+.btn-cell-dropdown-arrow,
+.btn-plate-dropdown-arrow {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  font-size: 0.72rem;
+  color: #475569;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-cell-dropdown-arrow:hover,
+.btn-plate-dropdown-arrow:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #0f172a;
+}
+
+.cell-dropdown-menu,
+.plate-custom-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  min-width: 170px;
+  max-height: 250px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  z-index: 999;
+  text-align: left;
+  padding: 4px 0;
+}
+.cell-dropdown-menu.menu-align-right {
+  left: auto;
+  right: 0;
+}
+
+.cell-opt-item,
+.plate-opt-item {
+  padding: 7px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  transition: background 0.1s ease;
+  border-bottom: 1px solid #f8fafc;
+}
+.cell-opt-item:last-child,
+.plate-opt-item:last-child {
+  border-bottom: none;
+}
+.cell-opt-item:hover,
+.plate-opt-item:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.cell-opt-badge,
+.plate-opt-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.cell-opt-badge.yellow,
+.plate-opt-badge.yellow {
+  background: #fef08a;
+  color: #854d0e;
+  border: 1px solid #fde047;
+}
+.cell-opt-badge.green,
+.plate-opt-badge.green {
+  background: #bbf7d0;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+.cell-opt-badge.default,
+.plate-opt-badge.default {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+.cell-opt-subtext {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #64748b;
+}
+
+.dispatch-row-action-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  padding: 3px 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.15s ease;
+}
+.dispatch-row-action-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+.dispatch-row-action-btn.btn-pick-booker {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+.dispatch-row-action-btn.btn-pick-booker:hover {
+  background: #dbeafe;
+}
+.dispatch-row-action-btn.btn-add-comment {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #c2410c;
+}
+.dispatch-row-action-btn.btn-add-comment:hover {
+  background: #ffedd5;
+}
+.dispatch-row-action-btn.btn-del-row {
+  color: #dc2626;
+}
+.dispatch-row-action-btn.btn-del-row:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+/* Modal for Picking Booker Requests */
+.booker-picker-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.booker-picker-dialog {
+  background: #ffffff;
+  border-radius: 14px;
+  max-width: 820px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  animation: modalPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.booker-picker-header {
+  background: linear-gradient(135deg, #002060, #1e3a8a);
+  color: #ffffff;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.booker-picker-body {
+  padding: 18px 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.booker-card-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  background: #f8fafc;
+  transition: all 0.15s ease;
+}
+.booker-card-item:hover {
+  border-color: #93c5fd;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+.booker-card-item.selected {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+/* Print Styling */
+@media print {
+  @page {
+    size: landscape;
+    margin: 8mm 10mm;
+  }
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt;
+  }
+  .app-header,
+  .dispatch-top-toolbar,
+  .dispatch-row-action-btn,
+  .btn-plate-dropdown-arrow,
+  .plate-custom-dropdown-menu,
+  .btn-cell-dropdown-arrow,
+  .cell-dropdown-menu,
+  .no-print,
+  .btn-print-hide,
+  .role-nav-group {
+    display: none !important;
+  }
+  .dispatch-portal-container {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .dispatch-paper-card {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .dispatch-excel-table {
+    width: 100% !important;
+    border: 1.5px solid #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .dispatch-excel-table th,
+  .dispatch-excel-table td {
+    border: 1px solid #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .dispatch-excel-table thead th {
+    background-color: #d9d9d9 !important;
+  }
+  .plate-bg-yellow {
+    background-color: #ffff99 !important;
+  }
+  .plate-bg-green {
+    background-color: #bbf7d0 !important;
+  }
+  .time-bg-pink {
+    background-color: #fbcfe8 !important;
+  }
+  .dispatch-comment-cell,
+  .dispatch-comment-tr {
+    background-color: #ffe6cc !important;
+    color: #dc2626 !important;
+  }
+  .dispatch-cell-input,
+  .dispatch-itinerary-textarea,
+  .dispatch-comment-input {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+}
