@@ -479,93 +479,113 @@ export function resetToSeedData() {
   return seed;
 }
 
-// Quick Templates Store
-const QUICK_TEMPLATES_KEY = 'car_booking_quick_templates_v1';
+// Quick Keywords Store
+const QUICK_KEYWORDS_KEY = 'car_booking_quick_keywords_v1';
 
-export const DEFAULT_QUICK_TEMPLATES = [
-  {
-    id: 'tpl_customer',
-    name: '🤝 พบลูกค้า',
-    rows: [
-      { no: 1, detail: 'เดินทางไปพบลูกค้าเพื่อส่งมอบสัญญาและประชุมนำเสนอโครงการ', time: '10:00', passengers: '3', note: '10:00 น. / 3 คน', destination: 'นิคมอุตสาหกรรมบางปู จ.สมุทรปราการ' },
-      { no: 2, detail: 'เดินทางกลับสำนักงานใหญ่', time: '14:30', passengers: '3', note: '14:30 น. / 3 คน', destination: 'สำนักงานใหญ่ พระราม 9' }
-    ]
-  },
-  {
-    id: 'tpl_airport',
-    name: '✈️ สนามบิน',
-    rows: [
-      { no: 1, detail: 'ไปรับผู้บริหารและคณะดูงานจากต่างประเทศ', time: '09:30', passengers: '4', note: '09:30 น. / 4 คน', destination: 'สนามบินสุวรรณภูมิ ประตู 4' },
-      { no: 2, detail: 'ส่งคณะผู้บริหารเข้าที่พักและศูนย์ประชุม', time: '13:00', passengers: '4', note: '13:00 น. / 4 คน', destination: 'โรงแรม แกรนด์ เซนเตอร์พอยต์ เพลินจิต' }
-    ]
-  },
-  {
-    id: 'tpl_cargo',
-    name: '📦 ส่งของ',
-    rows: [
-      { no: 1, detail: 'ขนส่งอุปกรณ์เครื่องมือและอะไหล่ซ่อมบำรุง', time: '08:30', passengers: '2', note: '08:30 น. / 2 คน', destination: 'คลังสินค้า บางนา กม.19' },
-      { no: 2, detail: 'นำส่งเอกสารตรวจรับสินค้า', time: '13:30', passengers: '2', note: '13:30 น. / 2 คน', destination: 'สาขานิคมพัฒนา จ.ระยอง' }
-    ]
-  }
+export const DEFAULT_QUICK_KEYWORDS = [
+  { id: 'kw_1', text: 'พบลูกค้า' },
+  { id: 'kw_2', text: 'ประชุมนำเสนอโครงการ' },
+  { id: 'kw_3', text: 'สำนักงานใหญ่ พระราม 9' },
+  { id: 'kw_4', text: 'นิคมอุตสาหกรรมบางปู จ.สมุทรปราการ' },
+  { id: 'kw_5', text: 'สนามบินสุวรรณภูมิ' },
+  { id: 'kw_6', text: 'สนามบินดอนเมือง' },
+  { id: 'kw_7', text: 'ส่งมอบสัญญาและเอกสาร' },
+  { id: 'kw_8', text: 'รับ-ส่งผู้บริหาร' },
+  { id: 'kw_9', text: 'คลังสินค้า บางนา กม.19' },
+  { id: 'kw_10', text: 'ตรวจรับมอบงาน' }
 ];
 
-export function getQuickTemplates() {
+export function getQuickKeywords() {
   try {
-    const raw = localStorage.getItem(QUICK_TEMPLATES_KEY);
-    if (!raw) {
-      localStorage.setItem(QUICK_TEMPLATES_KEY, JSON.stringify(DEFAULT_QUICK_TEMPLATES));
-      return DEFAULT_QUICK_TEMPLATES;
+    const raw = localStorage.getItem(QUICK_KEYWORDS_KEY);
+    if (raw === null) {
+      localStorage.setItem(QUICK_KEYWORDS_KEY, JSON.stringify(DEFAULT_QUICK_KEYWORDS));
+      return JSON.parse(JSON.stringify(DEFAULT_QUICK_KEYWORDS));
     }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_QUICK_TEMPLATES;
+    if (!Array.isArray(parsed)) {
+      return JSON.parse(JSON.stringify(DEFAULT_QUICK_KEYWORDS));
+    }
+    let needsResave = false;
+    const normalized = parsed.map((k, i) => {
+      const text = String(typeof k === 'string' ? k : (k.text || k.name || '')).trim();
+      let id = k && typeof k === 'object' && k.id ? String(k.id).trim() : '';
+      if (!id) {
+        id = `kw_${i}_${Date.now()}`;
+        needsResave = true;
+      }
+      return { id, text };
+    }).filter(k => k.text.length > 0);
+
+    if (needsResave) {
+      localStorage.setItem(QUICK_KEYWORDS_KEY, JSON.stringify(normalized));
+    }
+    return normalized;
   } catch (e) {
-    console.error('Error reading quick templates', e);
-    return DEFAULT_QUICK_TEMPLATES;
+    console.error('Error reading quick keywords', e);
+    return DEFAULT_QUICK_KEYWORDS;
   }
 }
 
-export function saveQuickTemplates(templates) {
+export function saveQuickKeywords(keywords) {
   try {
-    localStorage.setItem(QUICK_TEMPLATES_KEY, JSON.stringify(templates));
-    window.dispatchEvent(new CustomEvent('quick_templates_updated', { detail: templates }));
+    const cleanList = Array.isArray(keywords) ? keywords : [];
+    localStorage.setItem(QUICK_KEYWORDS_KEY, JSON.stringify(cleanList));
+    window.dispatchEvent(new CustomEvent('quick_keywords_updated', { detail: cleanList }));
   } catch (e) {
-    console.error('Error saving quick templates', e);
+    console.error('Error saving quick keywords', e);
   }
 }
 
-export function addQuickTemplate(tpl) {
-  const templates = getQuickTemplates();
-  const newTpl = {
-    ...tpl,
-    id: tpl.id || `tpl_${Date.now()}`
+export function addQuickKeyword(keywordOrText) {
+  const text = (typeof keywordOrText === 'string' ? keywordOrText : (keywordOrText?.text || keywordOrText?.name || '')).trim();
+  if (!text) return null;
+  const keywords = getQuickKeywords();
+  const newKw = {
+    id: `kw_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    text
   };
-  templates.push(newTpl);
-  saveQuickTemplates(templates);
-  return newTpl;
+  keywords.push(newKw);
+  saveQuickKeywords(keywords);
+  return newKw;
 }
 
-export function updateQuickTemplate(id, updatedFields) {
-  const templates = getQuickTemplates();
-  const idx = templates.findIndex(t => t.id === id);
+export function updateQuickKeyword(id, newTextOrObj) {
+  const text = (typeof newTextOrObj === 'string' ? newTextOrObj : (newTextOrObj?.text || newTextOrObj?.name || '')).trim();
+  if (!text || !id) return null;
+  const targetId = String(id).trim();
+  const keywords = getQuickKeywords();
+  const idx = keywords.findIndex(k => String(k.id).trim() === targetId);
   if (idx !== -1) {
-    templates[idx] = { ...templates[idx], ...updatedFields };
-    saveQuickTemplates(templates);
-    return templates[idx];
+    keywords[idx].text = text;
+    saveQuickKeywords(keywords);
+    return keywords[idx];
   }
   return null;
 }
 
-export function deleteQuickTemplate(id) {
-  let templates = getQuickTemplates();
-  templates = templates.filter(t => t.id !== id);
-  saveQuickTemplates(templates);
-  return templates;
+export function deleteQuickKeyword(idOrText) {
+  if (!idOrText) return getQuickKeywords();
+  const target = String(idOrText).trim();
+  let keywords = getQuickKeywords();
+  keywords = keywords.filter(k => String(k.id).trim() !== target && String(k.text).trim() !== target);
+  saveQuickKeywords(keywords);
+  return keywords;
 }
 
-export function resetQuickTemplates() {
-  saveQuickTemplates(DEFAULT_QUICK_TEMPLATES);
-  return DEFAULT_QUICK_TEMPLATES;
+export function resetQuickKeywords() {
+  saveQuickKeywords(DEFAULT_QUICK_KEYWORDS);
+  return JSON.parse(JSON.stringify(DEFAULT_QUICK_KEYWORDS));
 }
+
+// Backward compatibility aliases
+export const DEFAULT_QUICK_TEMPLATES = DEFAULT_QUICK_KEYWORDS;
+export const getQuickTemplates = getQuickKeywords;
+export const saveQuickTemplates = saveQuickKeywords;
+export const addQuickTemplate = addQuickKeyword;
+export const updateQuickTemplate = updateQuickKeyword;
+export const deleteQuickTemplate = deleteQuickKeyword;
+export const resetQuickTemplates = resetQuickKeywords;
 
 // Current active role
 export function getActiveRole() {

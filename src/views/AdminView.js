@@ -898,7 +898,16 @@ export function renderAdminView(container) {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
         const b = getAllBookings().find(x => x.id === id);
-        if (b) renderPaperModal(b);
+        if (b) {
+          renderPaperModal(b, {
+            onEdit: (booking) => {
+              window.dispatchEvent(new CustomEvent('edit_booking_in_form', { detail: booking }));
+            },
+            onConfirm: (booking) => {
+              showToast(`ยืนยันการตรวจสอบคำขอ ${booking.id} เรียบร้อยแล้ว`);
+            }
+          });
+        }
       });
     });
 
