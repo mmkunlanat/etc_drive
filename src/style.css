@@ -2850,6 +2850,57 @@ body {
   gap: 12px;
 }
 
+/* Vehicle Selection Menu Status Indicators */
+.opt-status-pill {
+  font-size: 0.72rem;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.opt-status-pill.pill-avail {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.opt-status-pill.pill-busy {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+/* Target vehicle picker modal tags */
+.target-picker-status-tag {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.target-picker-status-tag.tag-avail {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.target-picker-status-tag.tag-busy {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+/* Highlight flash animation on row */
+@keyframes rowPulseGlow {
+  0% { background-color: #dbeafe; }
+  50% { background-color: #93c5fd; }
+  100% { background-color: transparent; }
+}
+
+.row-highlight-pulse {
+  animation: rowPulseGlow 1.2s ease;
+}
+
 .dispatch-date-nav {
   display: flex;
   align-items: center;
