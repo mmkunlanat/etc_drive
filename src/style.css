@@ -1559,7 +1559,35 @@ body {
 .form-table .input-group {
   display: flex;
   align-items: center;
-  min-width: 95px;
+  min-width: 105px;
+  width: 100%;
+  height: 38px;
+  box-sizing: border-box;
+}
+
+.form-table .input-group .form-control {
+  height: 38px;
+  padding: 0 0.5rem;
+  font-size: 0.92rem;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.form-table .input-group .input-addon {
+  height: 38px;
+  padding: 0 0.65rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--slate-100);
+  border: 1.5px solid var(--slate-200);
+  border-left: none;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  color: var(--slate-600);
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 /* Stepper Input Group (สำหรับเพิ่ม/พิมพ์จำนวนคน) */
@@ -1567,16 +1595,18 @@ body {
   display: flex;
   align-items: center;
   width: 100%;
+  height: 38px;
+  box-sizing: border-box;
 }
 
 .stepper-group .btn-stepper {
-  width: 25px;
-  height: 33px;
+  width: 32px;
+  height: 38px;
   background-color: var(--slate-100);
   border: 1.5px solid var(--slate-200);
   color: var(--slate-700);
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1585,6 +1615,7 @@ body {
   user-select: none;
   padding: 0;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .stepper-group .btn-stepper:hover {
@@ -1612,16 +1643,34 @@ body {
 
 .stepper-group .row-passengers,
 .stepper-group .tpl-row-passengers {
+  height: 38px;
   border-radius: 0 !important;
   text-align: center;
-  padding: 0.4rem 0.2rem;
-  min-width: 34px;
+  padding: 0 0.35rem;
+  width: 48px;
+  min-width: 44px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-top: 1.5px solid var(--slate-200);
+  border-bottom: 1.5px solid var(--slate-200);
+  box-sizing: border-box;
 }
 
 .stepper-group .input-addon {
+  height: 38px;
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
-  padding: 0.4rem 0.45rem;
-  font-size: 0.78rem;
+  padding: 0 0.65rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--slate-100);
+  border: 1.5px solid var(--slate-200);
+  border-left: none;
+  color: var(--slate-600);
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 /* ==========================================================================
@@ -1796,14 +1845,19 @@ body {
   flex-shrink: 0;
 }
 
-.form-table .input-group .input-addon {
-  padding: 0.55rem 0.55rem;
-  font-size: 0.78rem;
+.form-table .form-control {
+  height: 38px;
+  padding: 0 0.65rem;
+  font-size: 0.88rem;
+  box-sizing: border-box;
 }
 
-.form-table .form-control {
-  padding: 0.55rem 0.65rem;
-  font-size: 0.85rem;
+.form-table .btn-icon-danger {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .tpl-list-item {
