@@ -235,7 +235,25 @@ export function renderApproverView(container) {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
         const b = getAllBookings().find(x => x.id === id);
-        if (b) renderPaperModal(b);
+        if (b) {
+          renderPaperModal(b, {
+            onEdit: (booking) => {
+              window.dispatchEvent(new CustomEvent('edit_booking_in_form', { detail: booking }));
+            },
+            onConfirm: (booking) => {
+              if (booking.status === 'pending_approval') {
+                updateBooking(booking.id, {
+                  status: 'approved',
+                  statusLabel: 'อนุมัติแล้ว (รอจัดสรรรถ/คนขับ)',
+                  approverSignature: 'ผู้อนุมัติฝ่าย',
+                  approverRemark: 'อนุมัติตามระเบียบการใช้รถ'
+                });
+                showToast(`อนุมัติคำขอ ${booking.id} สำเร็จแล้ว`);
+                render();
+              }
+            }
+          });
+        }
       });
     });
 

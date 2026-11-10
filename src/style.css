@@ -1677,6 +1677,125 @@ body {
   background: rgba(255, 255, 255, 0.3);
 }
 
+/* Quick Keywords Bar */
+.quick-keywords-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.quick-keywords-label {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.quick-keywords-buttons {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.quick-keyword-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  user-select: none;
+}
+
+.quick-keyword-btn:hover {
+  background: rgba(255, 255, 255, 0.35);
+  border-color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.quick-keyword-btn:active {
+  transform: scale(0.96);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.quick-keyword-btn-manage {
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  color: #ffffff;
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.quick-keyword-btn-manage:hover {
+  background: #ffffff;
+  color: #1e3a8a;
+  border-color: #ffffff;
+}
+
+/* Keyword insertion glow animation on target input */
+@keyframes pulseKeywordGlow {
+  0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6); background-color: #eff6ff; }
+  50% { box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.3); background-color: #dbeafe; }
+  100% { box-shadow: none; }
+}
+
+.input-keyword-highlight {
+  animation: pulseKeywordGlow 0.6s ease;
+}
+
+/* Quick Keyword Manager List Items */
+.keyword-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.9rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  margin-bottom: 0.5rem;
+  gap: 10px;
+  transition: all 0.15s ease;
+}
+
+.keyword-list-item:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.keyword-text-badge {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1e293b;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  word-break: break-word;
+}
+
+.keyword-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .form-table .input-group .input-addon {
   padding: 0.55rem 0.55rem;
   font-size: 0.78rem;
@@ -2324,6 +2443,71 @@ body {
   flex-grow: 1;
 }
 
+.paper-modal-footer {
+  background: #ffffff;
+  border-top: 1px solid #cbd5e1;
+  padding: 0.85rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-shrink: 0;
+  border-bottom-left-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-lg);
+}
+
+.paper-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.btn-paper-footer-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 22px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: #334155;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-paper-footer-edit:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.btn-paper-footer-confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 26px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: #ffffff;
+  background: #2563eb;
+  border: 1px solid #1d4ed8;
+  border-radius: 7px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25);
+  transition: all 0.15s ease;
+}
+
+.btn-paper-footer-confirm:hover {
+  background: #1d4ed8;
+  border-color: #1e40af;
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.35);
+}
+
 /* Authentic Blue Sheet Layout */
 .official-paper-sheet {
   background: #f7faff;
@@ -2512,6 +2696,7 @@ body {
   body.has-paper-modal .app-header,
   body.has-paper-modal .main-wrapper,
   body.has-paper-modal .paper-modal-header,
+  body.has-paper-modal .paper-modal-footer,
   body.has-paper-modal .no-print,
   body.has-paper-modal .toast-box {
     display: none !important;

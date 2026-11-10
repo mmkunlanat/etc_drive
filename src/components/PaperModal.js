@@ -1,9 +1,31 @@
 // PaperModal.js - High-fidelity authentic replica of vehicle booking form
 import { formatThaiDate, formatSubmissionTime } from '../store.js';
 
-export function renderPaperModal(booking, onClose) {
+export function renderPaperModal(booking, optionsOrOnClose) {
+  let onClose = null;
+  let onEdit = null;
+  let onConfirm = null;
+  let editText = 'แก้ไข';
+  let confirmText = 'ยืนยัน';
+
+  if (typeof optionsOrOnClose === 'function') {
+    onClose = optionsOrOnClose;
+  } else if (optionsOrOnClose && typeof optionsOrOnClose === 'object') {
+    onClose = optionsOrOnClose.onClose;
+    onEdit = optionsOrOnClose.onEdit;
+    onConfirm = optionsOrOnClose.onConfirm;
+    if (optionsOrOnClose.editText) editText = optionsOrOnClose.editText;
+    if (optionsOrOnClose.confirmText) confirmText = optionsOrOnClose.confirmText;
+  }
+
   const existing = document.getElementById('paper-modal-backdrop');
-  if (existing) existing.remove();
+  if (existing) {
+    if (typeof existing.remove === 'function') {
+      existing.remove();
+    } else if (existing.parentNode) {
+      existing.parentNode.removeChild(existing);
+    }
+  }
 
   const bookingThai = formatThaiDate(booking.bookingDate);
   const usageThai = formatThaiDate(booking.usageDate);
@@ -175,6 +197,19 @@ export function renderPaperModal(booking, onClose) {
 
           </div>
         </div>
+
+        <!-- Modal Footer with Edit & Confirm Actions at Bottom-Right -->
+        <div class="paper-modal-footer no-print">
+          <div class="paper-footer-actions">
+            <button type="button" id="btn-paper-edit" class="btn-paper-footer-edit">
+              ${editText}
+            </button>
+            <button type="button" id="btn-paper-confirm" class="btn-paper-footer-confirm">
+              ${confirmText}
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   `;
@@ -186,6 +221,8 @@ export function renderPaperModal(booking, onClose) {
   const backdrop = document.getElementById('paper-modal-backdrop');
   const closeBtn = document.getElementById('btn-close-paper-modal');
   const printBtn = document.getElementById('btn-print-paper');
+  const editBtn = document.getElementById('btn-paper-edit');
+  const confirmBtn = document.getElementById('btn-paper-confirm');
 
   const close = () => {
     window.removeEventListener('keydown', handleKey);
@@ -207,4 +244,26 @@ export function renderPaperModal(booking, onClose) {
   printBtn.addEventListener('click', () => {
     window.print();
   });
+
+  if (editBtn) {
+    editBtn.addEventListener('click', () => {
+      close();
+      if (onEdit) {
+        onEdit(booking);
+      } else {
+        window.dispatchEvent(new CustomEvent('edit_booking_in_form', { detail: booking }));
+      }
+    });
+  }
+
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', () => {
+      close();
+      if (onConfirm) {
+        onConfirm(booking);
+      } else {
+        window.dispatchEvent(new CustomEvent('confirm_booking_paper', { detail: booking }));
+      }
+    });
+  }
 }
