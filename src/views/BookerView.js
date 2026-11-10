@@ -827,6 +827,11 @@ export function renderBookerView(container) {
                       <div class="mini-item-info">
                         <div class="mini-item-title">${firstDest} (${b.id})</div>
                         <div class="mini-item-sub"> ใช้รถ ${b.startTime} น. • ส่งฟอร์ม ${formatSubmissionTime(b)} • ${b.bookerName}</div>
+                        ${b.status === 'rejected' ? `
+                          <div style="font-size: 0.72rem; color: #dc2626; margin-top: 3px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; padding: 2px 6px;">
+                            <strong>เหตุผลที่ไม่อนุมัติ:</strong> ${escapeHtml(b.approverRemark || 'ไม่ระบุเหตุผล')}
+                          </div>
+                        ` : ''}
                       </div>
                     </div>
                     <button type="button" class="mini-item-view-btn btn-view-paper" data-id="${b.id}" title="ดูใบคำขอ">
@@ -971,6 +976,20 @@ export function renderBookerView(container) {
                       ${getStatusDot(b.status)}
                       ${b.statusLabel || b.status}
                     </span>
+                    ${b.status === 'rejected' ? `
+                      <div class="booking-reject-reason-box">
+                        <div class="reject-reason-header">
+                          <span class="reject-icon">✕</span>
+                          <span class="reject-title">เหตุผลที่ไม่อนุมัติ:</span>
+                        </div>
+                        <div class="reject-reason-content">
+                          ${escapeHtml(b.approverRemark || 'ไม่ระบุเหตุผล')}
+                        </div>
+                        ${b.approverSignature ? `
+                          <div class="reject-reason-signer">โดย: ${escapeHtml(b.approverSignature)}</div>
+                        ` : ''}
+                      </div>
+                    ` : ''}
                   </td>
                   <td style="text-align: center;">
                     <div style="display: flex; gap: 5px; justify-content: center;">
