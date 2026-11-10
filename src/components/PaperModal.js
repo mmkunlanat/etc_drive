@@ -180,6 +180,7 @@ export function renderPaperModal(booking, onClose) {
   `;
 
   document.body.insertAdjacentHTML('beforeend', modalHtml);
+  document.body.classList.add('has-paper-modal');
 
   // Close handlers
   const backdrop = document.getElementById('paper-modal-backdrop');
@@ -188,6 +189,7 @@ export function renderPaperModal(booking, onClose) {
 
   const close = () => {
     window.removeEventListener('keydown', handleKey);
+    document.body.classList.remove('has-paper-modal');
     backdrop.remove();
     if (onClose) onClose();
   };
