@@ -1460,6 +1460,114 @@ body {
   margin-bottom: 1.25rem;
 }
 
+.booking-datetime-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  align-items: flex-start;
+  gap: 1.25rem;
+  background: #f1f5f9;
+  padding: 1.15rem 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1.5px dashed #cbd5e1;
+  margin-bottom: 1.25rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.usage-date-col {
+  width: 100%;
+  min-width: 0;
+}
+
+.usage-date-col .form-control {
+  height: 42px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1e293b;
+  padding: 0 0.75rem;
+  background: #ffffff;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.usage-time-col {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .booking-datetime-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  .usage-date-col {
+    grid-column: 1 / -1;
+  }
+  .usage-time-col {
+    grid-column: span 1;
+  }
+}
+
+.time-picker-group {
+  display: flex !important;
+  align-items: stretch !important;
+  width: 100%;
+  height: 42px;
+  box-sizing: border-box;
+}
+
+.time-picker-group .form-control {
+  height: 42px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #1e293b;
+  padding: 0 0.5rem;
+  letter-spacing: 0.5px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  background: #ffffff;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.time-picker-group .btn-clock-trigger {
+  height: 42px;
+  padding: 0 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #2563eb;
+  background: #ffffff;
+  border: 1.5px solid var(--slate-200);
+  border-left: none;
+  border-top-right-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  min-width: 58px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.time-picker-group .btn-clock-trigger:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #93c5fd;
+}
+
+.time-picker-group .time-unit-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap !important;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
@@ -2312,6 +2420,299 @@ body {
   color: var(--slate-700);
 }
 
+/* ==========================================================================
+   Driver Portal Date Switcher Tabs
+   ========================================================================== */
+.driver-date-tabs-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 1.25rem;
+  background: var(--white);
+  padding: 8px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--slate-200);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  flex-wrap: wrap;
+}
+
+.driver-date-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid transparent;
+  background: #f8fafc;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--slate-700);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.driver-date-tab-btn:hover {
+  background: #f1f5f9;
+  color: var(--slate-900);
+  border-color: #cbd5e1;
+}
+
+.driver-date-tab-btn.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #1d4ed8;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+}
+
+.driver-date-tab-btn .tab-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  color: #475569;
+  min-width: 20px;
+  text-align: center;
+}
+
+.driver-date-tab-btn.active .tab-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.driver-date-tab-btn .tab-badge.badge-has-jobs {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.driver-date-tab-btn.active .tab-badge.badge-has-jobs {
+  background: #ffffff;
+  color: #1d4ed8;
+}
+
+/* ==========================================================================
+   Driver License Plate Showcase (ทะเบียนรถเด่นชัด)
+   ========================================================================== */
+.driver-plate-showcase {
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  border: 1.5px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin: 0.85rem 0 1.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.9), 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.driver-plate-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.thai-license-plate {
+  display: inline-flex;
+  align-items: center;
+  background: #ffffff;
+  border: 3.5px solid #0f172a;
+  border-radius: 9px;
+  padding: 6px 18px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12), inset 0 1px 2px rgba(255, 255, 255, 0.9);
+  position: relative;
+  transition: transform 0.15s ease;
+}
+
+.thai-license-plate.plate-yellow {
+  background: #fffbeb;
+  border-color: #713f12;
+}
+
+.thai-license-plate.plate-green {
+  background: #f0fdf4;
+  border-color: #14532d;
+}
+
+.plate-number-big {
+  font-size: 1.45rem;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #0f172a;
+  font-family: 'Sukhumvit Set', 'Prompt', sans-serif;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.plate-category-pill {
+  margin-left: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #1e40af;
+  background: #dbeafe;
+  border: 1px solid #bfdbfe;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  vertical-align: middle;
+}
+
+/* Driver Job Status Badges & Buttons */
+.driver-job-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+}
+
+.driver-job-status-badge.confirmed {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.driver-job-status-badge.in-progress {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.driver-job-status-badge.completed {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.btn-confirm-job {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 7px 18px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+  transition: all 0.15s ease;
+}
+
+.btn-confirm-job:hover {
+  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   Driver Job Confirmation Progress & Step-by-Step Locking
+   ========================================================================== */
+.driver-confirm-progress-banner {
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-radius: var(--radius-lg);
+  padding: 12px 18px;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.driver-confirm-progress-banner.has-pending {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.driver-confirm-progress-banner.all-confirmed {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.confirm-progress-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.confirm-progress-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.driver-confirm-progress-banner.has-pending .confirm-progress-title {
+  color: #92400e;
+}
+
+.driver-confirm-progress-banner.all-confirmed .confirm-progress-title {
+  color: #166534;
+}
+
+.confirm-subtext {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.driver-confirm-progress-banner.has-pending .confirm-subtext {
+  color: #b45309;
+}
+
+.driver-confirm-progress-banner.all-confirmed .confirm-subtext {
+  color: #15803d;
+}
+
+.confirm-progress-pill {
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.confirm-progress-pill.pill-amber {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.confirm-progress-pill.pill-green {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.job-seq-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #4338ca;
+  background: #e0e7ff;
+  border: 1px solid #c7d2fe;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-start-locked {
+  background: #94a3b8 !important;
+  color: #ffffff !important;
+  cursor: not-allowed !important;
+  opacity: 0.75;
+  border: none;
+}
+
 .trip-route-timeline {
   margin: 1.25rem 0;
   position: relative;
@@ -2376,6 +2777,163 @@ body {
   padding: 2px 6px;
   border-radius: 4px;
   margin-top: 4px;
+}
+
+.route-step-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.step-dest-done {
+  color: #059669 !important;
+}
+
+.step-muted {
+  color: #64748b !important;
+}
+
+.step-note-done {
+  background: #ecfdf5 !important;
+  color: #059669 !important;
+}
+
+.step-action-zone {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn-finish-stop {
+  background: #059669;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 11px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  transition: all 0.15s ease;
+}
+
+.btn-finish-stop:hover:not(:disabled) {
+  background: #047857;
+  transform: translateY(-1px);
+}
+
+.btn-finish-stop:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-finish-stop.btn-finish-disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.75;
+  box-shadow: none;
+}
+
+.step-completed-badge {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge-time {
+  font-weight: 500;
+  font-size: 0.72rem;
+  opacity: 0.9;
+}
+
+.btn-undo-stop {
+  background: #ffffff;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  transition: all 0.15s ease;
+}
+
+.btn-undo-stop:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.route-step.step-done::before {
+  background: #10b981 !important;
+  border-color: #ffffff !important;
+  box-shadow: 0 0 0 2px #10b981 !important;
+}
+
+.trip-stops-progress-wrap {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 9px 13px;
+  margin: 0.6rem 0 1rem;
+}
+
+.stops-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.82rem;
+}
+
+.stops-progress-title {
+  color: #334155;
+  font-size: 0.82rem;
+}
+
+.stops-progress-title strong {
+  color: #1e40af;
+}
+
+.stops-progress-percent {
+  font-weight: 700;
+  color: #059669;
+  font-size: 0.8rem;
+  background: #ecfdf5;
+  padding: 1px 8px;
+  border-radius: 12px;
+  border: 1px solid #a7f3d0;
+}
+
+.stops-progress-track {
+  width: 100%;
+  height: 7px;
+  background: #e2e8f0;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.stops-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #059669);
+  border-radius: 9999px;
+  transition: width 0.3s ease;
 }
 
 .trip-footer-details {
@@ -3570,6 +4128,342 @@ body {
 .booker-card-item.selected {
   border-color: #3b82f6;
   background: #eff6ff;
+}
+
+/* ==========================================================================
+   24-Hour Circular Clock Picker Component (หน้าปัดนาฬิการูปแบบ 24 ชั่วโมง)
+   ========================================================================== */
+.clock-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(1px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clock-picker-popover {
+  position: fixed;
+  z-index: 100000;
+  width: 300px;
+  max-width: 95vw;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1.5px solid #cbd5e1;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.22), 0 3px 8px rgba(15, 23, 42, 0.08);
+  padding: 14px 16px;
+  user-select: none;
+  box-sizing: border-box;
+  animation: clockPopoverFade 0.16s ease-out;
+}
+
+@keyframes clockPopoverFade {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.clock-picker-header {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.clock-picker-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.clock-digital-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.digital-box {
+  background: #f1f5f9;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: #1e293b;
+  padding: 4px 10px;
+  min-width: 56px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: monospace, var(--font-sans);
+  line-height: 1.2;
+}
+
+.digital-box:hover {
+  background: #e2e8f0;
+}
+
+.digital-box.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #1d4ed8;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+.digital-colon {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #475569;
+}
+
+.digital-unit {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #64748b;
+  margin-left: 2px;
+}
+
+.clock-mode-nav {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.mode-nav-btn {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.mode-nav-btn:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.mode-nav-btn.active {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #93c5fd;
+  font-weight: 700;
+}
+
+.clock-face-container {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  margin: 4px auto 8px;
+  user-select: none;
+  touch-action: none;
+  cursor: pointer;
+}
+
+.clock-svg-dial {
+  display: block;
+  pointer-events: none;
+}
+
+.clock-numbers-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.clock-num {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 50%;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.clock-num.outer {
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.clock-num.inner {
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.clock-num.minute {
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.clock-num:hover:not(.is-selected) {
+  background: rgba(37, 99, 235, 0.14);
+}
+
+.clock-num.is-selected {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+}
+
+.clock-num.custom-min {
+  background: #2563eb;
+  color: #ffffff !important;
+  font-size: 0.72rem;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.4);
+}
+
+.clock-minute-steppers {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin: 6px 0 8px;
+  padding: 4px 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.btn-min-step {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #334155;
+  padding: 3px 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btn-min-step:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.clock-presets-wrap {
+  margin: 8px 0 6px;
+}
+
+.presets-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.presets-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.btn-preset-time {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1e40af;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btn-preset-time:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.clock-picker-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.btn-clock-clear,
+.btn-clock-cancel {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btn-clock-clear:hover,
+.btn-clock-cancel:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.btn-clock-apply {
+  background: #2563eb;
+  border: 1px solid #1d4ed8;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #ffffff;
+  padding: 5px 12px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.3);
+  transition: all 0.12s ease;
+}
+
+.btn-clock-apply:hover {
+  background: #1d4ed8;
+}
+
+.btn-clock-trigger {
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-left: none;
+  cursor: pointer;
+  font-size: 0.88rem;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+  color: #2563eb;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-clock-trigger:hover {
+  background: #e2e8f0;
+  color: #1d4ed8;
 }
 
 /* Print Styling for Admin Dispatch Schedule (Landscape Spreadsheet A4) */
