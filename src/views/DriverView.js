@@ -8,6 +8,7 @@ import {
   updateBooking,
   getDispatchSchedule,
   saveDispatchSchedule,
+  getScheduleApprovalMeta,
   DRIVER_POOL
 } from '../store.js';
 import { renderPaperModal } from '../components/PaperModal.js';
@@ -320,17 +321,40 @@ export function renderDriverView(container) {
     const allBookings = getAllBookings();
     const currentDriver = DRIVER_POOL.find(d => d.id === selectedDriverId) || DRIVER_POOL[0];
 
+    // Check approval status from Approver
+    const todayMeta = getScheduleApprovalMeta(todayIso);
+    const tomorrowMeta = getScheduleApprovalMeta(tomorrowIso);
+    const isTodayApproved = todayMeta && todayMeta.status === 'approved';
+    const isTomorrowApproved = tomorrowMeta && tomorrowMeta.status === 'approved';
+
     // Fetch jobs pulled directly from Admin's dispatch schedule and bookings
-    const todayTrips = getDriverJobsForDate(todayIso, currentDriver, allBookings);
-    const tomorrowTrips = getDriverJobsForDate(tomorrowIso, currentDriver, allBookings);
+    const rawTodayTrips = getDriverJobsForDate(todayIso, currentDriver, allBookings);
+    const rawTomorrowTrips = getDriverJobsForDate(tomorrowIso, currentDriver, allBookings);
+
+    // Only allow driver to see trips once the schedule has been approved by the Approver
+    const todayTrips = isTodayApproved ? rawTodayTrips : [];
+    const tomorrowTrips = isTomorrowApproved ? rawTomorrowTrips : [];
 
     let displayedTrips = [];
+    let isCurrentDateApproved = true;
+    let currentScheduleMeta = null;
+    let currentScheduleThai = todayThai;
+
     if (activeDateTab === 'today') {
       displayedTrips = todayTrips;
+      isCurrentDateApproved = isTodayApproved;
+      currentScheduleMeta = todayMeta;
+      currentScheduleThai = todayThai;
     } else if (activeDateTab === 'tomorrow') {
       displayedTrips = tomorrowTrips;
+      isCurrentDateApproved = isTomorrowApproved;
+      currentScheduleMeta = tomorrowMeta;
+      currentScheduleThai = tomorrowThai;
     } else {
       displayedTrips = [...todayTrips, ...tomorrowTrips];
+      isCurrentDateApproved = isTodayApproved || isTomorrowApproved;
+      currentScheduleMeta = !isTodayApproved ? todayMeta : tomorrowMeta;
+      currentScheduleThai = !isTodayApproved ? todayThai : tomorrowThai;
     }
 
     const totalJobs = displayedTrips.length;
@@ -374,18 +398,22 @@ export function renderDriverView(container) {
             <button type="button" class="driver-date-tab-btn ${activeDateTab === 'today' ? 'active' : ''}" data-tab="today">
               <span>📅</span>
               <span>งานวันนี้ (${todayThai.short})</span>
-              <span class="tab-badge ${todayTrips.length > 0 ? 'badge-has-jobs' : ''}">${todayTrips.length}</span>
+              ${isTodayApproved 
+                ? `<span class="tab-badge ${todayTrips.length > 0 ? 'badge-has-jobs' : ''}">${todayTrips.length}</span>` 
+                : `<span class="tab-badge" style="background: #f59e0b; color: #fff; font-size: 0.68rem; padding: 1px 6px;">⏳ รออนุมัติ</span>`}
             </button>
 
             <button type="button" class="driver-date-tab-btn ${activeDateTab === 'tomorrow' ? 'active' : ''}" data-tab="tomorrow">
               <span>📆</span>
               <span>งานวันถัดไป (${tomorrowThai.short})</span>
-              <span class="tab-badge ${tomorrowTrips.length > 0 ? 'badge-has-jobs' : ''}">${tomorrowTrips.length}</span>
+              ${isTomorrowApproved 
+                ? `<span class="tab-badge ${tomorrowTrips.length > 0 ? 'badge-has-jobs' : ''}">${tomorrowTrips.length}</span>` 
+                : `<span class="tab-badge" style="background: #f59e0b; color: #fff; font-size: 0.68rem; padding: 1px 6px;">⏳ รออนุมัติ</span>`}
             </button>
 
             <button type="button" class="driver-date-tab-btn ${activeDateTab === 'all' ? 'active' : ''}" data-tab="all">
               <span>📋</span>
-              <span>งานทั้งหมด (วันนี้ + ถัดไป)</span>
+              <span>งานทั้งหมด (ที่อนุมัติแล้ว)</span>
               <span class="tab-badge">${todayTrips.length + tomorrowTrips.length}</span>
             </button>
           </div>
@@ -396,47 +424,53 @@ export function renderDriverView(container) {
           </button>
         </div>
 
-        <!-- Progress Banner when more than 1 job (ต้องกดยืนยันไปทีละงาน) -->
-        ${totalJobs > 1 ? `
-          <div class="driver-confirm-progress-banner ${allConfirmed ? 'all-confirmed' : 'has-pending'}">
-            <div class="confirm-progress-left">
-              <span style="font-size: 1.5rem;">${allConfirmed ? '✅' : '🔔'}</span>
-              <div>
-                <div class="confirm-progress-title">
-                  ${allConfirmed ? 'ยืนยันรับทราบงานครบทุกรายการแล้ว' : `สถานะการยืนยันงาน: ยืนยันแล้ว ${confirmedCount} จาก ${totalJobs} งาน`}
-                </div>
-                <div class="confirm-subtext">
-                  ${allConfirmed 
-                    ? 'คุณได้กดยืนยันรับงานครบทุกงานแล้ว สามารถเริ่มออกเดินทางตามตารางเวลาได้ครับ' 
-                    : `มีงานที่ยังไม่ได้ยืนยันอีก ${unconfirmedCount} งาน (กรุณากดยืนยันรับงานไปทีละรายการด้านล่าง)`}
+        <!-- Render Content based on approval status -->
+        ${!isCurrentDateApproved ? renderPendingApprovalState(activeDateTab, currentScheduleThai, currentScheduleMeta) : `
+          <!-- Approved Schedule Verification Banner -->
+          ${renderApprovedBanner(currentScheduleThai, currentScheduleMeta, activeDateTab, isTodayApproved, isTomorrowApproved, todayThai, tomorrowThai)}
+
+          <!-- Progress Banner when more than 1 job (ต้องกดยืนยันไปทีละงาน) -->
+          ${totalJobs > 1 ? `
+            <div class="driver-confirm-progress-banner ${allConfirmed ? 'all-confirmed' : 'has-pending'}">
+              <div class="confirm-progress-left">
+                <span style="font-size: 1.5rem;">${allConfirmed ? '✅' : '🔔'}</span>
+                <div>
+                  <div class="confirm-progress-title">
+                    ${allConfirmed ? 'ยืนยันรับทราบงานครบทุกรายการแล้ว' : `สถานะการยืนยันงาน: ยืนยันแล้ว ${confirmedCount} จาก ${totalJobs} งาน`}
+                  </div>
+                  <div class="confirm-subtext">
+                    ${allConfirmed 
+                      ? 'คุณได้กดยืนยันรับงานครบทุกงานแล้ว สามารถเริ่มออกเดินทางตามตารางเวลาได้ครับ' 
+                      : `มีงานที่ยังไม่ได้ยืนยันอีก ${unconfirmedCount} งาน (กรุณากดยืนยันรับงานไปทีละรายการด้านล่าง)`}
+                  </div>
                 </div>
               </div>
+              <div class="confirm-progress-pill ${allConfirmed ? 'pill-green' : 'pill-amber'}">
+                ${allConfirmed ? `✓ ครบ ${totalJobs} งาน` : `รอยืนยันอีก ${unconfirmedCount} งาน`}
+              </div>
             </div>
-            <div class="confirm-progress-pill ${allConfirmed ? 'pill-green' : 'pill-amber'}">
-              ${allConfirmed ? `✓ ครบ ${totalJobs} งาน` : `รอยืนยันอีก ${unconfirmedCount} งาน`}
-            </div>
-          </div>
-        ` : ''}
+          ` : ''}
 
-        <!-- Section Title & Counter -->
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 8px;">
-          <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--slate-800); display: flex; align-items: center; gap: 8px;">
-            <span>${activeDateTab === 'tomorrow' ? '📆' : '📋'}</span>
-            <span>
-              ${activeDateTab === 'today' ? `ตารางงานขับรถวันนี้ (วันที่ ${todayThai.full})` :
-                activeDateTab === 'tomorrow' ? `ตารางงานขับรถวันถัดไป (วันที่ ${tomorrowThai.full})` :
-                `ตารางงานขับรถทั้งหมด (${todayThai.short} - ${tomorrowThai.short})`}
+          <!-- Section Title & Counter -->
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 8px;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--slate-800); display: flex; align-items: center; gap: 8px;">
+              <span>${activeDateTab === 'tomorrow' ? '📆' : '📋'}</span>
+              <span>
+                ${activeDateTab === 'today' ? `ตารางงานขับรถวันนี้ (วันที่ ${todayThai.full})` :
+                  activeDateTab === 'tomorrow' ? `ตารางงานขับรถวันถัดไป (วันที่ ${tomorrowThai.full})` :
+                  `ตารางงานขับรถทั้งหมด (${todayThai.short} - ${tomorrowThai.short})`}
+              </span>
+            </h3>
+            <span style="font-size: 0.85rem; font-weight: 600; color: #1e40af; background: #dbeafe; padding: 4px 12px; border-radius: 20px;">
+              มีทั้งหมด ${totalJobs} ภารกิจ
             </span>
-          </h3>
-          <span style="font-size: 0.85rem; font-weight: 600; color: #1e40af; background: #dbeafe; padding: 4px 12px; border-radius: 20px;">
-            มีทั้งหมด ${totalJobs} ภารกิจ
-          </span>
-        </div>
+          </div>
 
-        <!-- Trips List: Each job must be confirmed one-by-one -->
-        ${totalJobs === 0 
-          ? renderEmptyState(activeDateTab, todayThai, tomorrowThai, todayTrips.length, tomorrowTrips.length) 
-          : displayedTrips.map((trip, idx) => renderTripCard(trip, idx, totalJobs, todayIso, tomorrowIso, todayThai, tomorrowThai)).join('')}
+          <!-- Trips List: Each job must be confirmed one-by-one -->
+          ${totalJobs === 0 
+            ? renderEmptyState(activeDateTab, todayThai, tomorrowThai, todayTrips.length, tomorrowTrips.length) 
+            : displayedTrips.map((trip, idx) => renderTripCard(trip, idx, totalJobs, todayIso, tomorrowIso, todayThai, tomorrowThai)).join('')}
+        `}
 
       </div>
     `;
@@ -478,6 +512,88 @@ export function renderDriverView(container) {
             📆 ดูงานของวันถัดไป (${tomorrowCount} งาน)
           </button>
         ` : ''}
+      </div>
+    `;
+  }
+
+  function renderPendingApprovalState(tab, thaiDate, meta) {
+    const isPending = meta?.status === 'pending_approval';
+    return `
+      <div class="content-card pending-approval-driver-card" style="text-align: center; padding: 3.5rem 1.5rem; background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 12px; margin: 1.5rem 0;">
+        <div style="font-size: 3rem; margin-bottom: 0.8rem;">⏳</div>
+        <h3 style="font-size: 1.25rem; font-weight: 700; color: #92400e; margin-bottom: 8px;">
+          ตารางจัดรถประจำวัน${thaiDate.full} อยู่ระหว่างรอผู้อนุมัติตรวจสอบและยืนยัน
+        </h3>
+        <div style="display: inline-block; background: ${isPending ? '#fef3c7' : '#f1f5f9'}; color: ${isPending ? '#b45309' : '#64748b'}; border: 1px solid ${isPending ? '#fde68a' : '#cbd5e1'}; font-size: 0.82rem; font-weight: 700; padding: 4px 14px; border-radius: 20px; margin-bottom: 1rem;">
+          สถานะ: ${isPending ? 'แอดมินส่งตารางแล้ว (รอผู้อนุมัติยืนยัน)' : 'ฉบับร่าง (แอดมินยังไม่ส่งตรวจ)'}
+        </div>
+        <p style="color: #b45309; font-size: 0.95rem; max-width: 580px; margin: 0 auto; line-height: 1.6;">
+          ฝ่ายบริหารยานพาหนะ (แอดมิน) ได้บันทึกตารางจัดรถและส่งไปให้หัวหน้าฝ่าย/ผู้อนุมัติตรวจสอบความถูกต้องเรียบร้อยแล้ว<br>
+          <strong>ระบบจะเปิดให้ท่านดูตารางงานและกดยืนยันรับงานได้ทันที หลังจากผู้อนุมัติกดยืนยันตารางครับ</strong>
+        </p>
+        <div style="margin-top: 1.5rem;">
+          <button type="button" class="btn-primary btn-recheck-approval" style="background: #d97706; padding: 8px 20px; font-size: 0.88rem; font-weight: 600;">
+            🔄 ตรวจสอบสถานะการอนุมัติล่าสุด
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderApprovedBanner(thaiDate, meta, activeTab, isTodayApproved, isTomorrowApproved, todayThai, tomorrowThai) {
+    if (activeTab === 'all') {
+      const parts = [];
+      if (!isTodayApproved) parts.push(`งานวันนี้ (${todayThai.short})`);
+      if (!isTomorrowApproved) parts.push(`งานวันถัดไป (${tomorrowThai.short})`);
+      return `
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.25rem;">
+          <div class="schedule-approved-banner" style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 1.5rem;">✅</span>
+              <div>
+                <div style="font-weight: 700; color: #166534; font-size: 0.95rem;">
+                  แสดงเฉพาะตารางจัดรถที่ผู้อนุมัติได้ยืนยันแล้ว
+                </div>
+                <div style="font-size: 0.8rem; color: #15803d; margin-top: 2px;">
+                  เฉพาะงานที่ผ่านการอนุมัติอย่างเป็นทางการแล้วเท่านั้นจึงจะปรากฏในหน้านี้
+                </div>
+              </div>
+            </div>
+            <span style="font-size: 0.78rem; font-weight: 700; background: #22c55e; color: #fff; padding: 3px 10px; border-radius: 12px;">
+              ✓ ได้รับอนุมัติแล้ว
+            </span>
+          </div>
+
+          ${parts.length > 0 ? `
+            <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 14px; font-size: 0.82rem; color: #b45309; display: flex; align-items: center; gap: 6px;">
+              <span>⏳</span>
+              <span>หมายเหตุ: <strong>${parts.join(' และ ')}</strong> ยังอยู่ระหว่างรอผู้อนุมัติตรวจสอบและยืนยัน จึงยังไม่แสดงในรายการนี้</span>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    if (!meta || meta.status !== 'approved') return '';
+
+    return `
+      <div class="schedule-approved-banner" style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 12px 18px; margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.5rem;">✅</span>
+          <div>
+            <div style="font-weight: 700; color: #166534; font-size: 0.95rem;">
+              ตารางจัดรถประจำวันที่ ${thaiDate.short} ได้รับการอนุมัติและยืนยันแล้ว
+            </div>
+            <div style="font-size: 0.8rem; color: #15803d; margin-top: 2px;">
+              อนุมัติโดย: <strong>${escapeHtml(meta.confirmedBy || 'ผู้อนุมัติฝ่าย')}</strong>
+              ${meta.confirmedAt ? ` เมื่อ ${new Date(meta.confirmedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.` : ''}
+              ${meta.remark ? ` (${escapeHtml(meta.remark)})` : ''}
+            </div>
+          </div>
+        </div>
+        <span style="font-size: 0.78rem; font-weight: 700; background: #22c55e; color: #fff; padding: 3px 10px; border-radius: 12px;">
+          ✓ ตารางยืนยันเป็นทางการ
+        </span>
       </div>
     `;
   }
@@ -718,6 +834,14 @@ export function renderDriverView(container) {
     container.querySelectorAll('.btn-switch-date-tab').forEach(btn => {
       btn.addEventListener('click', () => {
         activeDateTab = btn.getAttribute('data-tab');
+        render();
+      });
+    });
+
+    // Recheck approval status button
+    container.querySelectorAll('.btn-recheck-approval').forEach(btn => {
+      btn.addEventListener('click', () => {
+        showToast('✓ ตรวจสอบสถานะการอนุมัติตารางจัดรถล่าสุดเรียบร้อย');
         render();
       });
     });
@@ -972,6 +1096,7 @@ export function renderDriverView(container) {
     render();
   }
   window.addEventListener('dispatch_schedule_updated', onScheduleUpdated);
+  window.addEventListener('schedule_approval_updated', onScheduleUpdated);
 
   function showToast(msg) {
     let toast = document.getElementById('app-toast');

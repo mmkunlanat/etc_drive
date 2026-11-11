@@ -818,3 +818,64 @@ export function resetDispatchScheduleToDefault(isoDate) {
   return rows;
 }
 
+// ==========================================================================
+// Schedule Approval Workflow (Admin -> Approver -> Driver)
+// ==========================================================================
+const DISPATCH_SCHEDULE_META_KEY = 'car_booking_dispatch_schedule_meta_v1';
+
+export function getAllScheduleApprovalMetas() {
+  try {
+    const raw = localStorage.getItem(DISPATCH_SCHEDULE_META_KEY);
+    if (!raw) {
+      const seedObj = {
+        [DEMO_DISPATCH_DATE]: {
+          date: DEMO_DISPATCH_DATE,
+          status: 'approved',
+          submittedAt: '2026-10-29T16:00:00.000Z',
+          submittedBy: 'สิริมา จัดสรรดี (ฝ่ายสำนักงาน)',
+          confirmedAt: '2026-10-29T16:30:00.000Z',
+          confirmedBy: 'เกรียงไกร มีอำนาจ (ผู้จัดการฝ่าย)',
+          remark: 'อนุมัติตารางจัดรถเรียบร้อย'
+        }
+      };
+      localStorage.setItem(DISPATCH_SCHEDULE_META_KEY, JSON.stringify(seedObj));
+      return seedObj;
+    }
+    return JSON.parse(raw);
+  } catch (e) {
+    return {};
+  }
+}
+
+export function getScheduleApprovalMeta(isoDate) {
+  const all = getAllScheduleApprovalMetas();
+  if (all[isoDate]) return all[isoDate];
+  return {
+    date: isoDate,
+    status: 'draft', // 'draft' | 'pending_approval' | 'approved'
+    submittedAt: null,
+    submittedBy: null,
+    confirmedAt: null,
+    confirmedBy: null,
+    remark: ''
+  };
+}
+
+export function saveScheduleApprovalMeta(isoDate, updateFields) {
+  try {
+    const all = getAllScheduleApprovalMetas();
+    const current = getScheduleApprovalMeta(isoDate);
+    all[isoDate] = {
+      ...current,
+      ...updateFields,
+      date: isoDate
+    };
+    localStorage.setItem(DISPATCH_SCHEDULE_META_KEY, JSON.stringify(all));
+    window.dispatchEvent(new CustomEvent('schedule_approval_updated', { detail: { date: isoDate, meta: all[isoDate] } }));
+    return all[isoDate];
+  } catch (e) {
+    console.error('Error saving schedule approval meta', e);
+  }
+}
+
+

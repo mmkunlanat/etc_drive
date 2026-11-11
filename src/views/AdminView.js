@@ -16,7 +16,9 @@ import {
   getAllDispatchSchedules,
   getDispatchSchedule,
   saveDispatchSchedule,
-  getDefaultFleetDispatchRows
+  getDefaultFleetDispatchRows,
+  getScheduleApprovalMeta,
+  saveScheduleApprovalMeta
 } from '../store.js';
 import { renderPaperModal } from '../components/PaperModal.js';
 
@@ -25,6 +27,10 @@ export function renderAdminView(container) {
   let selectedDate = getTodayISODate();
   let activeTab = 'spreadsheet'; // 'spreadsheet' | 'requests_list'
   let rows = [];
+  let requestStatusFilter = 'all'; // 'all' | 'pending' | 'dispatched' | 'completed' | 'rejected'
+  let requestDateFilter = 'all'; // 'all' | 'today' | 'tomorrow' | YYYY-MM-DD
+  let requestSearchQuery = '';
+  let searchTimer = null;
 
   // Load schedule for selected date
   function loadSchedule() {
@@ -77,6 +83,7 @@ export function renderAdminView(container) {
     const thaiDate = formatThaiDate(selectedDate);
     const bookings = getAllBookings();
     const pendingDispatchCount = bookings.filter(b => b.status === 'pending_approval' || b.status === 'approved' || b.status === 'partially_dispatched').length;
+    const schedMeta = getScheduleApprovalMeta(selectedDate);
 
     container.innerHTML = `
       <div class="dispatch-portal-container">
@@ -90,11 +97,11 @@ export function renderAdminView(container) {
             </div>
 
             <!-- View Tab Switcher -->
-            <div class="role-nav-group" style="background: #f1f5f9; padding: 2px; border-radius: 8px;">
-              <button id="btn-tab-sheet" class="role-tab-btn ${activeTab === 'spreadsheet' ? 'active' : ''}" style="padding: 5px 12px; font-size: 0.82rem;">
+            <div class="admin-tab-group">
+              <button id="btn-tab-sheet" type="button" class="admin-tab-pill-btn ${activeTab === 'spreadsheet' ? 'active' : ''}">
                 📊 ตารางจัดรถ (Spreadsheet)
               </button>
-              <button id="btn-tab-list" class="role-tab-btn ${activeTab === 'requests_list' ? 'active' : ''}" style="padding: 5px 12px; font-size: 0.82rem;">
+              <button id="btn-tab-list" type="button" class="admin-tab-pill-btn ${activeTab === 'requests_list' ? 'active' : ''}">
                 📋 คำขอจากผู้จอง (${bookings.length})
                 ${pendingDispatchCount > 0 ? `<span style="background: #ef4444; color: #fff; border-radius: 10px; padding: 1px 6px; font-size: 0.7rem; margin-left: 4px;">${pendingDispatchCount}</span>` : ''}
               </button>
@@ -102,11 +109,27 @@ export function renderAdminView(container) {
           </div>
 
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            ${schedMeta.status === 'approved' ? `
+              <span class="schedule-pipeline-tag tag-approved" style="background: #dcfce7; color: #15803d; border: 1px solid #86efac; font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 700;">
+                ✅ ผู้อนุมัติยืนยันตารางแล้ว (ส่งให้คนขับดูแล้ว)
+              </span>
+            ` : schedMeta.status === 'pending_approval' ? `
+              <span class="schedule-pipeline-tag tag-pending" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 700;">
+                ⏳ ส่งให้ผู้อนุมัติตรวจแล้ว (รอการยืนยัน)
+              </span>
+            ` : `
+              <span class="schedule-pipeline-tag tag-draft" style="background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 600;">
+                ⚪ ฉบับร่าง (ยังไม่ส่งตรวจ)
+              </span>
+            `}
             <button id="btn-add-vehicle-row" class="btn-primary" style="padding: 6px 12px; font-size: 0.82rem; background: #0284c7;">
               ➕ เพิ่มรถ/แถวใหม่
             </button>
-            <button id="btn-save-schedule" class="btn-primary" style="padding: 6px 14px; font-size: 0.82rem; background: #059669;">
+            <button id="btn-save-schedule" class="btn-primary" style="padding: 6px 13px; font-size: 0.82rem; background: #002060; font-weight: 600;" title="บันทึกข้อมูลตารางจัดรถในระบบ">
               💾 บันทึกตาราง
+            </button>
+            <button id="btn-submit-approval" class="btn-primary" style="padding: 6px 14px; font-size: 0.82rem; background: ${schedMeta.status === 'approved' ? '#d97706' : '#059669'}; font-weight: 700;" title="ส่งตารางจัดรถไปให้ผู้อนุมัติตรวจสอบและยืนยัน">
+              📤 ${schedMeta.status === 'approved' ? 'ส่งตรวจใหม่' : (schedMeta.status === 'pending_approval' ? 'ส่งตรวจอีกครั้ง' : 'ส่งให้ผู้อนุมัติตรวจ')}
             </button>
             <button id="btn-print-schedule" class="btn-outline-blue" style="padding: 6px 12px; font-size: 0.82rem;">
               🖨️ พิมพ์ตารางจัดรถ
@@ -114,7 +137,7 @@ export function renderAdminView(container) {
           </div>
         </div>
 
-        ${activeTab === 'spreadsheet' ? renderSpreadsheetView(thaiDate) : renderRequestsListView(bookings)}
+        ${activeTab === 'spreadsheet' ? renderSpreadsheetView(thaiDate, schedMeta) : renderRequestsListView(bookings)}
 
       </div>
     `;
@@ -123,8 +146,58 @@ export function renderAdminView(container) {
   }
 
   // Render the official spreadsheet table
-  function renderSpreadsheetView(thaiDate) {
+  function renderSpreadsheetView(thaiDate, schedMeta) {
+    const meta = schedMeta || getScheduleApprovalMeta(selectedDate);
+
     return `
+      <!-- Approval Pipeline Alert Banner -->
+      ${meta.status === 'approved' ? `
+        <div class="schedule-approval-alert alert-approved" style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 8px; padding: 10px 16px; margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.35rem;">✅</span>
+            <div>
+              <strong style="color: #15803d; font-size: 0.92rem;">ตารางจัดรถวันที่ ${thaiDate.short} ได้รับการอนุมัติและยืนยันแล้ว</strong>
+              <div style="font-size: 0.78rem; color: #166534; margin-top: 2px;">
+                ผู้อนุมัติ: <strong>${escapeHtml(meta.confirmedBy || 'ผู้จัดการ')}</strong> (${meta.confirmedAt ? formatThaiDate(meta.confirmedAt).short : '-'}) • ระบบได้ส่งมอบงานให้คนขับดูเรียบร้อยแล้ว
+              </div>
+            </div>
+          </div>
+          <span style="font-size: 0.75rem; font-weight: 700; color: #15803d; background: #dcfce7; border: 1px solid #86efac; padding: 4px 12px; border-radius: 999px;">
+            ส่งงานให้คนขับดูแล้ว
+          </span>
+        </div>
+      ` : meta.status === 'pending_approval' ? `
+        <div class="schedule-approval-alert alert-pending" style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 8px; padding: 10px 16px; margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.35rem;">⏳</span>
+            <div>
+              <strong style="color: #b45309; font-size: 0.92rem;">ตารางจัดรถวันที่ ${thaiDate.short} ถูกส่งไปให้ผู้อนุมัติตรวจสอบและรอกดยืนยัน</strong>
+              <div style="font-size: 0.78rem; color: #78350f; margin-top: 2px;">
+                ส่งโดย <strong>${escapeHtml(meta.submittedBy || 'แอดมิน')}</strong> (${meta.submittedAt ? formatThaiDate(meta.submittedAt).short : '-'}) • ⚠️ พนักงานขับรถจะยังไม่เห็นงานจนกว่าผู้อนุมัติจะกดยืนยัน
+              </div>
+            </div>
+          </div>
+          <span style="font-size: 0.75rem; font-weight: 700; color: #b45309; background: #fef3c7; border: 1px solid #fde68a; padding: 4px 12px; border-radius: 999px;">
+            รอผู้อนุมัติกดยืนยัน
+          </span>
+        </div>
+      ` : `
+        <div class="schedule-approval-alert alert-draft" style="background: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 8px; padding: 10px 16px; margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.35rem;">📝</span>
+            <div>
+              <strong style="color: #475569; font-size: 0.9rem;">ตารางจัดรถวันที่ ${thaiDate.short} ยังเป็นฉบับร่าง</strong>
+              <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
+                เมื่อจัดรถเรียบร้อย ให้กดปุ่ม <strong>"📤 ส่งให้ผู้อนุมัติตรวจ"</strong> ด้านบน เพื่อส่งตารางไปให้ผู้อนุมัติตรวจสอบและกดยืนยันก่อนส่งงานให้คนขับ (หรือกด <strong>"💾 บันทึกตาราง"</strong> เพื่อเก็บแบบร่างไว้ก่อน)
+              </div>
+            </div>
+          </div>
+          <span style="font-size: 0.75rem; font-weight: 600; color: #64748b; background: #e2e8f0; padding: 4px 12px; border-radius: 999px;">
+            ฉบับร่าง (ยังไม่ส่งตรวจ)
+          </span>
+        </div>
+      `}
+
       <!-- Date Navigation Toolbar (Hidden in Print) -->
       <div class="dispatch-top-toolbar no-print" style="margin-bottom: 0.75rem; background: #f8fafc; border: 1px solid #cbd5e1;">
         <div class="dispatch-date-nav">
@@ -215,7 +288,7 @@ export function renderAdminView(container) {
 
     return `
       <!-- Main Row (Car & Assignment) -->
-      <tr class="dispatch-main-tr" data-row-id="${row.id}">
+      <tr class="dispatch-main-tr" data-row-id="${row.id}" data-plate="${escapeHtml(row.plate || '')}">
         <!-- ลำดับ -->
         <td class="col-no">
           <input 
@@ -251,8 +324,8 @@ export function renderAdminView(container) {
             </button>
             <div class="cell-dropdown-menu no-print" id="dropdown-plate-${row.id}" style="display: none; min-width: 230px;">
               ${VEHICLE_TYPES.map(v => {
-                const optAvail = isPlateAvailableInSchedule(v.label, rows, row.id);
-                return `
+      const optAvail = isPlateAvailableInSchedule(v.label, rows, row.id);
+      return `
                   <div 
                     class="cell-opt-item" 
                     data-field="plate" 
@@ -271,7 +344,7 @@ export function renderAdminView(container) {
                     </div>
                   </div>
                 `;
-              }).join('')}
+    }).join('')}
             </div>
           </div>
           <span class="cell-print-text print-only font-bold" data-field="plate">${escapeHtml(row.plate || '')}</span>
@@ -562,53 +635,203 @@ export function renderAdminView(container) {
     `;
   }
 
-  // Render secondary tab: Booker requests list with view paper modal
+  // Render secondary tab: Booker requests list with practical filters & dispatch actions
   function renderRequestsListView(bookings) {
+    const todayIso = getTodayISODate();
+    const tomorrowIso = addDaysToDate(todayIso, 1);
+
+    const totalCount = bookings.length;
+    const pendingCount = bookings.filter(b => ['pending_approval', 'approved', 'partially_dispatched'].includes(b.status)).length;
+    const dispatchedCount = bookings.filter(b => b.status === 'dispatched').length;
+    const completedCount = bookings.filter(b => b.status === 'completed').length;
+    const rejectedCount = bookings.filter(b => b.status === 'rejected').length;
+
+    // Filter bookings based on status, date, and search query
+    let filtered = [...bookings];
+
+    if (requestStatusFilter === 'pending') {
+      filtered = filtered.filter(b => ['pending_approval', 'approved', 'partially_dispatched'].includes(b.status));
+    } else if (requestStatusFilter === 'dispatched') {
+      filtered = filtered.filter(b => b.status === 'dispatched');
+    } else if (requestStatusFilter === 'completed') {
+      filtered = filtered.filter(b => b.status === 'completed');
+    } else if (requestStatusFilter === 'rejected') {
+      filtered = filtered.filter(b => b.status === 'rejected');
+    }
+
+    if (requestDateFilter === 'today') {
+      filtered = filtered.filter(b => b.usageDate === todayIso);
+    } else if (requestDateFilter === 'tomorrow') {
+      filtered = filtered.filter(b => b.usageDate === tomorrowIso);
+    } else if (requestDateFilter !== 'all' && requestDateFilter) {
+      filtered = filtered.filter(b => b.usageDate === requestDateFilter);
+    }
+
+    if (requestSearchQuery && requestSearchQuery.trim()) {
+      const q = requestSearchQuery.trim().toLowerCase();
+      filtered = filtered.filter(b => {
+        const stops = (b.itinerary || []).map(i => (i.destination || '') + ' ' + (i.detail || '')).join(' ');
+        return (b.id && b.id.toLowerCase().includes(q)) ||
+          (b.bookerName && b.bookerName.toLowerCase().includes(q)) ||
+          (b.department && b.department.toLowerCase().includes(q)) ||
+          (b.bookerPhone && b.bookerPhone.includes(q)) ||
+          (b.assignedVehicle && b.assignedVehicle.toLowerCase().includes(q)) ||
+          (b.assignedDriver && b.assignedDriver.toLowerCase().includes(q)) ||
+          stops.toLowerCase().includes(q);
+      });
+    }
+
+    // Sort: งานที่ยังไม่จัดขึ้นมาอยู่ด้านบนสุด (approved, partially_dispatched, pending_approval)
+    // ส่วนงานที่จัดรถแล้ว (dispatched) และงานที่เสร็จสิ้น (completed) ย้ายลงไปอยู่ด้านล่าง
+    filtered.sort((a, b) => {
+      const getPriority = (item) => {
+        // Priority 1: อนุมัติแล้ว รอจัดรถ (ต้องการจัดลงตารางทันที)
+        if (item.status === 'approved') return 1;
+        // Priority 2: จัดรถแล้วบางส่วน (ยังมีงานค้างรอจัด)
+        if (item.status === 'partially_dispatched') return 2;
+        // Priority 3: รอหัวหน้าฝ่ายอนุมัติ
+        if (item.status === 'pending_approval') return 3;
+        // Priority 4: จัดรถลงตารางเรียบร้อยแล้ว
+        if (item.status === 'dispatched') return 4;
+        // Priority 5: เสร็จสิ้นภารกิจ
+        if (item.status === 'completed') return 5;
+        // Priority 6: ไม่อนุมัติ / ยกเลิก
+        if (item.status === 'rejected' || item.status === 'cancelled') return 6;
+        return 7;
+      };
+
+      const pA = getPriority(a);
+      const pB = getPriority(b);
+      if (pA !== pB) return pA - pB;
+
+      // ในกลุ่มสถานะเดียวกัน: เรียงตามวันที่ใช้งานก่อน (วันที่ใกล้สุดขึ้นก่อน)
+      if (a.usageDate && b.usageDate && a.usageDate !== b.usageDate) {
+        return a.usageDate.localeCompare(b.usageDate);
+      }
+
+      // เรียงตามเวลาใช้งาน
+      if (a.startTime && b.startTime && a.startTime !== b.startTime) {
+        return a.startTime.localeCompare(b.startTime);
+      }
+
+      // ตามด้วยรหัสคำขอ
+      return (b.id || '').localeCompare(a.id || '');
+    });
+
     return `
       <div class="content-card">
+        <!-- Header -->
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 10px;">
           <div>
-            <h3 style="font-size: 1.15rem; font-weight: 700; color: #0f172a;">
-              📋 รายการคำขอจองรถจาก Booker ทั้งหมด
+            <h3 style="font-size: 1.18rem; font-weight: 700; color: #002060; margin: 0; display: flex; align-items: center; gap: 8px;">
+              <span>📋 คำขอจองรถจากผู้ใช้งาน (Booker Requests)</span>
             </h3>
-            <p style="font-size: 0.85rem; color: #64748b;">
-              ตรวจสอบรายละเอียดคำขอ ใบขออนุมัติใช้งานรถ และกดจัดรถลงตารางจัดรถ
+            <p style="font-size: 0.85rem; color: #64748b; margin: 4px 0 0 0;">
+              ตรวจสอบคำขออนุมัติ จัดสรรรถลงตารางรายวัน และติดตามสถานะงาน
             </p>
           </div>
-          <button id="btn-back-to-sheet" class="btn-primary" style="font-size: 0.82rem; background: #002060;">
-            📊 กลับไปยังตารางจัดรถ
+          <button id="btn-back-to-sheet" class="btn-primary" style="font-size: 0.82rem; background: #002060; display: inline-flex; align-items: center; gap: 6px;">
+            📊 กลับไปยังตารางจัดรถ (Spreadsheet)
           </button>
         </div>
 
+        <!-- Filter & Search Toolbar -->
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 1.25rem;">
+          <!-- Status Tabs -->
+          <div class="requests-status-tabs">
+            <button type="button" class="req-status-tab-btn ${requestStatusFilter === 'all' ? 'active' : ''}" data-status="all">
+              📋 คำขอทั้งหมด <span class="tab-count-pill">${totalCount}</span>
+            </button>
+            <button type="button" class="req-status-tab-btn ${requestStatusFilter === 'pending' ? 'active' : ''}" data-status="pending" style="${pendingCount > 0 ? 'border-color: #f59e0b;' : ''}">
+              ⏳ รอจัดรถ <span class="tab-count-pill ${pendingCount > 0 ? 'badge-amber' : ''}">${pendingCount}</span>
+            </button>
+            <button type="button" class="req-status-tab-btn ${requestStatusFilter === 'dispatched' ? 'active' : ''}" data-status="dispatched">
+              🚗 จัดรถแล้ว <span class="tab-count-pill badge-green">${dispatchedCount}</span>
+            </button>
+            <button type="button" class="req-status-tab-btn ${requestStatusFilter === 'completed' ? 'active' : ''}" data-status="completed">
+              🏁 เสร็จสิ้น <span class="tab-count-pill">${completedCount}</span>
+            </button>
+            <button type="button" class="req-status-tab-btn ${requestStatusFilter === 'rejected' ? 'active' : ''}" data-status="rejected">
+              ❌ ไม่อนุมัติ <span class="tab-count-pill badge-rose">${rejectedCount}</span>
+            </button>
+          </div>
+
+          <!-- Date Chips & Search Box -->
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 14px; border-radius: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span style="font-size: 0.82rem; font-weight: 600; color: #475569;">📅 วันที่ใช้งาน:</span>
+              <button type="button" class="req-date-chip-btn ${requestDateFilter === 'all' ? 'active' : ''}" data-date-filter="all">ทุกวัน</button>
+              <button type="button" class="req-date-chip-btn ${requestDateFilter === 'today' ? 'active' : ''}" data-date-filter="today">วันนี้ (${formatThaiDate(todayIso).short})</button>
+              <button type="button" class="req-date-chip-btn ${requestDateFilter === 'tomorrow' ? 'active' : ''}" data-date-filter="tomorrow">วันพรุ่งนี้ (${formatThaiDate(tomorrowIso).short})</button>
+              <input 
+                type="date" 
+                id="req-custom-date-filter" 
+                class="form-control" 
+                style="font-size: 0.8rem; padding: 3px 8px; width: 140px; height: 30px;" 
+                value="${['all', 'today', 'tomorrow'].includes(requestDateFilter) ? '' : requestDateFilter}" 
+                title="เลือกวันที่เจาะจง" 
+              />
+              ${requestDateFilter !== 'all' ? `<button type="button" id="btn-clear-date-filter" class="btn-ghost-light" style="font-size: 0.75rem; color: #dc2626; padding: 2px 6px;">✕ ล้างวันที่</button>` : ''}
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 260px; flex: 1; max-width: 380px;">
+              <div style="position: relative; width: 100%;">
+                <input 
+                  type="text" 
+                  id="req-search-input" 
+                  class="form-control" 
+                  placeholder="🔍 ค้นหารหัส, ผู้ขอ, แผนก, จุดหมาย..." 
+                  value="${escapeHtml(requestSearchQuery)}" 
+                  style="padding-right: 28px; font-size: 0.82rem; height: 32px;"
+                />
+                ${requestSearchQuery ? `<button type="button" id="btn-clear-search" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 0.85rem; cursor: pointer; color: #94a3b8;" title="ล้างคำค้น">✕</button>` : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bookings Table -->
         <div class="table-responsive">
           <table class="bookings-list-table">
             <thead>
               <tr>
-                <th>รหัสคำขอ</th>
-                <th>วันและเวลาที่ใช้รถ</th>
-                <th>ผู้ขอ & ฝ่าย</th>
-                <th>ประเภทรถที่ขอ</th>
-                <th>จุดหมายปลายทาง</th>
-                <th>สถานะ</th>
-                <th style="text-align: center;">ดำเนินการ</th>
+                <th style="min-width: 140px;">รหัสคำขอ & ส่งฟอร์ม</th>
+                <th style="min-width: 130px;">วันและเวลาที่ใช้รถ</th>
+                <th style="min-width: 140px;">ผู้ขอ & ฝ่าย</th>
+                <th style="min-width: 220px;">ภารกิจ & จุดหมายปลายทาง</th>
+                <th style="min-width: 150px;">รถและคนขับที่จัด</th>
+                <th style="min-width: 110px;">สถานะ</th>
+                <th style="text-align: center; min-width: 180px;">ดำเนินการ</th>
               </tr>
             </thead>
             <tbody>
-              ${bookings.length === 0 ? `
+              ${filtered.length === 0 ? `
                 <tr>
-                  <td colspan="7" style="text-align: center; padding: 2.5rem; color: #94a3b8;">
-                    ไม่มีรายการคำขอจองในระบบ
+                  <td colspan="7" style="text-align: center; padding: 3rem 1rem; color: #94a3b8;">
+                    <div style="font-size: 1.8rem; margin-bottom: 8px;">🔍</div>
+                    <div style="font-weight: 600; color: #64748b; font-size: 0.95rem;">ไม่พบรายการคำขอที่ตรงกับเงื่อนไข</div>
+                    <div style="font-size: 0.82rem; margin-top: 4px; color: #94a3b8;">ลองเปลี่ยนสถานะ วันที่ใช้งาน หรือคำค้นหา</div>
+                    ${(requestStatusFilter !== 'all' || requestDateFilter !== 'all' || requestSearchQuery) ? `
+                      <button type="button" id="btn-reset-req-filters" class="btn-secondary" style="margin-top: 12px; font-size: 0.8rem; padding: 5px 14px;">
+                        🔄 ล้างตัวกรองทั้งหมด
+                      </button>
+                    ` : ''}
                   </td>
                 </tr>
-              ` : bookings.map(b => {
+              ` : filtered.map(b => {
       const uThai = formatThaiDate(b.usageDate);
-      const isNeedsDispatch = b.status === 'pending_approval' || b.status === 'approved';
+      const isToday = b.usageDate === todayIso;
+      const isTomorrow = b.usageDate === tomorrowIso;
+      const isPendingDispatch = ['pending_approval', 'approved', 'partially_dispatched'].includes(b.status);
+      const isDispatched = b.status === 'dispatched';
+      const isCompleted = b.status === 'completed';
+      const stops = (b.itinerary || []).filter(item => item.detail || item.destination);
 
       return `
-                  <tr style="${isNeedsDispatch ? 'background-color: #f0fdf4;' : ''}">
+                  <tr style="${isPendingDispatch ? 'background-color: #f0fdf4;' : ''}">
                     <td>
-                      <strong style="color: #1e40af;">${b.id}</strong>
-                      <div style="font-size: 0.72rem; color: #475569; margin-top: 2px;">
+                      <strong style="color: #002060; font-size: 0.9rem;">${b.id}</strong>
+                      <div style="font-size: 0.72rem; color: #334155; margin-top: 3px;">
                         ส่งฟอร์ม: <strong>${formatSubmissionTime(b)}</strong>
                       </div>
                       <div style="font-size: 0.68rem; color: #94a3b8;">
@@ -616,20 +839,57 @@ export function renderAdminView(container) {
                       </div>
                     </td>
                     <td>
-                      <div style="font-weight: 600;">${uThai.short}</div>
-                      <div style="font-size: 0.78rem; color: #64748b;">${b.startTime} - ${b.endTime} น.</div>
+                      <div style="font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 4px;">
+                        <span>${uThai.short}</span>
+                        ${isToday ? '<span class="badge-date-tag tag-today">วันนี้</span>' : ''}
+                        ${isTomorrow ? '<span class="badge-date-tag tag-tomorrow">วันพรุ่งนี้</span>' : ''}
+                      </div>
+                      <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
+                        ${b.startTime} - ${b.endTime} น.
+                      </div>
                     </td>
                     <td>
-                      <div><strong>${b.bookerName}</strong></div>
-                      <div style="font-size: 0.75rem; color: #64748b;">${b.department}</div>
-                      <div style="font-size: 0.72rem; color: #2563eb;">โทร: ${b.bookerPhone || '-'}</div>
+                      <div style="font-weight: 600; color: #0f172a;">${escapeHtml(b.bookerName)}</div>
+                      <div style="font-size: 0.76rem; color: #64748b;">${escapeHtml(b.department || '-')}</div>
+                      <div style="font-size: 0.72rem; color: #2563eb; margin-top: 2px;">📞 ${escapeHtml(b.bookerPhone || '-')}</div>
+                    </td>
+                    <td style="font-size: 0.82rem;">
+                      ${stops.length === 0 ? '<span style="color: #94a3b8;">- ไม่ระบุจุดหมาย -</span>' : `
+                        <div style="display: flex; flex-direction: column; gap: 6px;">
+                          ${stops.map((it, idx) => `
+                            <div style="line-height: 1.35;">
+                              <div style="display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap;">
+                                <span style="font-weight: 700; color: #0284c7; font-size: 0.76rem;">${idx + 1}.</span>
+                                <span style="color: #0f172a; font-weight: 600;">${escapeHtml(it.destination || it.detail || '')}</span>
+                                ${it.time ? `<span style="font-size: 0.72rem; color: #059669; font-weight: 600; margin-left: 2px;">[${it.time} น.]</span>` : ''}
+                                ${it.passengers ? `<span style="font-size: 0.72rem; color: #64748b;">(${it.passengers} คน)</span>` : ''}
+                                ${it.dispatched ? `<span style="font-size: 0.68rem; color: #16a34a; font-weight: 600; margin-left: 2px;">✓</span>` : ''}
+                              </div>
+                              ${it.detail && it.destination && it.detail !== it.destination ? `
+                                <div style="font-size: 0.74rem; color: #64748b; padding-left: 14px; margin-top: 1px; line-height: 1.3;">
+                                  (${escapeHtml(it.detail)})
+                                </div>
+                              ` : ''}
+                            </div>
+                          `).join('')}
+                        </div>
+                      `}
+                      ${b.requestedVehicle ? `
+                        <div style="font-size: 0.72rem; color: #475569; margin-top: 4px; padding-top: 3px; border-top: 1px dashed #e2e8f0;">
+                          ประเภทรถที่ขอ: <strong>${escapeHtml(b.requestedVehicle)}</strong>
+                        </div>
+                      ` : ''}
                     </td>
                     <td>
-                      <div>${b.assignedVehicle ? `🚘 <strong>${b.assignedVehicle}</strong>` : (b.requestedVehicle || '-')}</div>
-                      ${b.assignedDriver ? `<div style="font-size: 0.75rem; color: #059669;">👨‍✈️ ${b.assignedDriver}</div>` : ''}
-                    </td>
-                    <td style="max-width: 250px; font-size: 0.82rem;">
-                      ${b.itinerary && b.itinerary[0] ? b.itinerary.map(i => i.destination).filter(Boolean).join(' ➔ ') : '-'}
+                      ${b.assignedVehicle ? `
+                        <div style="font-size: 0.85rem; font-weight: 700; color: #1e3a8a; display: flex; align-items: center; gap: 4px;">
+                          🚘 ${escapeHtml(b.assignedVehicle)}
+                        </div>
+                        ${b.assignedDriver ? `<div style="font-size: 0.76rem; color: #059669; margin-top: 2px;">👨‍✈️ ${escapeHtml(b.assignedDriver)}</div>` : ''}
+                        ${b.assignedDate ? `<div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">📅 ${formatThaiDate(b.assignedDate).short}</div>` : ''}
+                      ` : `
+                        <div style="font-size: 0.78rem; color: #94a3b8; font-style: italic;">(ยังไม่ได้จัดรถ)</div>
+                      `}
                     </td>
                     <td>
                       <span class="status-badge ${b.status}">
@@ -638,17 +898,35 @@ export function renderAdminView(container) {
                     </td>
                     <td style="text-align: center;">
                       <div style="display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
-                        <button class="btn-primary btn-quick-assign-to-sheet" data-id="${b.id}" style="padding: 4px 10px; font-size: 0.78rem; background: #0284c7;">
-                          ⚡ จัดลงตาราง
-                        </button>
-                        <button class="btn-outline-blue btn-view-paper" data-id="${b.id}" style="padding: 4px 8px; font-size: 0.78rem;">
+                        ${isPendingDispatch ? `
+                          <button type="button" class="btn-primary btn-quick-assign-to-sheet" data-id="${b.id}" style="padding: 5px 12px; font-size: 0.8rem; background: #0284c7; display: inline-flex; align-items: center; gap: 4px;">
+                            ⚡ จัดลงตาราง
+                          </button>
+                        ` : ''}
+                        ${isDispatched ? `
+                          <button type="button" class="btn-primary btn-view-in-sheet" data-id="${b.id}" data-date="${b.assignedDate || b.usageDate}" data-vehicle="${escapeHtml(b.assignedVehicle || '')}" style="padding: 5px 10px; font-size: 0.78rem; background: #1e40af; display: inline-flex; align-items: center; gap: 4px;" title="เปิดตารางจัดรถวันที่ใช้งาน และเน้นแถวรถคันนี้">
+                            📊 ดูในตาราง
+                          </button>
+                          <button type="button" class="btn-outline-blue btn-reassign-sheet" data-id="${b.id}" style="padding: 5px 8px; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;" title="ย้ายไปรถคันอื่น">
+                            🔄 ย้ายคัน
+                          </button>
+                          <button type="button" class="btn-danger-outline btn-unassign-dispatch" data-id="${b.id}" style="padding: 5px 8px; font-size: 0.78rem;" title="ยกเลิกการจัดรถ นำงานกลับไปรอจัดสรร">
+                            ✕ ยกเลิกจัด
+                          </button>
+                        ` : ''}
+                        ${isCompleted ? `
+                          <button type="button" class="btn-outline-blue btn-view-in-sheet" data-id="${b.id}" data-date="${b.assignedDate || b.usageDate}" data-vehicle="${escapeHtml(b.assignedVehicle || '')}" style="padding: 5px 10px; font-size: 0.78rem;">
+                            📊 ดูในตาราง
+                          </button>
+                        ` : ''}
+                        <button type="button" class="btn-outline-blue btn-view-paper" data-id="${b.id}" style="padding: 5px 8px; font-size: 0.78rem;" title="เปิดดูใบขออนุมัติ">
                           📄 แบบฟอร์ม
                         </button>
                       </div>
                     </td>
                   </tr>
                 `;
-              }).join('')}
+    }).join('')}
             </tbody>
           </table>
         </div>
@@ -739,7 +1017,21 @@ export function renderAdminView(container) {
     if (saveBtn) {
       saveBtn.addEventListener('click', () => {
         saveCurrentSchedule();
-        showToast('✓ บันทึกตารางจัดรถเรียบร้อยแล้ว');
+        showToast(`✓ บันทึกตารางจัดรถวันที่ ${formatThaiDate(selectedDate).short} เรียบร้อยแล้ว (ฉบับร่าง)`);
+      });
+    }
+
+    const submitApprovalBtn = document.getElementById('btn-submit-approval');
+    if (submitApprovalBtn) {
+      submitApprovalBtn.addEventListener('click', () => {
+        saveCurrentSchedule();
+        saveScheduleApprovalMeta(selectedDate, {
+          status: 'pending_approval',
+          submittedAt: new Date().toISOString(),
+          submittedBy: 'สิริมา จัดสรรดี (ฝ่ายสำนักงาน)'
+        });
+        showToast(`✓ ส่งตารางจัดรถวันที่ ${formatThaiDate(selectedDate).short} ให้ผู้อนุมัติตรวจสอบและยืนยันเรียบร้อยแล้ว`);
+        render();
       });
     }
 
@@ -948,14 +1240,103 @@ export function renderAdminView(container) {
       });
     });
 
-    // Quick assign from requests list to spreadsheet
+    // Requests list filters & search events
+    container.querySelectorAll('.req-status-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        requestStatusFilter = btn.getAttribute('data-status');
+        render();
+      });
+    });
+
+    container.querySelectorAll('.req-date-chip-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        requestDateFilter = btn.getAttribute('data-date-filter');
+        render();
+      });
+    });
+
+    const customDateInput = document.getElementById('req-custom-date-filter');
+    if (customDateInput) {
+      customDateInput.addEventListener('change', (e) => {
+        if (e.target.value) {
+          requestDateFilter = e.target.value;
+          render();
+        }
+      });
+    }
+
+    const clearDateBtn = document.getElementById('btn-clear-date-filter');
+    if (clearDateBtn) {
+      clearDateBtn.addEventListener('click', () => {
+        requestDateFilter = 'all';
+        render();
+      });
+    }
+
+    const searchInput = document.getElementById('req-search-input');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        requestSearchQuery = e.target.value;
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+          render();
+          const newInput = document.getElementById('req-search-input');
+          if (newInput) {
+            newInput.focus();
+            const len = newInput.value.length;
+            newInput.setSelectionRange(len, len);
+          }
+        }, 200);
+      });
+    }
+
+    const clearSearchBtn = document.getElementById('btn-clear-search');
+    if (clearSearchBtn) {
+      clearSearchBtn.addEventListener('click', () => {
+        requestSearchQuery = '';
+        render();
+      });
+    }
+
+    const resetFiltersBtn = document.getElementById('btn-reset-req-filters');
+    if (resetFiltersBtn) {
+      resetFiltersBtn.addEventListener('click', () => {
+        requestStatusFilter = 'all';
+        requestDateFilter = 'all';
+        requestSearchQuery = '';
+        render();
+      });
+    }
+
+    // Requests list actions: Quick assign, Reassign, View in sheet, Unassign
     container.querySelectorAll('.btn-quick-assign-to-sheet').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
         const b = getAllBookings().find(x => x.id === id);
-        if (b) {
-          openBookerTargetVehiclePickerModal(b);
-        }
+        if (b) openBookerTargetVehiclePickerModal(b);
+      });
+    });
+
+    container.querySelectorAll('.btn-reassign-sheet').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        const b = getAllBookings().find(x => x.id === id);
+        if (b) openBookerTargetVehiclePickerModal(b);
+      });
+    });
+
+    container.querySelectorAll('.btn-view-in-sheet').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const date = btn.getAttribute('data-date');
+        const vehicle = btn.getAttribute('data-vehicle');
+        jumpToScheduleRow(date, vehicle);
+      });
+    });
+
+    container.querySelectorAll('.btn-unassign-dispatch').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        unassignBookingFromSchedule(id);
       });
     });
   }
@@ -1044,9 +1425,9 @@ export function renderAdminView(container) {
       const hasIdMatch = targetIds.includes(booking.id);
       const hasPlateMatch = row.plate && booking.assignedVehicle && (booking.assignedVehicle.includes(row.plate) || row.plate.includes(booking.assignedVehicle));
       const hasBookerMatch = bookerFirstName && row.booker && row.booker.includes(bookerFirstName);
-      const hasItemMatch = (booking.itinerary || []).some(it => 
-        it.dispatchedRowId === row.id || 
-        it.dispatchedToVehicle === row.plate || 
+      const hasItemMatch = (booking.itinerary || []).some(it =>
+        it.dispatchedRowId === row.id ||
+        it.dispatchedToVehicle === row.plate ||
         (row.itineraryText && it.detail && row.itineraryText.includes(it.detail.trim().slice(0, 15)))
       );
 
@@ -1303,7 +1684,7 @@ export function renderAdminView(container) {
 
     syncBookingsWithSchedule();
     const allBookings = getAllBookings();
-    
+
     // Default to 'today' if today has pending jobs, otherwise default to 'pending' to always show available work
     const undispatchedInit = allBookings.filter(b => getUndispatchedJobs(b).length > 0);
     const countTodayInit = undispatchedInit.filter(b => b.usageDate === selectedDate).length;
@@ -1350,14 +1731,14 @@ export function renderAdminView(container) {
 
             <!-- Filter Tabs -->
             <div style="background: #f1f5f9; padding: 10px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; flex-shrink: 0;">
-              <div class="role-nav-group" style="background: #e2e8f0; padding: 2px;">
-                <button class="role-tab-btn ${currentFilter === 'today' ? 'active' : ''}" id="filter-picker-today" style="font-size: 0.78rem; padding: 4px 10px;">
+              <div class="admin-tab-group" style="background: #e2e8f0; padding: 2px;">
+                <button type="button" class="admin-tab-pill-btn ${currentFilter === 'today' ? 'active' : ''}" id="filter-picker-today" style="font-size: 0.78rem; padding: 4px 10px;">
                   📅 คำขอประจำวัน (${countToday})
                 </button>
-                <button class="role-tab-btn ${currentFilter === 'pending' ? 'active' : ''}" id="filter-picker-pending" style="font-size: 0.78rem; padding: 4px 10px;">
+                <button type="button" class="admin-tab-pill-btn ${currentFilter === 'pending' ? 'active' : ''}" id="filter-picker-pending" style="font-size: 0.78rem; padding: 4px 10px;">
                   🚨 รอจัดสรรทั้งหมด (${countPending})
                 </button>
-                <button class="role-tab-btn ${currentFilter === 'all' ? 'active' : ''}" id="filter-picker-all" style="font-size: 0.78rem; padding: 4px 10px;">
+                <button type="button" class="admin-tab-pill-btn ${currentFilter === 'all' ? 'active' : ''}" id="filter-picker-all" style="font-size: 0.78rem; padding: 4px 10px;">
                   📋 คำขอทั้งหมด (${countAll})
                 </button>
               </div>
@@ -1671,7 +2052,7 @@ export function renderAdminView(container) {
   }
 
   // Populate row with booking data - ONLY undispatched job legs
-  function applyBookingToRow(row, booking, selectedJobIndices = null) {
+  function applyBookingToRow(row, booking, selectedJobIndices = null, targetDate = null) {
     if (booking.startTime && (!row.time || row.time.trim() === '')) {
       row.time = booking.startTime.replace(':', '.');
     }
@@ -1685,10 +2066,12 @@ export function renderAdminView(container) {
       ? selectedJobIndices.map(idx => allStops[idx]).filter(Boolean)
       : allStops.filter(it => !it.dispatched);
 
+    const effectiveDate = targetDate || booking.usageDate || selectedDate;
+
     activeStops.forEach(it => {
       it.dispatched = true;
       it.dispatchedToVehicle = row.plate;
-      it.dispatchedDate = selectedDate;
+      it.dispatchedDate = effectiveDate;
       it.dispatchedRowNo = row.no;
       it.dispatchedRowId = row.id;
     });
@@ -1723,11 +2106,8 @@ export function renderAdminView(container) {
     }
     booking.assignedVehicle = row.plate;
     booking.assignedDriver = row.driverName ? `${row.driverName}` : 'ฝ่ายสำนักงานจัดสรรแล้ว';
+    booking.assignedDate = effectiveDate;
     updateBooking(booking.id, booking);
-
-    saveCurrentSchedule();
-    render();
-    showToast(`✓ ดึงข้อมูลงาน (${activeStops.length} ลำดับ) ของ ${booking.bookerName} ลงรถคันที่ ${row.no} เรียบร้อยแล้ว`);
   }
 
   // Helper to format booker name with K. (e.g. "ลัดดา" -> "K.ลัดดา")
@@ -1780,76 +2160,337 @@ export function renderAdminView(container) {
     const existing = document.getElementById(modalId);
     if (existing) existing.remove();
 
+    let targetDate = booking.usageDate || selectedDate;
+    let targetRows = getDispatchSchedule(targetDate);
+    if (!targetRows || targetRows.length === 0) {
+      targetRows = getDefaultFleetDispatchRows();
+    }
+
+    const stops = (booking.itinerary || []).filter(item => item.detail || item.destination);
+
+    function renderModalContent() {
+      return `
+        <div class="booker-picker-header">
+          <div>
+            <h3 style="font-size: 1.05rem; font-weight: 700; margin: 0; color: #fff; display: flex; align-items: center; gap: 6px;">
+              <span>⚡ จัดสรรรถลงตารางสำหรับคำขอ ${booking.id}</span>
+            </h3>
+            <p style="font-size: 0.8rem; color: #bae6fd; margin: 3px 0 0 0;">
+              ผู้ขอ: <strong>${escapeHtml(booking.bookerName)}</strong> (${escapeHtml(booking.department || '-')}) | เวลา: ${booking.startTime} - ${booking.endTime} น.
+            </p>
+          </div>
+          <button id="btn-close-target-picker" class="btn-ghost-light" style="font-size: 1.1rem; padding: 4px 8px;">✕</button>
+        </div>
+
+        <div class="booker-picker-body">
+          <!-- Target Date Bar -->
+          <div style="display: flex; align-items: center; justify-content: space-between; background: #eff6ff; border: 1px solid #bfdbfe; padding: 10px 14px; border-radius: 8px; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <span style="font-weight: 700; color: #1e40af; font-size: 0.88rem;">📅 วันที่จัดลงตาราง:</span>
+              <strong style="color: #0f172a; margin-left: 6px; font-size: 0.95rem;">${formatThaiDate(targetDate).long}</strong>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <label for="picker-change-target-date" style="font-size: 0.8rem; color: #475569;">เปลี่ยนวันที่:</label>
+              <input 
+                type="date" 
+                id="picker-change-target-date" 
+                value="${targetDate}" 
+                style="font-size: 0.82rem; padding: 3px 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff;"
+              />
+            </div>
+          </div>
+
+          <!-- Stops / Itinerary Checklist -->
+          ${stops.length > 0 ? `
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-weight: 700; font-size: 0.84rem; color: #1e3a8a;">
+                  เลือกรายการภารกิจ / จุดหมายที่ต้องการจัดลงรถคันนี้:
+                </span>
+                <div style="display: flex; gap: 8px;">
+                  <button type="button" id="btn-target-select-all" style="background: none; border: none; color: #2563eb; font-size: 0.75rem; cursor: pointer; text-decoration: underline; font-weight: 600;">เลือกทั้งหมด</button>
+                  <button type="button" id="btn-target-unselect-all" style="background: none; border: none; color: #64748b; font-size: 0.75rem; cursor: pointer; text-decoration: underline;">ล้างเลือก</button>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                ${stops.map((st, idx) => `
+                  <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 0.82rem; cursor: pointer; background: #ffffff; padding: 7px 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                    <input type="checkbox" class="target-stop-chk" data-index="${idx}" ${st.dispatched ? '' : 'checked'} style="margin-top: 3px;" />
+                    <div style="flex: 1;">
+                      <div style="display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap;">
+                        <span style="font-weight: 700; color: #0284c7;">${idx + 1}.</span>
+                        <strong style="color: #0f172a;">${escapeHtml(st.destination || st.detail || '')}</strong>
+                        ${st.time ? `<span style="color: #059669; font-weight: 600; margin-left: 6px; font-size: 0.76rem;">⏱️ ${st.time} น.</span>` : ''}
+                        ${st.passengers ? `<span style="color: #64748b; margin-left: 4px; font-size: 0.76rem;">👥 ${st.passengers} คน</span>` : ''}
+                        ${st.dispatched ? `<span style="color: #dc2626; font-size: 0.72rem; margin-left: 6px; font-weight: 600;">[จัดให้ ${st.dispatchedToVehicle || ''} แล้ว]</span>` : ''}
+                      </div>
+                      ${st.detail && st.destination && st.detail !== st.destination ? `
+                        <div style="font-size: 0.74rem; color: #64748b; margin-top: 2px; padding-left: 14px; line-height: 1.3;">
+                          (${escapeHtml(st.detail)})
+                        </div>
+                      ` : ''}
+                    </div>
+                  </label>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Available Vehicles in Schedule -->
+          <div style="margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-weight: 700; font-size: 0.88rem; color: #002060;">
+              เลือกรถในตารางวันที่ ${formatThaiDate(targetDate).short} (${targetRows.length} คัน):
+            </span>
+          </div>
+
+          <div class="target-vehicles-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 380px; overflow-y: auto;">
+            ${targetRows.map((row, idx) => {
+        const rowAvail = isRowAvailable(row);
+        const plateClass = row.plateColor === 'green' ? 'plate-bg-green' : (row.plateColor === 'yellow' ? 'plate-bg-yellow' : 'plate-bg-default');
+        return `
+                <div class="target-vehicle-card" style="border: 1.5px solid ${rowAvail ? '#86efac' : '#cbd5e1'}; border-radius: 8px; background: ${rowAvail ? '#f0fdf4' : '#ffffff'}; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; transition: all 0.15s ease;">
+                  <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <span class="${plateClass}" style="padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 0.95rem; border: 1px solid rgba(0,0,0,0.15);">
+                        คันที่ ${row.no || idx + 1}: ${escapeHtml(row.plate || '')}
+                      </span>
+                      <span class="target-picker-status-tag ${rowAvail ? 'tag-avail' : 'tag-busy'}">
+                        ${rowAvail ? '🟢 ว่าง พร้อมจัด' : '🟡 มีงานแล้ว'}
+                      </span>
+                      ${row.driverName ? `<span style="font-size: 0.8rem; color: #059669; font-weight: 600;">👨‍✈️ ${escapeHtml(row.driverName)}</span>` : '<span style="font-size: 0.8rem; color: #94a3b8;">(ยังไม่ระบุคนขับ)</span>'}
+                    </div>
+
+                    <div style="font-size: 0.78rem; color: #475569; margin-top: 5px; display: flex; gap: 10px; flex-wrap: wrap;">
+                      ${row.time ? `<span>⏰ เวลา: <strong>${row.time}</strong></span>` : ''}
+                      ${row.department ? `<span>🏢 แผนก: <strong>${row.department}</strong></span>` : ''}
+                      ${row.booker ? `<span>👤 ผู้โดยสาร: <strong>${escapeHtml(row.booker)}</strong></span>` : ''}
+                    </div>
+
+                    ${row.itineraryText ? `
+                      <div style="font-size: 0.74rem; color: #475569; background: rgba(0,0,0,0.04); padding: 5px 8px; border-radius: 4px; margin-top: 5px; white-space: pre-line; line-height: 1.35;">
+                        ${escapeHtml(row.itineraryText)}
+                      </div>
+                    ` : ''}
+                  </div>
+
+                  <button 
+                    type="button" 
+                    class="btn-select-target-row ${rowAvail ? 'btn-primary' : 'btn-outline-blue'}" 
+                    data-row-id="${row.id}" 
+                    style="white-space: nowrap; padding: 8px 14px; font-size: 0.82rem; font-weight: 600; ${rowAvail ? 'background: #16a34a;' : 'background: #0284c7; color: #fff;'}"
+                  >
+                    ⚡ ${rowAvail ? 'จัดใส่คันนี้' : 'เพิ่มงานลงคันนี้'}
+                  </button>
+                </div>
+              `;
+      }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
     const html = `
       <div id="${modalId}" class="booker-picker-modal-backdrop">
-        <div class="booker-picker-dialog" style="max-width: 520px;">
-          <div class="booker-picker-header">
-            <div>
-              <h3 style="font-size: 1.05rem; font-weight: 700; margin: 0; color: #fff;">
-                เลือกรถที่ต้องการจัดให้คำขอ ${booking.id}
-              </h3>
-              <p style="font-size: 0.8rem; color: #bae6fd; margin: 0;">
-                ผู้จอง: ${booking.bookerName} (${booking.department})
-              </p>
-            </div>
-            <button id="btn-close-target-picker" class="btn-ghost-light">✕</button>
-          </div>
-          <div class="booker-picker-body">
-            <p style="font-size: 0.85rem; color: #475569; margin-bottom: 12px;">
-              กรุณาเลือกรถในตารางจัดรถวันที่ <strong>${formatThaiDate(selectedDate).short}</strong>:
-            </p>
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-              ${rows.map((row, idx) => {
-                const rowAvail = isRowAvailable(row);
-                return `
-                <button 
-                  type="button" 
-                  class="btn-select-target-row" 
-                  data-row-id="${row.id}" 
-                  style="text-align: left; padding: 10px 14px; border: 1.5px solid ${rowAvail ? '#86efac' : '#cbd5e1'}; border-radius: 8px; background: ${rowAvail ? '#f0fdf4' : '#f8fafc'}; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: space-between;"
-                >
-                  <div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                      <strong>คันที่ ${row.no || idx + 1}: ${escapeHtml(row.plate || '')}</strong>
-                      <span class="target-picker-status-tag ${rowAvail ? 'tag-avail' : 'tag-busy'}">
-                        ${rowAvail ? 'ว่าง' : 'ไม่ว่าง'}
-                      </span>
-                    </div>
-                    <div style="font-size: 0.78rem; color: #64748b; margin-top: 3px;">
-                      คนขับ: ${row.driverName || 'ยังไม่ระบุ'} | เวลา: ${row.time || '-'} ${row.booker ? `| ผู้จอง: ${escapeHtml(row.booker)}` : ''}
-                    </div>
-                  </div>
-                  <span style="color: ${rowAvail ? '#15803d' : '#0284c7'}; font-weight: 600; font-size: 0.85rem;">
-                    ${rowAvail ? 'เลือกรถว่างคันนี้ ➔' : 'จัดใส่คันนี้ ➔'}
-                  </span>
-                </button>
-              `;
-              }).join('')}
-            </div>
-          </div>
+        <div class="booker-picker-dialog" style="max-width: 620px;">
+          ${renderModalContent()}
         </div>
       </div>
     `;
 
     document.body.insertAdjacentHTML('beforeend', html);
     const modal = document.getElementById(modalId);
+    const dialog = modal.querySelector('.booker-picker-dialog');
     const close = () => modal.remove();
 
-    document.getElementById('btn-close-target-picker').addEventListener('click', close);
-    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    function bindModalEvents() {
+      const closeBtn = document.getElementById('btn-close-target-picker');
+      if (closeBtn) closeBtn.addEventListener('click', close);
 
-    modal.querySelectorAll('.btn-select-target-row').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const rowId = btn.getAttribute('data-row-id');
-        const targetRow = rows.find(r => r.id === rowId);
-        if (targetRow) {
-          applyBookingToRow(targetRow, booking);
+      const changeDateInput = document.getElementById('picker-change-target-date');
+      if (changeDateInput) {
+        changeDateInput.addEventListener('change', (e) => {
+          const newDate = e.target.value;
+          if (newDate) {
+            targetDate = newDate;
+            targetRows = getDispatchSchedule(targetDate);
+            if (!targetRows || targetRows.length === 0) {
+              targetRows = getDefaultFleetDispatchRows();
+            }
+            dialog.innerHTML = renderModalContent();
+            bindModalEvents();
+          }
+        });
+      }
+
+      const selectAllBtn = document.getElementById('btn-target-select-all');
+      if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', () => {
+          dialog.querySelectorAll('.target-stop-chk').forEach(c => { c.checked = true; });
+        });
+      }
+
+      const unselectAllBtn = document.getElementById('btn-target-unselect-all');
+      if (unselectAllBtn) {
+        unselectAllBtn.addEventListener('click', () => {
+          dialog.querySelectorAll('.target-stop-chk').forEach(c => { c.checked = false; });
+        });
+      }
+
+      dialog.querySelectorAll('.btn-select-target-row').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const rowId = btn.getAttribute('data-row-id');
+          const targetRow = targetRows.find(r => r.id === rowId);
+          if (!targetRow) return;
+
+          let selectedIndices = null;
+          const stopCheckboxes = Array.from(dialog.querySelectorAll('.target-stop-chk'));
+          if (stopCheckboxes.length > 0) {
+            const checkedBoxes = stopCheckboxes.filter(c => c.checked);
+            if (checkedBoxes.length === 0) {
+              alert('กรุณาเลือกรายการภารกิจ/จุดหมายอย่างน้อย 1 รายการเพื่อจัดลงรถ');
+              return;
+            }
+            selectedIndices = checkedBoxes.map(c => parseInt(c.getAttribute('data-index'), 10));
+          }
+
+          applyBookingToRow(targetRow, booking, selectedIndices, targetDate);
+          saveDispatchSchedule(targetDate, targetRows);
+
           close();
+
+          // Switch to spreadsheet on targetDate and highlight row
+          selectedDate = targetDate;
           activeTab = 'spreadsheet';
+          loadSchedule();
           render();
-        }
+
+          setTimeout(() => {
+            const tr = container.querySelector(`tr[data-row-id="${targetRow.id}"]`) ||
+              container.querySelector(`tr[data-plate="${targetRow.plate}"]`);
+            if (tr) {
+              tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              tr.classList.add('flash-row-highlight');
+              setTimeout(() => tr.classList.remove('flash-row-highlight'), 3500);
+            }
+          }, 150);
+
+          showToast(`✓ จัดรถ ${targetRow.plate} ให้กับคำขอ ${booking.id} (${booking.bookerName}) เรียบร้อยแล้ว`);
+        });
       });
+    }
+
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    bindModalEvents();
+  }
+
+  // Unassign booking from schedule and restore status to pending dispatch
+  function unassignBookingFromSchedule(bookingId) {
+    const allBookings = getAllBookings();
+    const b = allBookings.find(x => x.id === bookingId);
+    if (!b) return;
+
+    if (!confirm(`คุณต้องการยกเลิกการจัดรถสำหรับคำขอ ${b.id} (${b.bookerName}) ใช่หรือไม่?\n\nงานจะถูกนำออกจากตารางจัดรถ และสถานะจะกลับเป็น "รอจัดสรรรถ"`)) {
+      return;
+    }
+
+    const effectiveDate = b.assignedDate || b.usageDate || selectedDate;
+    const sched = getDispatchSchedule(effectiveDate);
+    const oldPlate = b.assignedVehicle;
+    let scheduleChanged = false;
+
+    sched.forEach(r => {
+      let isTarget = false;
+      if (r.linkedBookingIds && r.linkedBookingIds.includes(b.id)) {
+        r.linkedBookingIds = r.linkedBookingIds.filter(id => id !== b.id);
+        isTarget = true;
+        scheduleChanged = true;
+      }
+      if (oldPlate && (r.plate === oldPlate || (b.assignedVehicle && r.plate === b.assignedVehicle))) {
+        isTarget = true;
+      }
+
+      if (isTarget) {
+        // Remove booker name if merged
+        const bookerFirstName = b.bookerName ? b.bookerName.replace(/^(นาย|นางสาว|นาง|คุณ|K\.)\s*/i, '').split(' ')[0] : '';
+        if (r.booker && bookerFirstName) {
+          const names = r.booker.split('/').map(n => n.trim()).filter(n => !n.includes(bookerFirstName));
+          r.booker = names.join('/');
+          scheduleChanged = true;
+        }
+
+        // Clean stops from itineraryText
+        if (r.itineraryText && b.itinerary) {
+          const lines = r.itineraryText.split('\n').filter(line => {
+            return !b.itinerary.some(it => {
+              const det = it.detail ? it.detail.trim().slice(0, 15) : '';
+              const dest = it.destination ? it.destination.trim() : '';
+              return (det && line.includes(det)) || (dest && line.includes(dest));
+            });
+          });
+          r.itineraryText = lines.join('\n');
+          if (!r.itineraryText.trim()) {
+            r.showItineraryBox = false;
+          }
+          scheduleChanged = true;
+        }
+      }
     });
+
+    // Reset booking itinerary flags
+    if (b.itinerary && Array.isArray(b.itinerary)) {
+      b.itinerary.forEach(it => {
+        it.dispatched = false;
+        delete it.dispatchedToVehicle;
+        delete it.dispatchedDate;
+        delete it.dispatchedRowNo;
+        delete it.dispatchedRowId;
+      });
+    }
+
+    b.status = (b.approverSignature || b.statusLabel?.includes('อนุมัติ')) ? 'approved' : 'pending_approval';
+    b.statusLabel = b.status === 'approved' ? 'อนุมัติแล้ว (รอจัดสรรรถ/ยืนยัน)' : 'รอหัวหน้าฝ่ายอนุมัติ';
+    b.assignedVehicle = '';
+    b.assignedDriver = '';
+    delete b.assignedDate;
+    delete b.isDispatchedDirectly;
+
+    updateBooking(b.id, b);
+
+    if (scheduleChanged) {
+      saveDispatchSchedule(effectiveDate, sched);
+    }
+
+    if (selectedDate === effectiveDate) {
+      loadSchedule();
+    }
+
+    render();
+    showToast(`✓ ยกเลิกการจัดรถสำหรับคำขอ ${b.id} เรียบร้อยแล้ว (สถานะกลับเป็น รอจัดสรร)`);
+  }
+
+  // Jump from requests list to spreadsheet view and highlight vehicle row
+  function jumpToScheduleRow(usageDate, plate) {
+    if (usageDate) {
+      selectedDate = usageDate;
+    }
+    activeTab = 'spreadsheet';
+    loadSchedule();
+    render();
+
+    setTimeout(() => {
+      let tr = null;
+      if (plate) {
+        tr = container.querySelector(`tr[data-plate="${plate}"]`) ||
+          Array.from(container.querySelectorAll('.dispatch-table tbody tr')).find(r => r.textContent.includes(plate));
+      }
+      if (tr) {
+        tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        tr.classList.add('flash-row-highlight');
+        setTimeout(() => tr.classList.remove('flash-row-highlight'), 3500);
+      }
+    }, 150);
+
+    showToast(`กำลังเปิดตารางจัดรถวันที่ ${formatThaiDate(selectedDate).short}${plate ? ` (รถ ${plate})` : ''}`);
   }
 
   // Save current rows to storage
