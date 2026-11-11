@@ -64,65 +64,65 @@ function initApp() {
   const viewContainer = document.getElementById('main-view-container');
   mountView(currentRole, viewContainer);
 
-  // Bind role switcher buttons
-  app.querySelectorAll('.role-tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const targetRole = btn.getAttribute('data-role');
-      if (targetRole !== getActiveRole()) {
-        setActiveRole(targetRole);
-        initApp(); // Re-render header & view
-      }
+    // Bind role switcher buttons (strictly scoped to header role navigation)
+    app.querySelectorAll('.app-header .role-tab-btn[data-role]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetRole = btn.getAttribute('data-role');
+          if (targetRole && targetRole !== getActiveRole()) {
+            setActiveRole(targetRole);
+            initApp(); // Re-render header & view
+          }
+        });
     });
-  });
-}
+  }
 
 function mountView(role, container) {
-  if (!container) return;
-  container.innerHTML = '';
+      if (!container) return;
+      container.innerHTML = '';
 
-  switch (role) {
-    case 'driver':
-      renderDriverView(container);
-      break;
-    case 'approver':
-      renderApproverView(container);
-      break;
-    case 'admin':
-      renderAdminView(container);
-      break;
-    case 'booker':
-    default:
-      renderBookerView(container);
-      break;
-  }
-}
+      switch (role) {
+        case 'driver':
+          renderDriverView(container);
+          break;
+        case 'approver':
+          renderApproverView(container);
+          break;
+        case 'admin':
+          renderAdminView(container);
+          break;
+        case 'booker':
+        default:
+          renderBookerView(container);
+          break;
+      }
+    }
 
 // Global event listeners
 window.addEventListener('edit_booking_in_form', (e) => {
-  const booking = e.detail;
-  if (!booking) return;
-  if (getActiveRole() !== 'booker') {
-    setActiveRole('booker');
-    initApp();
-  }
-  setTimeout(() => {
-    window.dispatchEvent(new CustomEvent('booker_load_edit', { detail: booking }));
-  }, 50);
-});
+      const booking = e.detail;
+      if (!booking) return;
+      if (getActiveRole() !== 'booker') {
+        setActiveRole('booker');
+        initApp();
+      }
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('booker_load_edit', { detail: booking }));
+      }, 50);
+    });
 
-window.addEventListener('bookings_updated', () => {
-  // Update badges if needed without full reload
-  const bookings = getAllBookings();
-  const pendingApprovals = bookings.filter(b => b.status === 'pending_approval').length;
-  const approverBtn = document.getElementById('role-btn-approver');
-  if (approverBtn) {
-    const existingBadge = approverBtn.querySelector('.role-badge');
-    if (existingBadge) existingBadge.remove();
-    if (pendingApprovals > 0) {
-      approverBtn.insertAdjacentHTML('beforeend', `<span class="role-badge" style="background: #ef4444; color: #fff;">${pendingApprovals}</span>`);
+  window.addEventListener('bookings_updated', () => {
+    // Update badges if needed without full reload
+    const bookings = getAllBookings();
+    const pendingApprovals = bookings.filter(b => b.status === 'pending_approval').length;
+    const approverBtn = document.getElementById('role-btn-approver');
+    if (approverBtn) {
+      const existingBadge = approverBtn.querySelector('.role-badge');
+      if (existingBadge) existingBadge.remove();
+      if (pendingApprovals > 0) {
+        approverBtn.insertAdjacentHTML('beforeend', `<span class="role-badge" style="background: #ef4444; color: #fff;">${pendingApprovals}</span>`);
+      }
     }
-  }
-});
+  });
 
-// Start the app
-initApp();
+  // Start the app
+  initApp();
