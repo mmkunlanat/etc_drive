@@ -612,6 +612,43 @@ export function renderAdminView(container) {
       });
     }
 
+    // Sort: งานที่ยังไม่จัดขึ้นมาอยู่ด้านบนสุด (approved, partially_dispatched, pending_approval)
+    // ส่วนงานที่จัดรถแล้ว (dispatched) และงานที่เสร็จสิ้น (completed) ย้ายลงไปอยู่ด้านล่าง
+    filtered.sort((a, b) => {
+      const getPriority = (item) => {
+        // Priority 1: อนุมัติแล้ว รอจัดรถ (ต้องการจัดลงตารางทันที)
+        if (item.status === 'approved') return 1;
+        // Priority 2: จัดรถแล้วบางส่วน (ยังมีงานค้างรอจัด)
+        if (item.status === 'partially_dispatched') return 2;
+        // Priority 3: รอหัวหน้าฝ่ายอนุมัติ
+        if (item.status === 'pending_approval') return 3;
+        // Priority 4: จัดรถลงตารางเรียบร้อยแล้ว
+        if (item.status === 'dispatched') return 4;
+        // Priority 5: เสร็จสิ้นภารกิจ
+        if (item.status === 'completed') return 5;
+        // Priority 6: ไม่อนุมัติ / ยกเลิก
+        if (item.status === 'rejected' || item.status === 'cancelled') return 6;
+        return 7;
+      };
+
+      const pA = getPriority(a);
+      const pB = getPriority(b);
+      if (pA !== pB) return pA - pB;
+
+      // ในกลุ่มสถานะเดียวกัน: เรียงตามวันที่ใช้งานก่อน (วันที่ใกล้สุดขึ้นก่อน)
+      if (a.usageDate && b.usageDate && a.usageDate !== b.usageDate) {
+        return a.usageDate.localeCompare(b.usageDate);
+      }
+
+      // เรียงตามเวลาใช้งาน
+      if (a.startTime && b.startTime && a.startTime !== b.startTime) {
+        return a.startTime.localeCompare(b.startTime);
+      }
+
+      // ตามด้วยรหัสคำขอ
+      return (b.id || '').localeCompare(a.id || '');
+    });
+
     return `
       <div class="content-card">
         <!-- Header -->
@@ -749,14 +786,21 @@ export function renderAdminView(container) {
                     </td>
                     <td style="font-size: 0.82rem;">
                       ${stops.length === 0 ? '<span style="color: #94a3b8;">- ไม่ระบุจุดหมาย -</span>' : `
-                        <div style="display: flex; flex-direction: column; gap: 3px;">
+                        <div style="display: flex; flex-direction: column; gap: 6px;">
                           ${stops.map((it, idx) => `
-                            <div style="line-height: 1.35; display: flex; align-items: baseline; gap: 4px;">
-                              <span style="font-weight: 700; color: #0284c7; font-size: 0.76rem;">${idx + 1}.</span>
-                              <span style="color: #0f172a;">${escapeHtml(it.destination || it.detail || '')}</span>
-                              ${it.detail && it.destination ? `<span style="font-size: 0.72rem; color: #64748b;">(${escapeHtml(it.detail)})</span>` : ''}
-                              ${it.time ? `<span style="font-size: 0.72rem; color: #059669; font-weight: 600;">[${it.time} น.]</span>` : ''}
-                              ${it.dispatched ? `<span style="font-size: 0.68rem; color: #16a34a; font-weight: 600;">✓</span>` : ''}
+                            <div style="line-height: 1.35;">
+                              <div style="display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap;">
+                                <span style="font-weight: 700; color: #0284c7; font-size: 0.76rem;">${idx + 1}.</span>
+                                <span style="color: #0f172a; font-weight: 600;">${escapeHtml(it.destination || it.detail || '')}</span>
+                                ${it.time ? `<span style="font-size: 0.72rem; color: #059669; font-weight: 600; margin-left: 2px;">[${it.time} น.]</span>` : ''}
+                                ${it.passengers ? `<span style="font-size: 0.72rem; color: #64748b;">(${it.passengers} คน)</span>` : ''}
+                                ${it.dispatched ? `<span style="font-size: 0.68rem; color: #16a34a; font-weight: 600; margin-left: 2px;">✓</span>` : ''}
+                              </div>
+                              ${it.detail && it.destination && it.detail !== it.destination ? `
+                                <div style="font-size: 0.74rem; color: #64748b; padding-left: 14px; margin-top: 1px; line-height: 1.3;">
+                                  (${escapeHtml(it.detail)})
+                                </div>
+                              ` : ''}
                             </div>
                           `).join('')}
                         </div>
@@ -2088,14 +2132,20 @@ export function renderAdminView(container) {
               <div style="display: flex; flex-direction: column; gap: 6px;">
                 ${stops.map((st, idx) => `
                   <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 0.82rem; cursor: pointer; background: #ffffff; padding: 7px 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
-                    <input type="checkbox" class="target-stop-chk" data-index="${idx}" ${st.dispatched ? '' : 'checked'} style="margin-top: 2px;" />
+                    <input type="checkbox" class="target-stop-chk" data-index="${idx}" ${st.dispatched ? '' : 'checked'} style="margin-top: 3px;" />
                     <div style="flex: 1;">
-                      <span style="font-weight: 700; color: #0284c7;">${idx + 1}.</span>
-                      <strong style="color: #0f172a;">${escapeHtml(st.destination || st.detail || '')}</strong>
-                      ${st.detail && st.destination ? `<span style="color: #64748b;">(${escapeHtml(st.detail)})</span>` : ''}
-                      ${st.time ? `<span style="color: #059669; font-weight: 600; margin-left: 6px;">⏱️ ${st.time} น.</span>` : ''}
-                      ${st.passengers ? `<span style="color: #64748b; margin-left: 6px;">👥 ${st.passengers} คน</span>` : ''}
-                      ${st.dispatched ? `<span style="color: #dc2626; font-size: 0.72rem; margin-left: 6px; font-weight: 600;">[จัดให้ ${st.dispatchedToVehicle || ''} แล้ว]</span>` : ''}
+                      <div style="display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap;">
+                        <span style="font-weight: 700; color: #0284c7;">${idx + 1}.</span>
+                        <strong style="color: #0f172a;">${escapeHtml(st.destination || st.detail || '')}</strong>
+                        ${st.time ? `<span style="color: #059669; font-weight: 600; margin-left: 6px; font-size: 0.76rem;">⏱️ ${st.time} น.</span>` : ''}
+                        ${st.passengers ? `<span style="color: #64748b; margin-left: 4px; font-size: 0.76rem;">👥 ${st.passengers} คน</span>` : ''}
+                        ${st.dispatched ? `<span style="color: #dc2626; font-size: 0.72rem; margin-left: 6px; font-weight: 600;">[จัดให้ ${st.dispatchedToVehicle || ''} แล้ว]</span>` : ''}
+                      </div>
+                      ${st.detail && st.destination && st.detail !== st.destination ? `
+                        <div style="font-size: 0.74rem; color: #64748b; margin-top: 2px; padding-left: 14px; line-height: 1.3;">
+                          (${escapeHtml(st.detail)})
+                        </div>
+                      ` : ''}
                     </div>
                   </label>
                 `).join('')}
