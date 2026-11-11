@@ -1,6 +1,6 @@
 // main.js - Application Entry Point & Role Controller
 import './style.css';
-import { getActiveRole, setActiveRole, getAllBookings } from './store.js';
+import { getActiveRole, setActiveRole, getAllBookings, getAllScheduleApprovalMetas } from './store.js';
 import { renderBookerView } from './views/BookerView.js';
 import { renderDriverView } from './views/DriverView.js';
 import { renderApproverView } from './views/ApproverView.js';
@@ -11,8 +11,12 @@ const app = document.getElementById('app');
 function initApp() {
   const currentRole = getActiveRole();
   const bookings = getAllBookings();
+  const allScheduleMetas = getAllScheduleApprovalMetas();
 
   const pendingApprovals = bookings.filter(b => b.status === 'pending_approval').length;
+  const pendingSchedulesCount = Object.keys(allScheduleMetas).filter(d => allScheduleMetas[d]?.status === 'pending_approval').length;
+  const totalApproverPending = pendingApprovals + pendingSchedulesCount;
+
   const pendingDispatch = bookings.filter(b => b.status === 'approved').length;
 
   app.innerHTML = `
@@ -44,7 +48,7 @@ function initApp() {
 
           <button id="role-btn-approver" class="role-tab-btn ${currentRole === 'approver' ? 'active' : ''}" data-role="approver">
             <span> ผู้อนุมัติ (Approver)</span>
-            ${pendingApprovals > 0 ? `<span class="role-badge" style="background: #ef4444; color: #fff;">${pendingApprovals}</span>` : ''}
+            ${totalApproverPending > 0 ? `<span class="role-badge" style="background: #ef4444; color: #fff;">${totalApproverPending}</span>` : ''}
           </button>
 
           <button id="role-btn-admin" class="role-tab-btn ${currentRole === 'admin' ? 'active' : ''}" data-role="admin">
@@ -110,19 +114,25 @@ window.addEventListener('edit_booking_in_form', (e) => {
       }, 50);
     });
 
-  window.addEventListener('bookings_updated', () => {
-    // Update badges if needed without full reload
+  function updateApproverRoleBadge() {
     const bookings = getAllBookings();
     const pendingApprovals = bookings.filter(b => b.status === 'pending_approval').length;
+    const allScheduleMetas = getAllScheduleApprovalMetas();
+    const pendingSchedulesCount = Object.keys(allScheduleMetas).filter(d => allScheduleMetas[d]?.status === 'pending_approval').length;
+    const totalApproverPending = pendingApprovals + pendingSchedulesCount;
+
     const approverBtn = document.getElementById('role-btn-approver');
     if (approverBtn) {
       const existingBadge = approverBtn.querySelector('.role-badge');
       if (existingBadge) existingBadge.remove();
-      if (pendingApprovals > 0) {
-        approverBtn.insertAdjacentHTML('beforeend', `<span class="role-badge" style="background: #ef4444; color: #fff;">${pendingApprovals}</span>`);
+      if (totalApproverPending > 0) {
+        approverBtn.insertAdjacentHTML('beforeend', `<span class="role-badge" style="background: #ef4444; color: #fff;">${totalApproverPending}</span>`);
       }
     }
-  });
+  }
+
+  window.addEventListener('bookings_updated', updateApproverRoleBadge);
+  window.addEventListener('schedule_approval_updated', updateApproverRoleBadge);
 
   // Start the app
   initApp();
