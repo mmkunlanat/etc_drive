@@ -518,14 +518,22 @@ export function renderDriverView(container) {
 
   function renderPendingApprovalState(tab, thaiDate, meta) {
     const isPending = meta?.status === 'pending_approval';
+    const isReturned = meta?.status === 'returned';
+    const statusText = isPending 
+      ? 'แอดมินส่งตารางแล้ว (รอผู้อนุมัติยืนยัน)' 
+      : (isReturned ? 'ผู้อนุมัติส่งกลับแก้ไข (แอดมินกำลังปรับปรุงตาราง)' : 'ฉบับร่าง (แอดมินยังไม่ส่งตรวจ)');
+    const statusBg = isReturned ? '#ffe4e6' : (isPending ? '#fef3c7' : '#f1f5f9');
+    const statusColor = isReturned ? '#be123c' : (isPending ? '#b45309' : '#64748b');
+    const statusBorder = isReturned ? '#fca5a5' : (isPending ? '#fde68a' : '#cbd5e1');
+
     return `
       <div class="content-card pending-approval-driver-card" style="text-align: center; padding: 3.5rem 1.5rem; background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 12px; margin: 1.5rem 0;">
         <div style="font-size: 3rem; margin-bottom: 0.8rem;">⏳</div>
         <h3 style="font-size: 1.25rem; font-weight: 700; color: #92400e; margin-bottom: 8px;">
           ตารางจัดรถประจำวัน${thaiDate.full} อยู่ระหว่างรอผู้อนุมัติตรวจสอบและยืนยัน
         </h3>
-        <div style="display: inline-block; background: ${isPending ? '#fef3c7' : '#f1f5f9'}; color: ${isPending ? '#b45309' : '#64748b'}; border: 1px solid ${isPending ? '#fde68a' : '#cbd5e1'}; font-size: 0.82rem; font-weight: 700; padding: 4px 14px; border-radius: 20px; margin-bottom: 1rem;">
-          สถานะ: ${isPending ? 'แอดมินส่งตารางแล้ว (รอผู้อนุมัติยืนยัน)' : 'ฉบับร่าง (แอดมินยังไม่ส่งตรวจ)'}
+        <div style="display: inline-block; background: ${statusBg}; color: ${statusColor}; border: 1px solid ${statusBorder}; font-size: 0.82rem; font-weight: 700; padding: 4px 14px; border-radius: 20px; margin-bottom: 1rem;">
+          สถานะ: ${statusText}
         </div>
         <p style="color: #b45309; font-size: 0.95rem; max-width: 580px; margin: 0 auto; line-height: 1.6;">
           ฝ่ายบริหารยานพาหนะ (แอดมิน) ได้บันทึกตารางจัดรถและส่งไปให้หัวหน้าฝ่าย/ผู้อนุมัติตรวจสอบความถูกต้องเรียบร้อยแล้ว<br>

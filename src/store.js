@@ -852,11 +852,14 @@ export function getScheduleApprovalMeta(isoDate) {
   if (all[isoDate]) return all[isoDate];
   return {
     date: isoDate,
-    status: 'draft', // 'draft' | 'pending_approval' | 'approved'
+    status: 'draft', // 'draft' | 'pending_approval' | 'approved' | 'returned'
     submittedAt: null,
     submittedBy: null,
     confirmedAt: null,
     confirmedBy: null,
+    returnedAt: null,
+    returnedBy: null,
+    returnReason: '',
     remark: ''
   };
 }

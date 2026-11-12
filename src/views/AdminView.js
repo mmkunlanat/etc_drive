@@ -17,6 +17,7 @@ import {
   getDispatchSchedule,
   saveDispatchSchedule,
   getDefaultFleetDispatchRows,
+  getAllScheduleApprovalMetas,
   getScheduleApprovalMeta,
   saveScheduleApprovalMeta
 } from '../store.js';
@@ -84,9 +85,46 @@ export function renderAdminView(container) {
     const bookings = getAllBookings();
     const pendingDispatchCount = bookings.filter(b => b.status === 'pending_approval' || b.status === 'approved' || b.status === 'partially_dispatched').length;
     const schedMeta = getScheduleApprovalMeta(selectedDate);
+    const allScheduleMetas = getAllScheduleApprovalMetas();
+    const returnedDates = Object.keys(allScheduleMetas).filter(d => allScheduleMetas[d]?.status === 'returned');
 
     container.innerHTML = `
       <div class="dispatch-portal-container">
+
+        <!-- Global Alert when any date's schedule is returned by Approver -->
+        ${returnedDates.length > 0 ? `
+          <div class="returned-schedules-banner no-print" style="background: #fff1f2; border: 1.5px solid #fda4af; border-radius: 10px; padding: 12px 18px; margin-bottom: 0.85rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.08);">
+            <div style="display: flex; align-items: flex-start; gap: 12px; flex: 1; min-width: 280px;">
+              <span style="font-size: 1.5rem; line-height: 1;">🔔</span>
+              <div>
+                <div style="font-weight: 700; color: #be123c; font-size: 0.98rem; display: flex; align-items: center; gap: 6px;">
+                  <span>แจ้งเตือน: มีตารางจัดรถ ${returnedDates.length} วัน ที่ผู้อนุมัติส่งกลับมาให้แก้ไข</span>
+                </div>
+                <div style="font-size: 0.82rem; color: #9f1239; margin-top: 4px; line-height: 1.45;">
+                  ${returnedDates.map(d => {
+                    const tDate = formatThaiDate(d);
+                    const rMeta = allScheduleMetas[d];
+                    const isCurrent = d === selectedDate;
+                    return `
+                      <span style="display: inline-block; margin-right: 14px; margin-top: 2px;">
+                        • วันที่ <strong>${tDate.short}</strong>: <em>"${escapeHtml(rMeta.returnReason || rMeta.remark || 'มีรายการต้องแก้ไข')}"</em>
+                        ${isCurrent ? ' <span style="background: #ffe4e6; color: #be123c; font-size: 0.72rem; padding: 1px 7px; border-radius: 6px; font-weight: 700;">(กำลังเปิดอยู่นี้)</span>' : ''}
+                      </span>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              ${returnedDates.filter(d => d !== selectedDate).map(d => `
+                <button type="button" class="btn-jump-returned-date btn-primary" data-date="${d}" style="background: #be123c; padding: 6px 14px; font-size: 0.82rem; font-weight: 600; border-radius: 6px;">
+                  🔍 เปิดตารางวันที่ ${formatThaiDate(d).short} เพื่อแก้ไข
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
 
         <!-- Top Navigation & Controls Toolbar (Hidden in Print) -->
         <div class="dispatch-top-toolbar no-print">
@@ -117,6 +155,10 @@ export function renderAdminView(container) {
               <span class="schedule-pipeline-tag tag-pending" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 700;">
                 ⏳ ส่งให้ผู้อนุมัติตรวจแล้ว (รอการยืนยัน)
               </span>
+            ` : schedMeta.status === 'returned' ? `
+              <span class="schedule-pipeline-tag tag-returned" style="background: #ffe4e6; color: #be123c; border: 1.5px solid #fca5a5; font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 700;">
+                ⚠️ ผู้อนุมัติส่งกลับแก้ไข (มีรายการต้องปรับปรุง)
+              </span>
             ` : `
               <span class="schedule-pipeline-tag tag-draft" style="background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 600;">
                 ⚪ ฉบับร่าง (ยังไม่ส่งตรวจ)
@@ -128,8 +170,8 @@ export function renderAdminView(container) {
             <button id="btn-save-schedule" class="btn-primary" style="padding: 6px 13px; font-size: 0.82rem; background: #002060; font-weight: 600;" title="บันทึกข้อมูลตารางจัดรถในระบบ">
               💾 บันทึกตาราง
             </button>
-            <button id="btn-submit-approval" class="btn-primary" style="padding: 6px 14px; font-size: 0.82rem; background: ${schedMeta.status === 'approved' ? '#d97706' : '#059669'}; font-weight: 700;" title="ส่งตารางจัดรถไปให้ผู้อนุมัติตรวจสอบและยืนยัน">
-              📤 ${schedMeta.status === 'approved' ? 'ส่งตรวจใหม่' : (schedMeta.status === 'pending_approval' ? 'ส่งตรวจอีกครั้ง' : 'ส่งให้ผู้อนุมัติตรวจ')}
+            <button id="btn-submit-approval" class="btn-primary" style="padding: 6px 14px; font-size: 0.82rem; background: ${schedMeta.status === 'returned' ? '#e11d48' : (schedMeta.status === 'approved' ? '#d97706' : '#059669')}; font-weight: 700;" title="ส่งตารางจัดรถไปให้ผู้อนุมัติตรวจสอบและยืนยัน">
+              📤 ${schedMeta.status === 'returned' ? 'แก้ไขแล้ว ส่งให้ผู้อนุมัติตรวจใหม่' : (schedMeta.status === 'approved' ? 'ส่งตรวจใหม่' : (schedMeta.status === 'pending_approval' ? 'ส่งตรวจอีกครั้ง' : 'ส่งให้ผู้อนุมัติตรวจ'))}
             </button>
             <button id="btn-print-schedule" class="btn-outline-blue" style="padding: 6px 12px; font-size: 0.82rem;">
               🖨️ พิมพ์ตารางจัดรถ
@@ -151,7 +193,48 @@ export function renderAdminView(container) {
 
     return `
       <!-- Approval Pipeline Alert Banner -->
-      ${meta.status === 'approved' ? `
+      ${meta.status === 'returned' ? `
+        <div class="schedule-approval-alert alert-returned" style="background: #fff1f2; border: 2px solid #f43f5e; border-radius: 10px; padding: 14px 18px; margin-bottom: 0.85rem; box-shadow: 0 4px 6px -1px rgba(244,63,94,0.12);">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: flex-start; gap: 12px; flex: 1; min-width: 280px;">
+              <span style="font-size: 1.8rem; line-height: 1;">⚠️</span>
+              <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <strong style="color: #be123c; font-size: 1.05rem;">
+                    ผู้อนุมัติส่งตารางจัดรถวันที่ ${thaiDate.short} กลับมาให้แก้ไข
+                  </strong>
+                  <span style="background: #ffe4e6; color: #e11d48; border: 1px solid #fca5a5; font-size: 0.75rem; font-weight: 700; padding: 2px 10px; border-radius: 10px;">
+                    มีรายการต้องปรับปรุง
+                  </span>
+                </div>
+                <div style="font-size: 0.8rem; color: #9f1239; margin-top: 3px;">
+                  ส่งกลับโดย: <strong>${escapeHtml(meta.returnedBy || 'ผู้อนุมัติ')}</strong>
+                  ${meta.returnedAt ? ` • เมื่อ ${new Date(meta.returnedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.` : ''}
+                </div>
+
+                <!-- กล่องแสดงรายการที่ผู้อนุมัติระบุให้แก้ไขอย่างเด่นชัด -->
+                <div style="background: #ffffff; border: 1.5px solid #fda4af; border-left: 5px solid #e11d48; border-radius: 6px; padding: 12px 16px; margin-top: 10px;">
+                  <div style="font-weight: 700; color: #9f1239; font-size: 0.88rem; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                    <span>📝 รายการที่ผู้อนุมัติระบุให้แก้ไข:</span>
+                  </div>
+                  <div style="font-size: 0.95rem; color: #0f172a; font-weight: 600; white-space: pre-wrap; line-height: 1.55;">
+                    ${escapeHtml(meta.returnReason || meta.remark || 'กรุณาตรวจสอบและปรับปรุงตารางจัดรถ')}
+                  </div>
+                </div>
+
+                <div style="font-size: 0.82rem; color: #881337; margin-top: 10px; display: flex; align-items: center; gap: 6px;">
+                  <span>💡</span>
+                  <span>กรุณาปรับแก้ข้อมูลในตารางจัดรถด้านล่างตามรายการด้านบน เมื่อแก้ไขเสร็จแล้วให้กดปุ่ม <strong>"📤 แก้ไขแล้ว ส่งให้ผู้อนุมัติตรวจใหม่"</strong> ด้านบน</span>
+                </div>
+              </div>
+            </div>
+            
+            <span style="font-size: 0.78rem; font-weight: 700; color: #be123c; background: #ffe4e6; border: 1px solid #fda4af; padding: 6px 14px; border-radius: 999px; align-self: flex-start;">
+              ⚠️ สถานะ: ส่งกลับแก้ไข
+            </span>
+          </div>
+        </div>
+      ` : meta.status === 'approved' ? `
         <div class="schedule-approval-alert alert-approved" style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 8px; padding: 10px 16px; margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
           <div style="display: flex; align-items: center; gap: 10px;">
             <span style="font-size: 1.35rem;">✅</span>
@@ -1033,6 +1116,28 @@ export function renderAdminView(container) {
         showToast(`✓ ส่งตารางจัดรถวันที่ ${formatThaiDate(selectedDate).short} ให้ผู้อนุมัติตรวจสอบและยืนยันเรียบร้อยแล้ว`);
         render();
       });
+    }
+
+    // Quick jump to returned schedule date
+    container.querySelectorAll('.btn-jump-returned-date').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetDate = btn.getAttribute('data-date');
+        if (targetDate) {
+          saveCurrentSchedule();
+          selectedDate = targetDate;
+          activeTab = 'spreadsheet';
+          loadSchedule();
+          render();
+          showToast(`เปิดตารางวันที่ ${formatThaiDate(targetDate).short} ที่มีรายการต้องแก้ไขเรียบร้อย`);
+        }
+      });
+    });
+
+    if (!window._adminScheduleApprovalListener) {
+      window._adminScheduleApprovalListener = () => {
+        render();
+      };
+      window.addEventListener('schedule_approval_updated', window._adminScheduleApprovalListener);
     }
 
     const printBtn = document.getElementById('btn-print-schedule');
