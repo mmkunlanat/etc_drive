@@ -17,6 +17,7 @@ function initApp() {
   const pendingSchedulesCount = Object.keys(allScheduleMetas).filter(d => allScheduleMetas[d]?.status === 'pending_approval').length;
   const totalApproverPending = pendingApprovals + pendingSchedulesCount;
 
+  const returnedSchedulesCount = Object.keys(allScheduleMetas).filter(d => allScheduleMetas[d]?.status === 'returned').length;
   const pendingDispatch = bookings.filter(b => b.status === 'approved').length;
 
   app.innerHTML = `
@@ -53,7 +54,7 @@ function initApp() {
 
           <button id="role-btn-admin" class="role-tab-btn ${currentRole === 'admin' ? 'active' : ''}" data-role="admin">
             <span> แอดมิน (Admin)</span>
-            ${pendingDispatch > 0 ? `<span class="role-badge" style="background: #f59e0b; color: #fff;">${pendingDispatch}</span>` : ''}
+            ${returnedSchedulesCount > 0 ? `<span class="role-badge" style="background: #ef4444; color: #fff;" title="มีตารางจัดรถที่ผู้อนุมัติส่งกลับแก้ไข ${returnedSchedulesCount} วัน">⚠️ ${returnedSchedulesCount}</span>` : (pendingDispatch > 0 ? `<span class="role-badge" style="background: #f59e0b; color: #fff;">${pendingDispatch}</span>` : '')}
           </button>
         </nav>
 
@@ -114,13 +115,17 @@ window.addEventListener('edit_booking_in_form', (e) => {
       }, 50);
     });
 
-  function updateApproverRoleBadge() {
+  function updateRoleBadges() {
     const bookings = getAllBookings();
     const pendingApprovals = bookings.filter(b => b.status === 'pending_approval').length;
     const allScheduleMetas = getAllScheduleApprovalMetas();
     const pendingSchedulesCount = Object.keys(allScheduleMetas).filter(d => allScheduleMetas[d]?.status === 'pending_approval').length;
     const totalApproverPending = pendingApprovals + pendingSchedulesCount;
 
+    const returnedSchedulesCount = Object.keys(allScheduleMetas).filter(d => allScheduleMetas[d]?.status === 'returned').length;
+    const pendingDispatch = bookings.filter(b => b.status === 'approved').length;
+
+    // Update Approver role badge
     const approverBtn = document.getElementById('role-btn-approver');
     if (approverBtn) {
       const existingBadge = approverBtn.querySelector('.role-badge');
@@ -129,10 +134,22 @@ window.addEventListener('edit_booking_in_form', (e) => {
         approverBtn.insertAdjacentHTML('beforeend', `<span class="role-badge" style="background: #ef4444; color: #fff;">${totalApproverPending}</span>`);
       }
     }
+
+    // Update Admin role badge (highlights returned schedules with red alert badge)
+    const adminBtn = document.getElementById('role-btn-admin');
+    if (adminBtn) {
+      const existingBadge = adminBtn.querySelector('.role-badge');
+      if (existingBadge) existingBadge.remove();
+      if (returnedSchedulesCount > 0) {
+        adminBtn.insertAdjacentHTML('beforeend', `<span class="role-badge" style="background: #ef4444; color: #fff;" title="มีตารางจัดรถที่ผู้อนุมัติส่งกลับแก้ไข ${returnedSchedulesCount} วัน">⚠️ ${returnedSchedulesCount}</span>`);
+      } else if (pendingDispatch > 0) {
+        adminBtn.insertAdjacentHTML('beforeend', `<span class="role-badge" style="background: #f59e0b; color: #fff;">${pendingDispatch}</span>`);
+      }
+    }
   }
 
-  window.addEventListener('bookings_updated', updateApproverRoleBadge);
-  window.addEventListener('schedule_approval_updated', updateApproverRoleBadge);
+  window.addEventListener('bookings_updated', updateRoleBadges);
+  window.addEventListener('schedule_approval_updated', updateRoleBadges);
 
   // Start the app
   initApp();

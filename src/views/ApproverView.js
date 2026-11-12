@@ -668,6 +668,93 @@ export function renderApproverView(container) {
     `;
   }
 
+  // Modal dialog for Approver to specify return reason & revision details
+  function openReturnScheduleModal(dateIso, initialText, approverName, onConfirm) {
+    const thaiDate = formatThaiDate(dateIso);
+    const existingModal = document.getElementById('return-schedule-modal');
+    if (existingModal) existingModal.remove();
+
+    const modalHtml = `
+      <div id="return-schedule-modal" class="modal-overlay" style="position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 1rem; backdrop-filter: blur(2px);">
+        <div class="modal-content-card" style="background: #fff; width: 100%; max-width: 540px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.25); overflow: hidden; border: 1.5px solid #fecaca; animation: modalFadeIn 0.2s ease;">
+          
+          <div style="background: #fff1f2; border-bottom: 1.5px solid #fecaca; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 1.5rem;">💬</span>
+              <div>
+                <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: #9f1239;">
+                  ส่งตารางจัดรถกลับให้แอดมินแก้ไข
+                </h3>
+                <div style="font-size: 0.8rem; color: #be123c; margin-top: 2px;">
+                  ประจำวันที่: <strong>${thaiDate.full}</strong>
+                </div>
+              </div>
+            </div>
+            <button type="button" id="btn-close-return-modal" style="background: none; border: none; font-size: 1.3rem; color: #9f1239; cursor: pointer; padding: 4px;">✕</button>
+          </div>
+
+          <div style="padding: 20px;">
+            <label style="font-size: 0.88rem; font-weight: 700; color: #334155; display: block; margin-bottom: 6px;">
+              📝 ระบุรายการที่ต้องการให้แอดมินแก้ไข: <span style="color: #dc2626;">*</span>
+            </label>
+            <p style="font-size: 0.8rem; color: #64748b; margin-top: 0; margin-bottom: 10px; line-height: 1.45;">
+              ข้อความนี้จะแสดงเป็น <strong>การแจ้งเตือนและรายการแก้ไขที่ต้องปรับปรุง</strong> ให้แอดมินเห็นอย่างชัดเจนในหน้าจัดรถ
+            </p>
+
+            <textarea 
+              id="return-reason-textarea" 
+              class="form-control" 
+              rows="5" 
+              placeholder="ตัวอย่างเช่น:&#10;1. คันที่ 1 (7ข-3942): ขอให้เปลี่ยนคนขับจากคุณสมชาย เป็นคุณประเสริฐ&#10;2. คันที่ 2: ปรับเวลาออกเดินทางล่วงหน้าเป็น 07:30 น.&#10;3. คันที่ 3: สลับจัดรถตู้แทนรถเก๋งเพื่อรองรับสัมภาระ"
+              style="font-size: 0.9rem; line-height: 1.5; padding: 10px 12px; width: 100%; border: 1.5px solid #cbd5e1; border-radius: 8px; box-sizing: border-box;"
+            >${escapeHtml(initialText || '')}</textarea>
+
+            <div style="margin-top: 12px; font-size: 0.78rem; color: #475569; background: #f8fafc; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between;">
+              <span>👔 ผู้อนุมัติที่ส่งกลับ: <strong>${escapeHtml(approverName)}</strong></span>
+              <span style="color: #94a3b8;">ส่งกลับไปยังหน้าแอดมิน</span>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+              <button type="button" id="btn-cancel-return-modal" class="btn-secondary" style="padding: 8px 16px; font-size: 0.88rem;">
+                ยกเลิก
+              </button>
+              <button type="button" id="btn-confirm-return-modal" class="btn-primary" style="background: #e11d48; padding: 8px 22px; font-size: 0.9rem; font-weight: 700; box-shadow: 0 2px 4px rgba(225,29,72,0.25);">
+                ✓ ยืนยันส่งกลับให้แอดมินแก้ไข
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const modalElem = document.getElementById('return-schedule-modal');
+    const textarea = document.getElementById('return-reason-textarea');
+    if (textarea) {
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+    }
+
+    const closeModal = () => {
+      if (modalElem) modalElem.remove();
+    };
+
+    document.getElementById('btn-close-return-modal')?.addEventListener('click', closeModal);
+    document.getElementById('btn-cancel-return-modal')?.addEventListener('click', closeModal);
+
+    document.getElementById('btn-confirm-return-modal')?.addEventListener('click', () => {
+      const reason = textarea ? textarea.value.trim() : '';
+      if (!reason) {
+        alert('กรุณาระบุรายการที่ต้องการให้แอดมินแก้ไข เพื่อให้แอดมินปรับปรุงข้อมูลได้ถูกต้องครับ');
+        if (textarea) textarea.focus();
+        return;
+      }
+      closeModal();
+      onConfirm(reason);
+    });
+  }
+
   // =========================================================================
   // Events Binding
   // =========================================================================
@@ -729,7 +816,7 @@ export function renderApproverView(container) {
       });
     });
 
-    // Return Schedule to Admin for Edits
+    // Return Schedule to Admin for Edits (ส่งตารางกลับพร้อมรายการแก้ไข)
     container.querySelectorAll('.btn-return-schedule-admin').forEach(btn => {
       btn.addEventListener('click', () => {
         const dateIso = btn.getAttribute('data-date');
@@ -737,22 +824,20 @@ export function renderApproverView(container) {
         const approverName = card?.querySelector('.sched-approver-name')?.value.trim() || 'เกรียงไกร มีอำนาจ (ผู้จัดการฝ่าย)';
         const inputRemark = card?.querySelector('.sched-approver-remark')?.value.trim() || '';
 
-        let reason = inputRemark;
-        if (!reason) {
-          reason = prompt('กรุณาระบุสิ่งที่ต้องการให้แอดมินแก้ไขเพิ่มเติมในตารางจัดรถ:', 'ขอให้ปรับเปลี่ยนคนขับหรือจัดคิวรถใหม่');
-        }
-
-        if (reason !== null && reason.trim()) {
+        openReturnScheduleModal(dateIso, inputRemark, approverName, (reason) => {
           saveScheduleApprovalMeta(dateIso, {
-            status: 'draft',
+            status: 'returned',
+            returnedAt: new Date().toISOString(),
+            returnedBy: approverName,
+            returnReason: reason.trim(),
             confirmedAt: null,
             confirmedBy: null,
             remark: `ผู้อนุมัติส่งกลับแก้ไข: ${reason.trim()} (โดย ${approverName})`
           });
 
-          showToast(`ส่งตารางจัดรถวันที่ ${formatThaiDate(dateIso).short} กลับให้แอดมินแก้ไขเรียบร้อย`);
+          showToast(`✓ ส่งตารางจัดรถวันที่ ${formatThaiDate(dateIso).short} กลับให้แอดมินแก้ไข พร้อมแจ้งเตือนรายการแก้ไขเรียบร้อยแล้ว`);
           render();
-        }
+        });
       });
     });
 
