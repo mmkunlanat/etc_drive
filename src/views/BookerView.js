@@ -18,6 +18,7 @@ import {
   resetQuickKeywords
 } from '../store.js';
 import { renderPaperModal } from '../components/PaperModal.js';
+import { bind24hClockPickers, openClockPicker } from '../components/ClockPicker24h.js';
 
 export function renderBookerView(container) {
   let activeSubTab = 'history'; // 'history' | 'form' (แสดงประวัติการจองของฉันก่อน)
@@ -272,22 +273,10 @@ export function renderBookerView(container) {
     return clean;
   }
 
-  function render24hDatalist() {
-    const times = [];
-    for (let h = 0; h < 24; h++) {
-      const hh = String(h).padStart(2, '0');
-      times.push(`${hh}:00`);
-      times.push(`${hh}:30`);
-    }
-    return `
-      <datalist id="time-list-24h">
-        ${times.map(t => `<option value="${t}">${t} น.</option>`).join('')}
-      </datalist>
-    `;
-  }
-
   function bind24hTimeInputs(scope) {
     const root = scope || container;
+    bind24hClockPickers(root);
+
     root.querySelectorAll('.time-input-24h').forEach(input => {
       if (input.dataset.bound24h) return;
       input.dataset.bound24h = 'true';
@@ -468,10 +457,10 @@ export function renderBookerView(container) {
           </div>
 
           <!-- Third Row: Usage Date & Time Range (ENFORCES 1-DAY ADVANCE) -->
-          <div class="form-grid-3" style="background: #f1f5f9; padding: 1rem; border-radius: var(--radius-md); border: 1.5px dashed #cbd5e1;">
+          <div class="booking-datetime-row">
             
-            <div class="form-group">
-              <label class="form-label" for="usageDate">
+            <div class="form-group usage-date-col">
+              <label class="form-label" for="usageDate" style="white-space: nowrap;">
                 <span>📅 วันที่ใช้งาน</span>
                 <span class="required">* (ล่วงหน้า 1 วัน)</span>
               </label>
@@ -483,17 +472,17 @@ export function renderBookerView(container) {
                 value="${currentUsageDate}" 
                 required 
               />
-              <div id="usageDate-thai-preview" style="font-size: 0.78rem; font-weight: 600; color: #1d4ed8; margin-top: 3px;">
+              <div id="usageDate-thai-preview" style="font-size: 0.78rem; font-weight: 600; color: #1d4ed8; margin-top: 4px; white-space: nowrap;">
                 ${formatThaiDate(currentUsageDate).full}
               </div>
             </div>
 
-            <div class="form-group">
+            <div class="form-group usage-time-col">
               <label class="form-label" for="startTime">
-                <span> ตั้งแต่เวลา</span>
+                <span>⏰ ตั้งแต่เวลา</span>
                 <span class="required">*</span>
               </label>
-              <div class="input-group">
+              <div class="input-group time-picker-group">
                 <input 
                   type="text" 
                   id="startTime" 
@@ -501,20 +490,23 @@ export function renderBookerView(container) {
                   value="${escapeHtml(currentStartTime)}" 
                   placeholder="08:30" 
                   maxlength="5"
-                  list="time-list-24h"
                   autocomplete="off"
+                  title="คลิกเพื่อเปิดหน้าปัดนาฬิกา 24 ชั่วโมง หรือพิมพ์เวลา"
                   required 
                 />
-                <span class="input-addon">น.</span>
+                <button type="button" class="btn-clock-trigger input-addon" title="เปิดหน้าปัดนาฬิกา 24 ชม.">
+                  <span>🕒</span>
+                  <span class="time-unit-label">น.</span>
+                </button>
               </div>
             </div>
 
-            <div class="form-group">
+            <div class="form-group usage-time-col">
               <label class="form-label" for="endTime">
-                <span> ถึงเวลา</span>
+                <span>⏰ ถึงเวลา</span>
                 <span class="required">*</span>
               </label>
-              <div class="input-group">
+              <div class="input-group time-picker-group">
                 <input 
                   type="text" 
                   id="endTime" 
@@ -522,18 +514,18 @@ export function renderBookerView(container) {
                   value="${escapeHtml(currentEndTime)}" 
                   placeholder="17:00" 
                   maxlength="5"
-                  list="time-list-24h"
                   autocomplete="off"
+                  title="คลิกเพื่อเปิดหน้าปัดนาฬิกา 24 ชั่วโมง หรือพิมพ์เวลา"
                   required 
                 />
-                <span class="input-addon">น.</span>
+                <button type="button" class="btn-clock-trigger input-addon" title="เปิดหน้าปัดนาฬิกา 24 ชม.">
+                  <span>🕒</span>
+                  <span class="time-unit-label">น.</span>
+                </button>
               </div>
             </div>
 
           </div>
-
-          <!-- 24-Hour Time Datalist Preset -->
-          ${render24hDatalist()}
 
           <!-- Itinerary Table (ตารางรายละเอียดการใช้รถ 1 - 6) -->
           <div class="itinerary-section">
@@ -651,10 +643,10 @@ export function renderBookerView(container) {
               value="${time}" 
               placeholder="09:00"
               maxlength="5"
-              list="time-list-24h"
               autocomplete="off"
+              title="คลิกเพื่อเปิดหน้าปัดนาฬิกา 24 ชั่วโมง หรือพิมพ์เวลา"
             />
-            <span class="input-addon">น.</span>
+            <button type="button" class="btn-clock-trigger input-addon" title="เปิดหน้าปัดนาฬิกา 24 ชม.">🕒</button>
           </div>
         </td>
         <td>
@@ -699,20 +691,34 @@ export function renderBookerView(container) {
         <div class="card-header-flex">
           <div class="card-title-group">
             <h2>
-              <span></span>
-              <span></span>
+              <span>📋</span>
+              <span>ประวัติและสถานะการขอใช้รถของฉัน</span>
             </h2>
             <p>ติดตามตารางการใช้รถ ตรวจสอบสถานะคำขอ และพิมพ์แบบฟอร์ม</p>
           </div>
           <div class="history-top-actions">
-            <button type="button" id="btn-open-cal-modal" class="btn-outline-blue" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 0.85rem; font-weight: 600;">
-              <span>📅</span>
-              <span></span>
-            </button>
+            <div class="booker-date-picker-wrap" style="display: inline-flex; align-items: center; gap: 6px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 4px 10px;">
+              <label for="booker-history-date-picker" style="font-size: 0.88rem; font-weight: 600; color: #475569; display: inline-flex; align-items: center; gap: 4px; margin: 0; cursor: pointer;">
+                <span>📅</span>
+                <span style="font-size: 0.82rem;">ค้นหาวันที่:</span>
+              </label>
+              <input 
+                type="date" 
+                id="booker-history-date-picker" 
+                class="dispatch-date-picker-input" 
+                value="${historyFilter.startDate || ''}" 
+                title="เลือกวันที่เพื่อกรองประวัติการขอใช้รถ"
+                style="padding: 4px 8px; font-size: 0.85rem; border: 1px solid #94a3b8; border-radius: 6px; background: #ffffff; color: #0f172a; cursor: pointer;"
+              />
+              ${historyFilter.startDate ? `
+                <button type="button" id="btn-clear-date-filter" class="btn-clear-filter" style="font-size: 0.78rem; padding: 3px 8px; border-radius: 5px; cursor: pointer;" title="ล้างการเลือกวันที่ (แสดงทั้งหมด)">
+                  ✕ ทั้งหมด
+                </button>
+              ` : ''}
+            </div>
             <button id="btn-create-new-top" class="btn-primary" style="padding: 6px 14px; font-size: 0.85rem;">
               <span>+ กรอกใบขอใช้รถ</span>
             </button>
-              
           </div>
         </div>
 
@@ -1149,10 +1155,42 @@ export function renderBookerView(container) {
       });
     });
 
+    // Booker History Date Picker Filter
+    const bookerDateInput = document.getElementById('booker-history-date-picker');
+    if (bookerDateInput) {
+      bookerDateInput.addEventListener('change', (e) => {
+        const val = e.target.value;
+        if (val) {
+          historyFilter.startDate = val;
+          historyFilter.endDate = val;
+          historyFilter.preset = 'custom';
+        } else {
+          historyFilter = { preset: 'all', startDate: '', endDate: '' };
+        }
+        render();
+      });
+    }
+
+    const btnClearDate = document.getElementById('btn-clear-date-filter');
+    if (btnClearDate) {
+      btnClearDate.addEventListener('click', () => {
+        historyFilter = { preset: 'all', startDate: '', endDate: '' };
+        render();
+      });
+    }
+
     // Reset filter text button
     const btnResetFilterText = document.getElementById('btn-reset-filter-text');
     if (btnResetFilterText) {
       btnResetFilterText.addEventListener('click', () => {
+        historyFilter = { preset: 'all', startDate: '', endDate: '' };
+        render();
+      });
+    }
+
+    const btnResetFilterInline = document.getElementById('btn-reset-filter-inline');
+    if (btnResetFilterInline) {
+      btnResetFilterInline.addEventListener('click', () => {
         historyFilter = { preset: 'all', startDate: '', endDate: '' };
         render();
       });
