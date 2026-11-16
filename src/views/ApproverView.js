@@ -444,13 +444,6 @@ export function renderApproverView(container) {
                     value="เกรียงไกร มีอำนาจ (ผู้จัดการฝ่าย)" 
                     style="font-size: 0.85rem; padding: 5px 8px;" 
                   />
-                  
-                  <input 
-                    type="text" 
-                    class="form-control approver-remark-input" 
-                    placeholder="ความเห็นหรือเหตุผลที่ไม่อนุมัติ / หมายเหตุประกอบ" 
-                    style="font-size: 0.8rem; padding: 6px 8px; margin-top: 5px;" 
-                  />
                 </div>
               </div>
 
@@ -741,6 +734,99 @@ export function renderApproverView(container) {
     });
   }
 
+  // Modal dialog for Approver to specify rejection reason for an individual booking request
+  function openRejectBookingModal(booking, approverName, onConfirm) {
+    const existingModal = document.getElementById('reject-booking-modal');
+    if (existingModal) existingModal.remove();
+
+    const usageDateIso = booking.usageDate || booking.bookingDate || '';
+    const thaiDate = usageDateIso ? formatThaiDate(usageDateIso) : null;
+    const dateSubtitle = thaiDate ? `ประจำวันที่: <strong>${thaiDate.full}</strong>` : `รหัสคำขอ: <strong>${escapeHtml(booking.id)}</strong>`;
+
+    const modalHtml = `
+      <div id="reject-booking-modal" class="modal-overlay" style="position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 1rem; backdrop-filter: blur(2px);">
+        <div class="modal-content-card" style="background: #fff; width: 100%; max-width: 540px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.25); overflow: hidden; border: 1.5px solid #fecaca; animation: modalFadeIn 0.2s ease;">
+          
+          <div style="background: #fff1f2; border-bottom: 1.5px solid #fecaca; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 1.5rem;">💬</span>
+              <div>
+                <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: #9f1239;">
+                  ไม่อนุมัติคำขอใช้รถ (รหัส ${escapeHtml(booking.id)})
+                </h3>
+                <div style="font-size: 0.8rem; color: #be123c; margin-top: 2px;">
+                  ${dateSubtitle} · ผู้ขอ: <strong>${escapeHtml(booking.bookerName || '-')}</strong> (${escapeHtml(booking.department || '-')})
+                </div>
+              </div>
+            </div>
+            <button type="button" id="btn-close-reject-modal" style="background: none; border: none; font-size: 1.3rem; color: #9f1239; cursor: pointer; padding: 4px;">✕</button>
+          </div>
+
+          <div style="padding: 20px;">
+            <label style="font-size: 0.88rem; font-weight: 700; color: #334155; display: block; margin-bottom: 6px;">
+              📝 ระบุเหตุผลที่ไม่อนุมัติคำขอนี้: <span style="color: #dc2626;">*</span>
+            </label>
+            <p style="font-size: 0.8rem; color: #64748b; margin-top: 0; margin-bottom: 10px; line-height: 1.45;">
+              ข้อความนี้จะแสดงเป็น <strong>เหตุผลประกอบการไม่อนุมัติ</strong> ให้ผู้ขอใช้รถทราบในระบบ
+            </p>
+
+            <textarea 
+              id="reject-reason-textarea" 
+              class="form-control" 
+              rows="5" 
+              placeholder="ตัวอย่างเช่น:&#10;1. ติดภารกิจอื่น ไม่สอดคล้องกับระเบียบการใช้รถส่วนกลาง&#10;2. ขอให้ใช้การประชุมออนไลน์แทนการเดินทาง&#10;3. ไม่มีรถว่างรองรับในช่วงวัน-เวลาดังกล่าว (ขอให้เลื่อนกำหนดการเดินทาง)"
+              style="font-size: 0.9rem; line-height: 1.5; padding: 10px 12px; width: 100%; border: 1.5px solid #cbd5e1; border-radius: 8px; box-sizing: border-box;"
+            ></textarea>
+
+            <div style="margin-top: 12px; font-size: 0.78rem; color: #475569; background: #f8fafc; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between;">
+              <span>👔 ผู้อนุมัติที่ไม่อนุมัติ: <strong>${escapeHtml(approverName)}</strong></span>
+              <span style="color: #94a3b8;">แจ้งผลไปยังผู้ขอใช้รถ</span>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+              <button type="button" id="btn-cancel-reject-modal" class="btn-secondary" style="padding: 8px 16px; font-size: 0.88rem;">
+                ยกเลิก
+              </button>
+              <button type="button" id="btn-confirm-reject-modal" class="btn-primary" style="background: #e11d48; padding: 8px 22px; font-size: 0.9rem; font-weight: 700; box-shadow: 0 2px 4px rgba(225,29,72,0.25);">
+                ✓ ยืนยันไม่อนุมัติคำขอ
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const modalElem = document.getElementById('reject-booking-modal');
+    const textarea = document.getElementById('reject-reason-textarea');
+    if (textarea) {
+      textarea.focus();
+    }
+
+    const closeModal = () => {
+      if (modalElem) modalElem.remove();
+    };
+
+    document.getElementById('btn-close-reject-modal')?.addEventListener('click', closeModal);
+    document.getElementById('btn-cancel-reject-modal')?.addEventListener('click', closeModal);
+
+    document.getElementById('btn-confirm-reject-modal')?.addEventListener('click', () => {
+      const reason = textarea ? textarea.value.trim() : '';
+      if (!reason) {
+        alert('กรุณาระบุเหตุผลที่ไม่อนุมัติ เพื่อแจ้งให้ผู้ขอใช้รถทราบครับ');
+        if (textarea) textarea.focus();
+        return;
+      }
+      closeModal();
+      onConfirm(reason);
+    });
+
+    modalElem?.addEventListener('click', (e) => {
+      if (e.target === modalElem) closeModal();
+    });
+  }
+
   // =========================================================================
   // Events Binding
   // =========================================================================
@@ -859,44 +945,39 @@ export function renderApproverView(container) {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
         const card = btn.closest('.approval-card');
-        const sigName = card.querySelector('.approver-name-input').value.trim() || 'ผู้อนุมัติฝ่าย';
-        const remark = card.querySelector('.approver-remark-input').value.trim();
+        const sigName = card?.querySelector('.approver-name-input')?.value.trim() || 'ผู้อนุมัติฝ่าย';
 
         updateBooking(id, {
           status: 'approved',
           statusLabel: 'อนุมัติแล้ว (รอจัดสรรรถ/คนขับ)',
           approverSignature: sigName,
-          approverRemark: remark || 'อนุมัติตามระเบียบการใช้รถ'
+          approverRemark: 'อนุมัติตามระเบียบการใช้รถ'
         });
 
-        showToast(`อนุมัติคำขอ ${id} สำเร็จแล้ว ส่งต่อให้ฝ่ายสำนักงานจัดรถ`);
+        showToast(`✓ อนุมัติคำขอ ${id} สำเร็จแล้ว ส่งต่อให้ฝ่ายสำนักงานจัดรถ`);
         render();
       });
     });
 
-    // Reject Individual Request
+    // Reject Individual Request (Modal Dialog Pop-up)
     container.querySelectorAll('.btn-reject-req').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
         const card = btn.closest('.approval-card');
         const sigName = card ? (card.querySelector('.approver-name-input')?.value.trim() || 'ผู้อนุมัติฝ่าย') : 'ผู้อนุมัติฝ่าย';
-        const inputRemark = card ? card.querySelector('.approver-remark-input')?.value.trim() : '';
+        const targetBooking = getAllBookings().find(b => b.id === id);
+        if (!targetBooking) return;
 
-        let reason = inputRemark;
-        if (!reason) {
-          reason = prompt('กรุณาระบุเหตุผลที่ไม่อนุมัติคำขอนี้ เพื่อแจ้งให้ผู้ขอทราบ:', 'ติดภารกิจอื่น / ไม่สอดคล้องกับระเบียบการใช้รถส่วนกลาง');
-        }
-
-        if (reason !== null && reason.trim()) {
+        openRejectBookingModal(targetBooking, sigName, (reason) => {
           updateBooking(id, {
             status: 'rejected',
             statusLabel: 'ไม่อนุมัติ',
             approverSignature: sigName,
             approverRemark: reason.trim()
           });
-          showToast(`บันทึกผลไม่อนุมัติคำขอ ${id} เรียบร้อยแล้ว`);
+          showToast(`✓ บันทึกผลไม่อนุมัติคำขอ ${id} เรียบร้อยแล้ว`);
           render();
-        }
+        });
       });
     });
   }
