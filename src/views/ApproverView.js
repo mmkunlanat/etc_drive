@@ -265,30 +265,16 @@ export function renderApproverView(container) {
                   <span>การลงนามพิจารณาและยืนยันตารางจัดรถ (ประจำวันที่ ${thaiDate.short})</span>
                 </div>
 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-bottom: 1rem;">
-                  <div>
-                    <label style="font-size: 0.78rem; font-weight: 700; color: #475569; display: block; margin-bottom: 4px;">
-                      ชื่อ-นามสกุล ผู้อนุมัติ / ตำแหน่ง:
-                    </label>
-                    <input 
-                      type="text" 
-                      class="form-control sched-approver-name" 
-                      value="เกรียงไกร มีอำนาจ (ผู้จัดการฝ่าย)" 
-                      style="font-size: 0.88rem; padding: 6px 10px;"
-                    />
-                  </div>
-
-                  <div>
-                    <label style="font-size: 0.78rem; font-weight: 700; color: #475569; display: block; margin-bottom: 4px;">
-                      ความเห็นประกอบการอนุมัติ / ข้อกำชับเพิ่มเติม (ถ้ามี):
-                    </label>
-                    <input 
-                      type="text" 
-                      class="form-control sched-approver-remark" 
-                      placeholder="เช่น อนุมัติตามตารางจัดรถ ขอให้คนขับขับขี่ด้วยความปลอดภัยและตรงต่อเวลา" 
-                      style="font-size: 0.85rem; padding: 6px 10px;"
-                    />
-                  </div>
+                <div style="margin-bottom: 1rem; max-width: 360px;">
+                  <label style="font-size: 0.78rem; font-weight: 700; color: #475569; display: block; margin-bottom: 4px;">
+                    ชื่อ-นามสกุล ผู้อนุมัติ / ตำแหน่ง:
+                  </label>
+                  <input 
+                    type="text" 
+                    class="form-control sched-approver-name" 
+                    value="เกรียงไกร มีอำนาจ (ผู้จัดการฝ่าย)" 
+                    style="font-size: 0.88rem; padding: 6px 10px;"
+                  />
                 </div>
 
                 <!-- Action Buttons -->
