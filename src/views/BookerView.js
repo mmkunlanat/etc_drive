@@ -691,20 +691,34 @@ export function renderBookerView(container) {
         <div class="card-header-flex">
           <div class="card-title-group">
             <h2>
-              <span></span>
-              <span></span>
+              <span>📋</span>
+              <span>ประวัติและสถานะการขอใช้รถของฉัน</span>
             </h2>
             <p>ติดตามตารางการใช้รถ ตรวจสอบสถานะคำขอ และพิมพ์แบบฟอร์ม</p>
           </div>
           <div class="history-top-actions">
-            <button type="button" id="btn-open-cal-modal" class="btn-outline-blue" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 0.85rem; font-weight: 600;">
-              <span>📅</span>
-              <span></span>
-            </button>
+            <div class="booker-date-picker-wrap" style="display: inline-flex; align-items: center; gap: 6px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 4px 10px;">
+              <label for="booker-history-date-picker" style="font-size: 0.88rem; font-weight: 600; color: #475569; display: inline-flex; align-items: center; gap: 4px; margin: 0; cursor: pointer;">
+                <span>📅</span>
+                <span style="font-size: 0.82rem;">ค้นหาวันที่:</span>
+              </label>
+              <input 
+                type="date" 
+                id="booker-history-date-picker" 
+                class="dispatch-date-picker-input" 
+                value="${historyFilter.startDate || ''}" 
+                title="เลือกวันที่เพื่อกรองประวัติการขอใช้รถ"
+                style="padding: 4px 8px; font-size: 0.85rem; border: 1px solid #94a3b8; border-radius: 6px; background: #ffffff; color: #0f172a; cursor: pointer;"
+              />
+              ${historyFilter.startDate ? `
+                <button type="button" id="btn-clear-date-filter" class="btn-clear-filter" style="font-size: 0.78rem; padding: 3px 8px; border-radius: 5px; cursor: pointer;" title="ล้างการเลือกวันที่ (แสดงทั้งหมด)">
+                  ✕ ทั้งหมด
+                </button>
+              ` : ''}
+            </div>
             <button id="btn-create-new-top" class="btn-primary" style="padding: 6px 14px; font-size: 0.85rem;">
               <span>+ กรอกใบขอใช้รถ</span>
             </button>
-              
           </div>
         </div>
 
@@ -1141,10 +1155,42 @@ export function renderBookerView(container) {
       });
     });
 
+    // Booker History Date Picker Filter
+    const bookerDateInput = document.getElementById('booker-history-date-picker');
+    if (bookerDateInput) {
+      bookerDateInput.addEventListener('change', (e) => {
+        const val = e.target.value;
+        if (val) {
+          historyFilter.startDate = val;
+          historyFilter.endDate = val;
+          historyFilter.preset = 'custom';
+        } else {
+          historyFilter = { preset: 'all', startDate: '', endDate: '' };
+        }
+        render();
+      });
+    }
+
+    const btnClearDate = document.getElementById('btn-clear-date-filter');
+    if (btnClearDate) {
+      btnClearDate.addEventListener('click', () => {
+        historyFilter = { preset: 'all', startDate: '', endDate: '' };
+        render();
+      });
+    }
+
     // Reset filter text button
     const btnResetFilterText = document.getElementById('btn-reset-filter-text');
     if (btnResetFilterText) {
       btnResetFilterText.addEventListener('click', () => {
+        historyFilter = { preset: 'all', startDate: '', endDate: '' };
+        render();
+      });
+    }
+
+    const btnResetFilterInline = document.getElementById('btn-reset-filter-inline');
+    if (btnResetFilterInline) {
+      btnResetFilterInline.addEventListener('click', () => {
         historyFilter = { preset: 'all', startDate: '', endDate: '' };
         render();
       });
