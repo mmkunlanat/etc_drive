@@ -36,16 +36,20 @@ export function renderAdminView(container) {
   // Load schedule for selected date
   function loadSchedule() {
     const rawRows = getDispatchSchedule(selectedDate);
-    // Normalize data
-    rows = rawRows.map(r => ({
-      ...r,
-      itineraryText: r.itineraryText || (Array.isArray(r.itineraryLines) ? r.itineraryLines.join('\n') : ''),
-      comment: r.comment || '',
-      plateColor: r.plateColor || 'yellow',
-      timeColor: r.timeColor || 'default',
-      linkedBookingIds: r.linkedBookingIds || [],
-      vehicleStatus: r.vehicleStatus || null
-    }));
+    // Normalize data and clean up redundant consecutive empty newlines
+    rows = rawRows.map(r => {
+      const rawText = r.itineraryText || (Array.isArray(r.itineraryLines) ? r.itineraryLines.join('\n') : '');
+      const cleanText = rawText ? rawText.replace(/\n\s*\n+/g, '\n').trim() : '';
+      return {
+        ...r,
+        itineraryText: cleanText,
+        comment: r.comment || '',
+        plateColor: r.plateColor || 'yellow',
+        timeColor: r.timeColor || 'default',
+        linkedBookingIds: r.linkedBookingIds || [],
+        vehicleStatus: r.vehicleStatus || null
+      };
+    });
   }
 
   // Determine if a vehicle row is available or busy
@@ -1304,9 +1308,10 @@ export function renderAdminView(container) {
         const rowId = e.target.getAttribute('data-row-id');
         const field = e.target.getAttribute('data-field');
         
-        // Strip out remove buttons to keep clean text
+        // Strip out remove buttons and dynamic order prefixes to keep clean text
         const clone = e.target.cloneNode(true);
         clone.querySelectorAll('.btn-remove-job-item').forEach(b => b.remove());
+        clone.querySelectorAll('.dispatch-job-order').forEach(o => o.remove());
         clone.querySelectorAll('.dispatch-job-separator').forEach(s => {
           s.replaceWith(' / ');
         });
@@ -1823,8 +1828,8 @@ export function renderAdminView(container) {
     return '';
   }
 
-  // Format job itinerary stop text including destination, detail, time, and passengers
-  function formatJobItineraryText(item, booking = null) {
+  // Format job itinerary stop text including destination, detail, time, passengers, and optional order number
+  function formatJobItineraryText(item, booking = null, orderNumber = null) {
     const dest = item.destination ? item.destination.trim() : '';
     const detail = item.detail ? item.detail.trim() : '';
     const time = extractJobTime(item, booking);
@@ -1838,15 +1843,23 @@ export function renderAdminView(container) {
 
     const metaParts = [timeStr, passStr].filter(Boolean).join(' / ');
 
+    let mainText = '';
     if (dest && detail && dest !== detail) {
       const inner = [detail, metaParts].filter(Boolean).join(' ');
-      return `${dest} (${inner})`;
+      mainText = `${dest} (${inner})`;
     } else if (dest) {
-      return metaParts ? `${dest} (${metaParts})` : dest;
+      mainText = metaParts ? `${dest} (${metaParts})` : dest;
     } else if (detail) {
-      return metaParts ? `${detail} (${metaParts})` : detail;
+      mainText = metaParts ? `${detail} (${metaParts})` : detail;
+    } else {
+      mainText = metaParts ? `ภารกิจ (${metaParts})` : '';
     }
-    return metaParts ? `ภารกิจ (${metaParts})` : '';
+
+    const order = (orderNumber !== null && orderNumber !== undefined) ? orderNumber : (item ? item.no : null);
+    if (order && !mainText.match(/^\s*\d+[\.\)]/)) {
+      return `${order}. ${mainText}`;
+    }
+    return mainText;
   }
 
   // Booker Request Picker Modal - allows Admin to select undispatched jobs to fill into the car row
@@ -2235,8 +2248,16 @@ export function renderAdminView(container) {
             booking.assignedDate = selectedDate;
             updateBooking(booking.id, booking);
 
-            // Build text for this booking's picked stops with individual job times
-            const stopsText = pickedStops.map(item => formatJobItineraryText(item, booking)).filter(Boolean).join(' / ');
+            // Count existing jobs in targetRow to continue order numbering smoothly
+            let existingCount = (targetRow.itineraryText || '').split('\n')
+              .flatMap(l => splitJobsFromLine(l))
+              .filter(Boolean).length;
+
+            // Build text for this booking's picked stops with individual job times and order numbers
+            const stopsText = pickedStops.map(item => {
+              existingCount++;
+              return formatJobItineraryText(item, booking, existingCount);
+            }).filter(Boolean).join('\n');
 
             if (stopsText) {
               allCollectedTexts.push(stopsText);
@@ -2269,14 +2290,14 @@ export function renderAdminView(container) {
           // Update structured itinerary on targetRow
           targetRow.itinerary = [...(targetRow.itinerary || []), ...allPickedStops];
 
-          // Append or set itinerary text
-          const combinedNewText = allCollectedTexts.join('\n');
+          // Append or set itinerary text without redundant consecutive empty lines
+          const combinedNewText = allCollectedTexts.filter(t => t && t.trim()).join('\n');
           if (targetRow.itineraryText && targetRow.itineraryText.trim()) {
-            targetRow.itineraryText = `${targetRow.itineraryText.trim()}\n${combinedNewText}`;
+            targetRow.itineraryText = `${targetRow.itineraryText.trim()}\n${combinedNewText}`.replace(/\n\s*\n+/g, '\n').trim();
           } else {
-            targetRow.itineraryText = combinedNewText;
+            targetRow.itineraryText = combinedNewText.replace(/\n\s*\n+/g, '\n').trim();
           }
-          targetRow.itineraryLines = (targetRow.itineraryText || '').split('\n');
+          targetRow.itineraryLines = (targetRow.itineraryText || '').split('\n').filter(Boolean);
           targetRow.showItineraryBox = true;
 
           saveCurrentSchedule();
@@ -2351,14 +2372,23 @@ export function renderAdminView(container) {
     // Update structured itinerary
     row.itinerary = [...(row.itinerary || []), ...activeStops];
 
-    // Format itinerary stops text with each job's time
-    const stopsText = activeStops.map(item => formatJobItineraryText(item, booking)).filter(Boolean).join(' / ');
+    // Count existing jobs in row to continue order numbering smoothly
+    let existingCount = (row.itineraryText || '').split('\n')
+      .flatMap(l => splitJobsFromLine(l))
+      .filter(Boolean).length;
+
+    // Format itinerary stops text with each job's time and order numbers
+    const stopsText = activeStops.map(item => {
+      existingCount++;
+      return formatJobItineraryText(item, booking, existingCount);
+    }).filter(Boolean).join('\n');
 
     if (row.itineraryText && row.itineraryText.trim()) {
-      row.itineraryText = `${row.itineraryText.trim()}\n${stopsText}`;
+      row.itineraryText = `${row.itineraryText.trim()}\n${stopsText}`.replace(/\n\s*\n+/g, '\n').trim();
     } else {
-      row.itineraryText = stopsText;
+      row.itineraryText = stopsText.replace(/\n\s*\n+/g, '\n').trim();
     }
+    row.itineraryLines = (row.itineraryText || '').split('\n').filter(Boolean);
     row.showItineraryBox = true;
 
     if (!row.linkedBookingIds) row.linkedBookingIds = [];
@@ -3092,20 +3122,35 @@ export function renderAdminView(container) {
       return isLinked;
     }) : [];
 
-    const lines = text.split('\n');
-    return lines.map(line => {
-      if (!line.trim()) {
-        return '<div class="dispatch-itinerary-line">&nbsp;</div>';
-      }
+    let jobGlobalCounter = 0;
+    // Filter out empty lines completely to prevent excessive vertical gaps between jobs
+    const validLines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    if (validLines.length === 0) return '';
 
+    return validLines.map(line => {
       // Split line into individual jobs
       const jobs = splitJobsFromLine(line);
       if (jobs.length === 0) {
-        return '<div class="dispatch-itinerary-line">&nbsp;</div>';
+        return '';
       }
 
       const formattedJobs = jobs.map(job => {
-        let formatted = escapeHtml(job);
+        jobGlobalCounter++;
+        const rawJobTrim = job.trim();
+
+        // Check if job text already has order number prefix (e.g. "1. ", "1) ", "ลำดับที่ 1: ")
+        const orderMatch = rawJobTrim.match(/^(\d+[\.\)]|ลำดับที่\s*\d+[:\.]?)\s*(.*)$/);
+        let orderPrefix = '';
+        let jobContent = rawJobTrim;
+
+        if (orderMatch) {
+          orderPrefix = orderMatch[1].endsWith('.') ? orderMatch[1] : `${orderMatch[1]}.`;
+          jobContent = orderMatch[2];
+        } else {
+          orderPrefix = `${jobGlobalCounter}.`;
+        }
+
+        let formatted = escapeHtml(jobContent);
         // Highlight time ranges e.g. "เวลา 13.00-16.30 น.", "เวลา 13.00 - 17.00 น.", "18.00 น."
         formatted = formatted.replace(/(เวลา\s*\d{1,2}[\.:]\d{2}\s*[-–]\s*\d{1,2}[\.:]\d{2}\s*น\.)/g, '<span style="color: #dc2626; font-weight: 600;">$1</span>');
         formatted = formatted.replace(/(\b\d{1,2}[\.:]\d{2}\s*น\.)/g, '<span style="color: #dc2626; font-weight: 600;">$1</span>');
@@ -3137,7 +3182,8 @@ export function renderAdminView(container) {
         const itNoAttr = matchedItemNo ? `data-item-no="${escapeHtml(matchedItemNo)}"` : '';
 
         return `
-          <span class="dispatch-job-segment" style="display: inline-flex; align-items: center; margin-right: 2px;">
+          <span class="dispatch-job-segment" style="display: inline-flex; align-items: baseline; margin-right: 2px;">
+            <span class="dispatch-job-order font-bold" style="color: #1e40af; margin-right: 5px; flex-shrink: 0;" contenteditable="false">${escapeHtml(orderPrefix)}</span>
             <span>${formatted}</span>
             <button 
               type="button" 
@@ -3154,7 +3200,7 @@ export function renderAdminView(container) {
       });
 
       return `<div class="dispatch-itinerary-line">${formattedJobs.join('<span class="dispatch-job-separator" style="color: #94a3b8; margin: 0 4px; font-weight: 600;" contenteditable="false">/</span>')}</div>`;
-    }).join('');
+    }).filter(Boolean).join('');
   }
 
   render();

@@ -3947,16 +3947,17 @@ body {
 /* Itinerary Details Box */
 .dispatch-itinerary-cell {
   background-color: #ffffff;
-  padding: 8px 12px !important;
+  padding: 6px 12px !important;
   text-align: left;
-  line-height: 1.6;
-  font-size: 0.92rem;
+  line-height: 1.45;
+  font-size: 0.9rem;
   border-top: 1px solid #000000;
   border-bottom: 1px solid #000000;
 }
 
 .dispatch-itinerary-line {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+  line-height: 1.45;
 }
 
 .dispatch-itinerary-line:last-child {
@@ -4001,6 +4002,13 @@ body {
 
 .dispatch-job-segment {
   display: inline;
+}
+
+.dispatch-job-order {
+  color: #1e40af;
+  font-weight: 800;
+  margin-right: 5px;
+  user-select: none;
 }
 
 @media print {
@@ -4066,16 +4074,16 @@ body {
   width: 100%;
   border: 1px dashed transparent;
   background: transparent;
-  padding: 4px 6px;
+  padding: 2px 4px;
   font-family: inherit;
-  font-size: 0.92rem;
-  line-height: 1.55;
+  font-size: 0.9rem;
+  line-height: 1.45;
   color: #000000;
   outline: none;
-  min-height: 48px;
+  min-height: 36px;
   border-radius: 4px;
   transition: all 0.15s ease;
-  white-space: pre-wrap;
+  white-space: normal;
   word-break: break-word;
 }
 
