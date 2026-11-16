@@ -634,7 +634,6 @@ export function renderDriverView(container) {
           </div>
 
           <div style="display: flex; align-items: center; gap: 8px;">
-            <strong style="color: #475569; font-size: 0.85rem;">รหัส: ${trip.id}</strong>
             <span class="status-badge ${trip.status}">
               ${trip.statusLabel || trip.status}
             </span>
@@ -751,10 +750,6 @@ export function renderDriverView(container) {
                 <span>(${escapeHtml(trip.bookerPhone)})</span>
               </a>
             ` : ''}
-
-            <button class="btn-secondary-sm btn-driver-view-paper" data-id="${trip.id}">
-              📄 ดูใบงาน
-            </button>
           </div>
         </div>
 
@@ -865,73 +860,12 @@ export function renderDriverView(container) {
         const remainingUnconfirmed = displayedTrips.filter(t => t.id !== id && !t.driverConfirmed && t.driverJobStatus !== 'confirmed' && t.driverJobStatus !== 'in_progress' && t.driverJobStatus !== 'completed').length;
         
         if (remainingUnconfirmed > 0) {
-          showToast(`✓ ยืนยันรับงาน ${id} แล้ว! (ยังเหลืองานที่ต้องกดยืนยันอีก ${remainingUnconfirmed} งาน)`);
+          showToast(`✓ ยืนยันรับงานเรียบร้อยแล้ว! (ยังเหลืองานที่ต้องกดยืนยันอีก ${remainingUnconfirmed} งาน)`);
         } else {
-          showToast(`🎉 ยืนยันรับงาน ${id} เรียบร้อยแล้ว! (ยืนยันครบทุกงานแล้ว)`);
+          showToast(`🎉 ยืนยันรับงานเรียบร้อยแล้ว! (ยืนยันครบทุกงานแล้ว)`);
         }
 
         render();
-      });
-    });
-
-    // View Paper Form (also supports confirming this specific job)
-    container.querySelectorAll('.btn-driver-view-paper').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-id');
-        const targetTrip = displayedTrips.find(x => x.id === id);
-        const allBookings = getAllBookings();
-        let b = allBookings.find(x => x.id === id);
-        
-        // If not in formal bookings, synthesize official paper view from dispatch row
-        if (!b && targetTrip) {
-          b = {
-            id: targetTrip.id,
-            formCode: '',
-            bookingDate: targetTrip.usageDate,
-            usageDate: targetTrip.usageDate,
-            startTime: targetTrip.startTime,
-            endTime: targetTrip.endTime,
-            department: targetTrip.department,
-            bookerName: targetTrip.bookerName,
-            bookerPhone: targetTrip.bookerPhone,
-            assignedVehicle: targetTrip.assignedVehicle,
-            requestedVehicle: targetTrip.assignedVehicle,
-            assignedDriver: targetTrip.assignedDriver,
-            status: targetTrip.status,
-            statusLabel: targetTrip.statusLabel,
-            itinerary: targetTrip.itinerary,
-            notes: targetTrip.notes,
-            bookerSignature: targetTrip.bookerName,
-            adminSignature: 'ฝ่ายสำนักงานจัดสรรแล้ว'
-          };
-        }
-
-        if (b) {
-          renderPaperModal(b, {
-            confirmText: 'ยืนยันรับงานนี้',
-            onEdit: (booking) => {
-              window.dispatchEvent(new CustomEvent('edit_booking_in_form', { detail: booking }));
-            },
-            onConfirm: (booking) => {
-              const nowTime = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
-              if (targetTrip) {
-                updateJobStatus(targetTrip, {
-                  driverConfirmed: true,
-                  driverConfirmedAt: nowTime,
-                  driverJobStatus: 'confirmed'
-                });
-              } else {
-                updateBooking(booking.id, {
-                  driverConfirmed: true,
-                  driverConfirmedAt: nowTime,
-                  driverJobStatus: 'confirmed'
-                });
-              }
-              showToast(`ยืนยันรับงาน ${booking.id} เรียบร้อยแล้ว`);
-              render();
-            }
-          });
-        }
       });
     });
 
