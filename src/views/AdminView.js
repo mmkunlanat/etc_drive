@@ -36,16 +36,20 @@ export function renderAdminView(container) {
   // Load schedule for selected date
   function loadSchedule() {
     const rawRows = getDispatchSchedule(selectedDate);
-    // Normalize data
-    rows = rawRows.map(r => ({
-      ...r,
-      itineraryText: r.itineraryText || (Array.isArray(r.itineraryLines) ? r.itineraryLines.join('\n') : ''),
-      comment: r.comment || '',
-      plateColor: r.plateColor || 'yellow',
-      timeColor: r.timeColor || 'default',
-      linkedBookingIds: r.linkedBookingIds || [],
-      vehicleStatus: r.vehicleStatus || null
-    }));
+    // Normalize data and clean up redundant consecutive empty newlines
+    rows = rawRows.map(r => {
+      const rawText = r.itineraryText || (Array.isArray(r.itineraryLines) ? r.itineraryLines.join('\n') : '');
+      const cleanText = rawText ? rawText.replace(/\n\s*\n+/g, '\n').trim() : '';
+      return {
+        ...r,
+        itineraryText: cleanText,
+        comment: r.comment || '',
+        plateColor: r.plateColor || 'yellow',
+        timeColor: r.timeColor || 'default',
+        linkedBookingIds: r.linkedBookingIds || [],
+        vehicleStatus: r.vehicleStatus || null
+      };
+    });
   }
 
   // Determine if a vehicle row is available or busy
@@ -664,7 +668,7 @@ export function renderAdminView(container) {
               data-field="itineraryText" 
               data-row-id="${row.id}" 
               placeholder="พิมพ์รายละเอียดงาน / ส่งเอกสาร / รับเช็ค / รับ-ส่งผู้โดยสาร / เที่ยวบิน / เบอร์ติดต่อ (ขึ้นบรรทัดใหม่เพื่อแยกช่วงงาน)..."
-            >${formatItineraryWithHighlights(row.itineraryText || '')}</div>
+            >${formatItineraryWithHighlights(row.itineraryText || '', row)}</div>
           </td>
           <td class="no-print" style="background: #f8fafc; text-align: center; font-size: 0.7rem; color: #94a3b8; vertical-align: top; padding-top: 8px;">
             <button 
@@ -1261,6 +1265,8 @@ export function renderAdminView(container) {
         if (targetRow && field) {
           if (field === 'booker') {
             targetRow.booker = mergeBookerNames(targetRow.booker, val);
+          } else if (field === 'department') {
+            targetRow.department = mergeDepartmentCodes(targetRow.department, val);
           } else {
             targetRow[field] = val;
           }
@@ -1301,7 +1307,15 @@ export function renderAdminView(container) {
       box.addEventListener('input', (e) => {
         const rowId = e.target.getAttribute('data-row-id');
         const field = e.target.getAttribute('data-field');
-        const val = e.target.innerText;
+        
+        // Strip out remove buttons and dynamic order prefixes to keep clean text
+        const clone = e.target.cloneNode(true);
+        clone.querySelectorAll('.btn-remove-job-item').forEach(b => b.remove());
+        clone.querySelectorAll('.dispatch-job-order').forEach(o => o.remove());
+        clone.querySelectorAll('.dispatch-job-separator').forEach(s => {
+          s.replaceWith(' / ');
+        });
+        const val = clone.innerText;
 
         const targetRow = rows.find(r => r.id === rowId);
         if (targetRow && field) {
@@ -1315,6 +1329,19 @@ export function renderAdminView(container) {
       });
       box.addEventListener('blur', () => {
         syncBookingsWithSchedule();
+      });
+    });
+
+    // Remove single job from vehicle row
+    container.querySelectorAll('.btn-remove-job-item').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const rowId = btn.getAttribute('data-row-id');
+        const jobText = btn.getAttribute('data-job-text');
+        const bId = btn.getAttribute('data-booking-id') || null;
+        const itNo = btn.getAttribute('data-item-no') || null;
+        removeJobFromVehicle(rowId, jobText, bId, itNo);
       });
     });
 
@@ -1648,10 +1675,10 @@ export function renderAdminView(container) {
       const bookerFirstName = booking.bookerName ? booking.bookerName.replace(/^(นาย|นางสาว|นาง|คุณ|K\.)\s*/i, '').split(' ')[0] : '';
 
       // Find any active row in schedule referencing this booking
+      // ใช้เฉพาะ linkedBookingIds (exact match) เพื่อป้องกัน false positive จากชื่อผู้จองซ้ำ
       const referencingRows = activeRows.filter(r => {
         const hasId = r.linkedBookingIds && Array.isArray(r.linkedBookingIds) && r.linkedBookingIds.includes(booking.id);
-        const hasBooker = bookerFirstName && r.booker && r.booker.includes(bookerFirstName);
-        return hasId || hasBooker;
+        return hasId;
       });
 
       const validItems = (booking.itinerary || []).filter(it => it.detail || it.destination);
@@ -1781,6 +1808,60 @@ export function renderAdminView(container) {
     return validItems.filter(it => !it.dispatched);
   }
 
+  // Extract specific time for a job leg (checks item.time, item.note, item.detail, and booking.startTime)
+  function extractJobTime(item, booking = null) {
+    if (!item) return '';
+    if (item.time && typeof item.time === 'string' && item.time.trim()) {
+      return item.time.trim().replace('.', ':');
+    }
+    if (item.note && typeof item.note === 'string') {
+      const m = item.note.match(/(\d{1,2}[:.]\d{2})/);
+      if (m) return m[1].replace('.', ':');
+    }
+    if (item.detail && typeof item.detail === 'string') {
+      const m = item.detail.match(/(\d{1,2}[:.]\d{2})/);
+      if (m) return m[1].replace('.', ':');
+    }
+    if (booking && booking.startTime && typeof booking.startTime === 'string') {
+      return booking.startTime.trim().replace('.', ':');
+    }
+    return '';
+  }
+
+  // Format job itinerary stop text including destination, detail, time, passengers, and optional order number
+  function formatJobItineraryText(item, booking = null, orderNumber = null) {
+    const dest = item.destination ? item.destination.trim() : '';
+    const detail = item.detail ? item.detail.trim() : '';
+    const time = extractJobTime(item, booking);
+    const timeStr = time ? `${time} น.` : '';
+
+    let passStr = item.passengers ? `${item.passengers} คน` : '';
+    if (!passStr && item.note) {
+      const pm = item.note.match(/(\d+)\s*คน/);
+      if (pm) passStr = `${pm[1]} คน`;
+    }
+
+    const metaParts = [timeStr, passStr].filter(Boolean).join(' / ');
+
+    let mainText = '';
+    if (dest && detail && dest !== detail) {
+      const inner = [detail, metaParts].filter(Boolean).join(' ');
+      mainText = `${dest} (${inner})`;
+    } else if (dest) {
+      mainText = metaParts ? `${dest} (${metaParts})` : dest;
+    } else if (detail) {
+      mainText = metaParts ? `${detail} (${metaParts})` : detail;
+    } else {
+      mainText = metaParts ? `ภารกิจ (${metaParts})` : '';
+    }
+
+    const order = (orderNumber !== null && orderNumber !== undefined) ? orderNumber : (item ? item.no : null);
+    if (order && !mainText.match(/^\s*\d+[\.\)]/)) {
+      return `${order}. ${mainText}`;
+    }
+    return mainText;
+  }
+
   // Booker Request Picker Modal - allows Admin to select undispatched jobs to fill into the car row
   function openBookerPickerModal(targetRow) {
     const modalId = 'booker-picker-modal';
@@ -1790,10 +1871,8 @@ export function renderAdminView(container) {
     syncBookingsWithSchedule();
     const allBookings = getAllBookings();
 
-    // Default to 'today' if today has pending jobs, otherwise default to 'pending' to always show available work
-    const undispatchedInit = allBookings.filter(b => getUndispatchedJobs(b).length > 0);
-    const countTodayInit = undispatchedInit.filter(b => b.usageDate === selectedDate).length;
-    let currentFilter = countTodayInit > 0 ? 'today' : 'pending';
+    // Default to 'pending' to always show available work immediately, with today's items sorted to the top
+    let currentFilter = 'pending';
 
     function renderModalContent() {
       // Filter out bookings that have no undispatched jobs left
@@ -1813,6 +1892,18 @@ export function renderAdminView(container) {
         filtered = undispatchedBookings.filter(b => b.status === 'pending_approval' || b.status === 'approved' || b.status === 'partially_dispatched');
       }
 
+      // Sort filtered bookings: Jobs on selectedDate first, followed by pending approval, then by date & time
+      filtered.sort((a, b) => {
+        const aIsSelectedDate = a.usageDate === selectedDate ? 1 : 0;
+        const bIsSelectedDate = b.usageDate === selectedDate ? 1 : 0;
+        if (aIsSelectedDate !== bIsSelectedDate) return bIsSelectedDate - aIsSelectedDate;
+
+        if (a.usageDate && b.usageDate && a.usageDate !== b.usageDate) {
+          return a.usageDate.localeCompare(b.usageDate);
+        }
+        return (a.startTime || '').localeCompare(b.startTime || '');
+      });
+
       const todayThai = formatThaiDate(selectedDate);
 
       return `
@@ -1827,7 +1918,7 @@ export function renderAdminView(container) {
                     เลือกงานคำขอของ Booker เพื่อจัดใส่รถคันนี้
                   </h3>
                   <p style="font-size: 0.8rem; color: #bae6fd; margin: 0;">
-                    เป้าหมาย: <strong>รถลำดับที่ ${targetRow.no} (${targetRow.plate})</strong>
+                    เป้าหมาย: <strong>รถลำดับที่ ${targetRow.no} (${targetRow.plate})</strong> | วันที่จัด: <strong>${todayThai.short}</strong>
                   </p>
                 </div>
               </div>
@@ -1837,11 +1928,11 @@ export function renderAdminView(container) {
             <!-- Filter Tabs -->
             <div style="background: #f1f5f9; padding: 10px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; flex-shrink: 0;">
               <div class="admin-tab-group" style="background: #e2e8f0; padding: 2px;">
-                <button type="button" class="admin-tab-pill-btn ${currentFilter === 'today' ? 'active' : ''}" id="filter-picker-today" style="font-size: 0.78rem; padding: 4px 10px;">
-                  📅 คำขอประจำวัน (${countToday})
-                </button>
                 <button type="button" class="admin-tab-pill-btn ${currentFilter === 'pending' ? 'active' : ''}" id="filter-picker-pending" style="font-size: 0.78rem; padding: 4px 10px;">
                   🚨 รอจัดสรรทั้งหมด (${countPending})
+                </button>
+                <button type="button" class="admin-tab-pill-btn ${currentFilter === 'today' ? 'active' : ''}" id="filter-picker-today" style="font-size: 0.78rem; padding: 4px 10px;">
+                  📅 คำขอตรงกับวันที่นี้ (${countToday})
                 </button>
                 <button type="button" class="admin-tab-pill-btn ${currentFilter === 'all' ? 'active' : ''}" id="filter-picker-all" style="font-size: 0.78rem; padding: 4px 10px;">
                   📋 คำขอทั้งหมด (${countAll})
@@ -1865,15 +1956,17 @@ export function renderAdminView(container) {
                 </div>
               ` : filtered.map(b => {
         const uDate = formatThaiDate(b.usageDate);
+        const isTargetDate = b.usageDate === selectedDate;
         const undispatchedItems = getUndispatchedJobs(b);
 
         return `
-                  <div class="booker-card-item" id="card-${b.id}" style="margin-bottom: 14px; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 12px 16px;">
+                  <div class="booker-card-item" id="card-${b.id}" style="margin-bottom: 14px; background: #fff; border: 1.5px solid ${isTargetDate ? '#93c5fd' : '#e2e8f0'}; border-radius: 10px; padding: 12px 16px; box-shadow: ${isTargetDate ? '0 2px 8px rgba(59, 130, 246, 0.08)' : 'none'};">
                     <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px;">
-                      <div>
+                      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                         <span style="font-weight: 700; color: #1e40af; font-size: 0.95rem;">${b.id}</span>
-                        <span style="margin-left: 8px; font-weight: 600; color: #0f172a;">${b.bookerName}</span>
-                        <span style="font-size: 0.8rem; color: #64748b;">(ฝ่าย: ${b.department})</span>
+                        <span style="font-weight: 600; color: #0f172a;">${escapeHtml(b.bookerName)}</span>
+                        <span style="font-size: 0.8rem; color: #64748b;">(ฝ่าย: ${escapeHtml(b.department || '-')})</span>
+                        ${isTargetDate ? `<span style="background: #dcfce7; color: #166534; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem;">📅 ตรงกับวันที่จัด (${uDate.short})</span>` : `<span style="background: #f1f5f9; color: #475569; font-weight: 600; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem;">📅 ขอใช้: ${uDate.short}</span>`}
                       </div>
                       <span class="status-badge ${b.status}" style="font-size: 0.75rem;">${b.statusLabel || b.status}</span>
                     </div>
@@ -1881,8 +1974,8 @@ export function renderAdminView(container) {
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 6px; font-size: 0.82rem; color: #475569; margin-bottom: 10px; background: #f8fafc; padding: 6px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
                       <div>📅 <strong>วันที่ใช้งาน:</strong> ${uDate.short}</div>
                       <div>⏰ <strong>เวลา:</strong> ${b.startTime} - ${b.endTime} น.</div>
-                      <div>🚘 <strong>รถที่ต้องการ:</strong> ${b.requestedVehicle || '-'}</div>
-                      <div>📞 <strong>โทร:</strong> ${b.bookerPhone || '-'}</div>
+                      <div>🚘 <strong>รถที่ต้องการ:</strong> ${escapeHtml(b.requestedVehicle || '-')}</div>
+                      <div>📞 <strong>โทร:</strong> ${escapeHtml(b.bookerPhone || '-')}</div>
                     </div>
 
                     <!-- แสดงตัวเลือกลำดับงานที่ยังไม่ได้จัด -->
@@ -1903,29 +1996,37 @@ export function renderAdminView(container) {
 
                       <div style="display: flex; flex-direction: column; gap: 6px;">
                         ${undispatchedItems.map((item, idx) => {
-          const itemNo = item.no || idx + 1;
-          const cleanJobDesc = [
-            item.detail ? item.detail.trim() : '',
-            item.destination ? `ที่ ${item.destination.trim()}` : '',
-            item.time ? `(เวลา ${item.time} น.)` : '',
-            item.note ? `[${item.note.trim()}]` : ''
-          ].filter(Boolean).join(' ');
+          const originalIdx = (b.itinerary || []).indexOf(item);
+          const itemIndex = originalIdx >= 0 ? originalIdx : idx;
+          const itemNo = item.no || (itemIndex + 1);
+          const itemTime = extractJobTime(item, b);
+          const timeBadge = itemTime ? `<span style="background: #fee2e2; color: #dc2626; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px;">⏰ ${itemTime} น.</span>` : '';
+          const passBadge = item.passengers ? `<span style="background: #f1f5f9; color: #475569; font-weight: 600; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; white-space: nowrap;">👥 ${item.passengers} คน</span>` : '';
+
+          const destText = item.destination ? item.destination.trim() : '';
+          const detailText = item.detail ? item.detail.trim() : '';
+          const noteText = item.note ? item.note.trim() : '';
 
           return `
-                            <div class="job-choice-row" data-target-chk="chk-${b.id}-${itemNo}" style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; transition: all 0.15s ease;">
+                            <div class="job-choice-row" data-target-chk="chk-${b.id}-${itemIndex}" style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; transition: all 0.15s ease;">
                               <input 
                                 type="checkbox" 
-                                id="chk-${b.id}-${itemNo}"
+                                id="chk-${b.id}-${itemIndex}"
                                 class="job-picker-checkbox job-chk-${b.id}" 
                                 data-booking-id="${b.id}" 
+                                data-item-index="${itemIndex}" 
                                 data-item-no="${itemNo}" 
                                 style="cursor: pointer; width: 18px; height: 18px; flex-shrink: 0;" 
                               />
-                              <label for="chk-${b.id}-${itemNo}" style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.85rem;">
+                              <label for="chk-${b.id}-${itemIndex}" style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.85rem; flex-wrap: wrap;">
                                 <span style="font-weight: 700; color: #1e40af; background: #dbeafe; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; white-space: nowrap;">
                                   ลำดับที่ ${itemNo}
                                 </span>
-                                <span style="color: #1e293b; line-height: 1.4;">${escapeHtml(cleanJobDesc)}</span>
+                                ${timeBadge}
+                                ${passBadge}
+                                <span style="color: #0f172a; font-weight: 600; line-height: 1.4;">${escapeHtml(destText || detailText || 'งานภารกิจ')}</span>
+                                ${destText && detailText && destText !== detailText ? `<span style="color: #64748b; font-size: 0.8rem;">(${escapeHtml(detailText)})</span>` : ''}
+                                ${noteText && !noteText.includes(destText) ? `<span style="color: #94a3b8; font-size: 0.75rem; font-style: italic;">[${escapeHtml(noteText)}]</span>` : ''}
                               </label>
                             </div>
                           `;
@@ -2007,6 +2108,19 @@ export function renderAdminView(container) {
         chk.addEventListener('change', updateSelectionCounter);
       });
 
+      // Row clicking to toggle checkbox smoothly
+      modal.querySelectorAll('.job-choice-row').forEach(rowEl => {
+        rowEl.addEventListener('click', (e) => {
+          if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') return;
+          const chkId = rowEl.getAttribute('data-target-chk');
+          const chk = document.getElementById(chkId);
+          if (chk) {
+            chk.checked = !chk.checked;
+            updateSelectionCounter();
+          }
+        });
+      });
+
       // Filter tabs
       const fToday = document.getElementById('filter-picker-today');
       const fPending = document.getElementById('filter-picker-pending');
@@ -2047,40 +2161,56 @@ export function renderAdminView(container) {
           const selections = {};
           checkedBoxes.forEach(chk => {
             const bId = chk.getAttribute('data-booking-id');
+            const itemIdx = parseInt(chk.getAttribute('data-item-index'), 10);
             const itemNo = parseInt(chk.getAttribute('data-item-no'), 10);
             if (!selections[bId]) selections[bId] = [];
-            selections[bId].push(itemNo);
+            selections[bId].push({ itemIdx, itemNo });
           });
 
           const allCollectedTexts = [];
+          const allPickedTimes = [];
+          const allPickedStops = [];
 
           Object.keys(selections).forEach(bId => {
             const booking = allBookings.find(b => b.id === bId);
             if (!booking) return;
 
-            // Fill basic vehicle row fields if empty
-            if (booking.startTime && (!targetRow.time || targetRow.time.trim() === '')) {
-              targetRow.time = booking.startTime.replace(':', '.');
-            }
-            if (booking.department && (!targetRow.department || targetRow.department.trim() === '')) {
-              targetRow.department = mapDeptCode(booking.department);
+            if (booking.department) {
+              const deptCode = mapDeptCode(booking.department);
+              targetRow.department = mergeDepartmentCodes(targetRow.department, deptCode);
             }
             targetRow.booker = mergeBookerNames(targetRow.booker, booking.bookerName);
 
             // Extract and mark selected jobs as dispatched
-            const selectedItemNos = selections[bId];
+            const bookingSelections = selections[bId];
+            const selectedIndices = bookingSelections.map(s => s.itemIdx);
+            const selectedNos = bookingSelections.map(s => String(s.itemNo));
             const pickedStops = [];
 
             if (booking.itinerary && booking.itinerary.length > 0) {
-              booking.itinerary.forEach(it => {
-                const itNo = it.no || 1;
-                if (selectedItemNos.includes(itNo)) {
+              booking.itinerary.forEach((it, itIdx) => {
+                const itNoStr = String(it.no || (itIdx + 1));
+                const isSelected = selectedIndices.includes(itIdx) || selectedNos.includes(itNoStr);
+
+                if (isSelected) {
                   it.dispatched = true;
                   it.dispatchedToVehicle = targetRow.plate;
                   it.dispatchedDate = selectedDate;
                   it.dispatchedRowNo = targetRow.no;
                   it.dispatchedRowId = targetRow.id;
+
+                  // Pull time for this specific job
+                  const stopTime = extractJobTime(it, booking);
+                  if (stopTime) {
+                    it.time = stopTime;
+                    const dotTime = stopTime.replace(':', '.');
+                    if (!allPickedTimes.includes(dotTime)) {
+                      allPickedTimes.push(dotTime);
+                    }
+                  }
+
                   pickedStops.push(it);
+                  allPickedStops.push(it);
                 }
               });
 
@@ -2097,24 +2227,37 @@ export function renderAdminView(container) {
               booking.status = 'dispatched';
               booking.statusLabel = 'จัดรถแล้ว (ตารางจัดรถ)';
               booking.isDispatchedDirectly = true;
-              pickedStops.push({
+              const synTime = booking.startTime ? booking.startTime.replace('.', ':') : '';
+              const synStop = {
                 detail: booking.requestedVehicle || 'เดินทางทั่วไป',
-                destination: booking.notes || ''
-              });
+                destination: booking.notes || '',
+                time: synTime
+              };
+              if (synTime) {
+                const dotTime = synTime.replace(':', '.');
+                if (!allPickedTimes.includes(dotTime)) {
+                  allPickedTimes.push(dotTime);
+                }
+              }
+              pickedStops.push(synStop);
+              allPickedStops.push(synStop);
             }
 
             booking.assignedVehicle = targetRow.plate;
             booking.assignedDriver = targetRow.driverName ? `${targetRow.driverName}` : 'ฝ่ายสำนักงานจัดสรรแล้ว';
+            booking.assignedDate = selectedDate;
             updateBooking(booking.id, booking);
 
-            // Build text for this booking's picked stops
+            // Count existing jobs in targetRow to continue order numbering smoothly
+            let existingCount = (targetRow.itineraryText || '').split('\n')
+              .flatMap(l => splitJobsFromLine(l))
+              .filter(Boolean).length;
+
+            // Build text for this booking's picked stops with individual job times and order numbers
             const stopsText = pickedStops.map(item => {
-              const parts = [];
-              if (item.detail) parts.push(item.detail.trim());
-              if (item.destination) parts.push(`ที่ ${item.destination.trim()}`);
-              if (item.time) parts.push(`เวลา ${item.time} น.`);
-              return parts.join(' ');
-            }).filter(Boolean).join(' / ');
+              existingCount++;
+              return formatJobItineraryText(item, booking, existingCount);
+            }).filter(Boolean).join('\n');
 
             if (stopsText) {
               allCollectedTexts.push(stopsText);
@@ -2126,16 +2269,35 @@ export function renderAdminView(container) {
             }
           });
 
+          // Fill/update vehicle row's time column with the extracted job times
+          if (allPickedTimes.length > 0) {
+            if (!targetRow.time || targetRow.time.trim() === '') {
+              targetRow.time = allPickedTimes.join(' / ');
+            } else {
+              const existingTimes = targetRow.time.split('/').map(t => t.trim()).filter(Boolean);
+              allPickedTimes.forEach(pt => {
+                if (!existingTimes.includes(pt)) {
+                  existingTimes.push(pt);
+                }
+              });
+              targetRow.time = existingTimes.join(' / ');
+            }
+          }
+
           // Save all bookings
           saveAllBookings(allBookings);
 
-          // Append or set itinerary text
-          const combinedNewText = allCollectedTexts.join('\n');
+          // Update structured itinerary on targetRow
+          targetRow.itinerary = [...(targetRow.itinerary || []), ...allPickedStops];
+
+          // Append or set itinerary text without redundant consecutive empty lines
+          const combinedNewText = allCollectedTexts.filter(t => t && t.trim()).join('\n');
           if (targetRow.itineraryText && targetRow.itineraryText.trim()) {
-            targetRow.itineraryText = `${targetRow.itineraryText.trim()}\n${combinedNewText}`;
+            targetRow.itineraryText = `${targetRow.itineraryText.trim()}\n${combinedNewText}`.replace(/\n\s*\n+/g, '\n').trim();
           } else {
-            targetRow.itineraryText = combinedNewText;
+            targetRow.itineraryText = combinedNewText.replace(/\n\s*\n+/g, '\n').trim();
           }
+          targetRow.itineraryLines = (targetRow.itineraryText || '').split('\n').filter(Boolean);
           targetRow.showItineraryBox = true;
 
           saveCurrentSchedule();
@@ -2158,14 +2320,6 @@ export function renderAdminView(container) {
 
   // Populate row with booking data - ONLY undispatched job legs
   function applyBookingToRow(row, booking, selectedJobIndices = null, targetDate = null) {
-    if (booking.startTime && (!row.time || row.time.trim() === '')) {
-      row.time = booking.startTime.replace(':', '.');
-    }
-    if (booking.department && (!row.department || row.department.trim() === '')) {
-      row.department = mapDeptCode(booking.department);
-    }
-    row.booker = mergeBookerNames(row.booker, booking.bookerName);
-
     const allStops = (booking.itinerary || []).filter(item => item.detail || item.destination);
     const activeStops = (selectedJobIndices && Array.isArray(selectedJobIndices) && selectedJobIndices.length > 0)
       ? selectedJobIndices.map(idx => allStops[idx]).filter(Boolean)
@@ -2173,27 +2327,68 @@ export function renderAdminView(container) {
 
     const effectiveDate = targetDate || booking.usageDate || selectedDate;
 
+    const pickedTimes = [];
     activeStops.forEach(it => {
       it.dispatched = true;
       it.dispatchedToVehicle = row.plate;
       it.dispatchedDate = effectiveDate;
       it.dispatchedRowNo = row.no;
       it.dispatchedRowId = row.id;
+
+      // Pull time for this specific job leg
+      const stopTime = extractJobTime(it, booking);
+      if (stopTime) {
+        it.time = stopTime;
+        const dotTime = stopTime.replace(':', '.');
+        if (!pickedTimes.includes(dotTime)) {
+          pickedTimes.push(dotTime);
+        }
+      }
     });
 
+    // Update row's time column with pulled job times
+    if (pickedTimes.length > 0) {
+      if (!row.time || row.time.trim() === '') {
+        row.time = pickedTimes.join(' / ');
+      } else {
+        const existingTimes = row.time.split('/').map(t => t.trim()).filter(Boolean);
+        pickedTimes.forEach(pt => {
+          if (!existingTimes.includes(pt)) {
+            existingTimes.push(pt);
+          }
+        });
+        row.time = existingTimes.join(' / ');
+      }
+    } else if (booking.startTime && (!row.time || row.time.trim() === '')) {
+      row.time = booking.startTime.replace(':', '.');
+    }
+
+    if (booking.department) {
+      const deptCode = mapDeptCode(booking.department);
+      row.department = mergeDepartmentCodes(row.department, deptCode);
+    }
+    row.booker = mergeBookerNames(row.booker, booking.bookerName);
+
+    // Update structured itinerary
+    row.itinerary = [...(row.itinerary || []), ...activeStops];
+
+    // Count existing jobs in row to continue order numbering smoothly
+    let existingCount = (row.itineraryText || '').split('\n')
+      .flatMap(l => splitJobsFromLine(l))
+      .filter(Boolean).length;
+
+    // Format itinerary stops text with each job's time and order numbers
     const stopsText = activeStops.map(item => {
-      const parts = [];
-      if (item.detail) parts.push(item.detail.trim());
-      if (item.destination) parts.push(`ที่ ${item.destination.trim()}`);
-      if (item.time) parts.push(`เวลา ${item.time} น.`);
-      return parts.join(' ');
-    }).filter(Boolean).join(' / ');
+      existingCount++;
+      return formatJobItineraryText(item, booking, existingCount);
+    }).filter(Boolean).join('\n');
 
     if (row.itineraryText && row.itineraryText.trim()) {
-      row.itineraryText = `${row.itineraryText.trim()}\n${stopsText}`;
+      row.itineraryText = `${row.itineraryText.trim()}\n${stopsText}`.replace(/\n\s*\n+/g, '\n').trim();
     } else {
-      row.itineraryText = stopsText;
+      row.itineraryText = stopsText.replace(/\n\s*\n+/g, '\n').trim();
     }
+    row.itineraryLines = (row.itineraryText || '').split('\n').filter(Boolean);
     row.showItineraryBox = true;
 
     if (!row.linkedBookingIds) row.linkedBookingIds = [];
@@ -2237,26 +2432,114 @@ export function renderAdminView(container) {
     if (!existing || existing.trim() === '') {
       return newFormatted;
     }
-    // Check if new name already exists in existing string to prevent duplicates
-    const rawNew = newFormatted.replace(/^K\./i, '').trim();
-    if (existing.includes(rawNew)) {
-      return existing;
+
+    // Split existing bookers by "/"
+    const existingNames = existing.split('/').map(n => n.trim()).filter(Boolean);
+    const rawNew = newFormatted.replace(/^(K\.|k\.|นาย|นางสาว|นาง|คุณ)\s*/i, '').trim();
+
+    // Check if new name already exists in existing names
+    const alreadyExists = existingNames.some(en => {
+      const rawExisting = en.replace(/^(K\.|k\.|นาย|นางสาว|นาง|คุณ)\s*/i, '').trim();
+      return rawExisting === rawNew || en === newFormatted;
+    });
+
+    if (!alreadyExists) {
+      existingNames.push(newFormatted);
     }
-    return `${existing.trim()}/${newFormatted}`;
+    return existingNames.join('/');
   }
 
   // Quick helper to map department name to abbreviation if needed
   function mapDeptCode(dept) {
     if (!dept) return '';
-    if (dept.includes('บัญชีและการเงิน')) return 'ACC';
-    if (dept.includes('ขายและการตลาด')) return 'SALE';
-    if (dept.includes('วิศวกรรม')) return 'IT/ENG';
-    if (dept.includes('ทรัพยากรบุคคล')) return 'HR';
-    if (dept.includes('บริหาร')) return 'MGT/OFF';
-    if (dept.includes('จัดซื้อ')) return 'PUR';
-    if (dept.includes('ผลิต')) return 'PROD';
-    if (dept.includes('ประกันคุณภาพ')) return 'QA';
-    return dept;
+    const clean = String(dept).trim();
+    if (clean.includes('บัญชีและการเงิน') || clean === 'ACC') return 'ACC';
+    if ((clean.includes('ธุรการ') && clean.includes('บัญชี')) || clean === 'ACC/OFF') return 'ACC/OFF';
+    if (clean.includes('ธุรการ') || clean === 'OFF') return 'OFF';
+    if (clean.includes('ขายและการตลาด') || clean === 'SALE') return 'SALE';
+    if (clean.includes('วิศวกรรม') || clean.includes('เทคโนโลยีสารสนเทศ') || clean.includes('สารสนเทศ') || clean === 'IT') return 'IT';
+    if (clean.includes('ทรัพยากรบุคคล') || clean.includes('HR') || clean === 'HR') return 'HR';
+    if (clean.includes('บริหาร') || clean === 'MGT') return 'MGT';
+    if (clean.includes('จัดซื้อ') || clean === 'PUR') return 'PUR';
+    if (clean.includes('ผลิต') || clean.includes('ปฏิบัติการ') || clean === 'PROD') return 'PROD';
+    if (clean.includes('ประกันคุณภาพ') || clean.includes('QA') || clean === 'QA') return 'QA';
+    return clean;
+  }
+
+  // Helper to merge department codes: if more than 1 department, separate with "/" without duplicating (e.g. "ACC/OFF", "SALE/IT")
+  function mergeDepartmentCodes(existing, newDept) {
+    if (!newDept || !newDept.trim()) return existing || '';
+    const mapped = mapDeptCode(newDept);
+    if (!mapped) return existing || '';
+    if (!existing || !existing.trim()) {
+      return mapped;
+    }
+
+    // Split existing and new by "/"
+    const existingParts = existing.split('/').map(d => d.trim()).filter(Boolean);
+    const newParts = mapped.split('/').map(d => d.trim()).filter(Boolean);
+
+    newParts.forEach(np => {
+      if (!existingParts.includes(np)) {
+        existingParts.push(np);
+      }
+    });
+
+    return existingParts.join('/');
+  }
+
+  // Recalculate vehicle row's department and booker from its current active linked bookings/jobs
+  function updateRowDepartmentsAndBookers(row, allBookings) {
+    if (!row) return;
+    const bookings = allBookings || getAllBookings();
+
+    // Find all bookings with at least one job currently dispatched to this row
+    const activeBookings = bookings.filter(b => {
+      const isLinked = (row.linkedBookingIds && row.linkedBookingIds.includes(b.id)) ||
+                       (b.assignedVehicle && row.plate && b.assignedVehicle === row.plate);
+
+      const hasJobInRow = (b.itinerary || []).some(it =>
+        it.dispatched && (it.dispatchedRowId === row.id || (row.plate && it.dispatchedToVehicle === row.plate))
+      );
+
+      return hasJobInRow || (isLinked && (b.status === 'dispatched' || b.status === 'partially_dispatched'));
+    });
+
+    if (activeBookings.length > 0) {
+      // Collect unique departments
+      const deptList = [];
+      activeBookings.forEach(b => {
+        if (b.department) {
+          const code = mapDeptCode(b.department);
+          code.split('/').map(d => d.trim()).filter(Boolean).forEach(d => {
+            if (!deptList.includes(d)) deptList.push(d);
+          });
+        }
+      });
+      if (deptList.length > 0) {
+        row.department = deptList.join('/');
+      }
+
+      // Collect unique bookers
+      const bookerList = [];
+      activeBookings.forEach(b => {
+        if (b.bookerName) {
+          const formatted = formatBookerName(b.bookerName);
+          if (formatted && !bookerList.includes(formatted)) {
+            bookerList.push(formatted);
+          }
+        }
+      });
+      if (bookerList.length > 0) {
+        row.booker = bookerList.join('/');
+      }
+    } else {
+      // If no active bookings in this row and itinerary is empty
+      if (!row.itineraryText || !row.itineraryText.trim()) {
+        row.department = '';
+        row.booker = '';
+      }
+    }
   }
 
   // Modal to choose which vehicle when clicking from the requests list
@@ -2318,14 +2601,16 @@ export function renderAdminView(container) {
                 </div>
               </div>
               <div style="display: flex; flex-direction: column; gap: 6px;">
-                ${stops.map((st, idx) => `
+                ${stops.map((st, idx) => {
+                  const itemTime = extractJobTime(st, booking);
+                  return `
                   <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 0.82rem; cursor: pointer; background: #ffffff; padding: 7px 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
                     <input type="checkbox" class="target-stop-chk" data-index="${idx}" ${st.dispatched ? '' : 'checked'} style="margin-top: 3px;" />
                     <div style="flex: 1;">
                       <div style="display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap;">
                         <span style="font-weight: 700; color: #0284c7;">${idx + 1}.</span>
                         <strong style="color: #0f172a;">${escapeHtml(st.destination || st.detail || '')}</strong>
-                        ${st.time ? `<span style="color: #059669; font-weight: 600; margin-left: 6px; font-size: 0.76rem;">⏱️ ${st.time} น.</span>` : ''}
+                        ${itemTime ? `<span style="background: #fee2e2; color: #dc2626; font-weight: 700; padding: 1px 6px; border-radius: 4px; font-size: 0.74rem; margin-left: 4px; display: inline-flex; align-items: center; gap: 3px;">⏰ ${itemTime} น.</span>` : ''}
                         ${st.passengers ? `<span style="color: #64748b; margin-left: 4px; font-size: 0.76rem;">👥 ${st.passengers} คน</span>` : ''}
                         ${st.dispatched ? `<span style="color: #dc2626; font-size: 0.72rem; margin-left: 6px; font-weight: 600;">[จัดให้ ${st.dispatchedToVehicle || ''} แล้ว]</span>` : ''}
                       </div>
@@ -2336,7 +2621,8 @@ export function renderAdminView(container) {
                       ` : ''}
                     </div>
                   </label>
-                `).join('')}
+                `;
+                }).join('')}
               </div>
             </div>
           ` : ''}
@@ -2515,14 +2801,6 @@ export function renderAdminView(container) {
       }
 
       if (isTarget) {
-        // Remove booker name if merged
-        const bookerFirstName = b.bookerName ? b.bookerName.replace(/^(นาย|นางสาว|นาง|คุณ|K\.)\s*/i, '').split(' ')[0] : '';
-        if (r.booker && bookerFirstName) {
-          const names = r.booker.split('/').map(n => n.trim()).filter(n => !n.includes(bookerFirstName));
-          r.booker = names.join('/');
-          scheduleChanged = true;
-        }
-
         // Clean stops from itineraryText
         if (r.itineraryText && b.itinerary) {
           const lines = r.itineraryText.split('\n').filter(line => {
@@ -2538,6 +2816,10 @@ export function renderAdminView(container) {
           }
           scheduleChanged = true;
         }
+
+        // Recalculate row's departments and bookers from remaining bookings
+        updateRowDepartmentsAndBookers(r, allBookings);
+        scheduleChanged = true;
       }
     });
 
@@ -2634,19 +2916,291 @@ export function renderAdminView(container) {
       .replace(/"/g, '&quot;');
   }
 
-  // Format itinerary with subtle red/blue highlights matching screenshot
-  function formatItineraryWithHighlights(text) {
+  // Helper to split a line into individual jobs safely without splitting inside parentheses e.g. "(10:00 น. / 3 คน)"
+  function splitJobsFromLine(line) {
+    if (!line) return [];
+    const jobs = [];
+    let current = '';
+    let parenDepth = 0;
+
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '(') parenDepth++;
+      else if (ch === ')') { if (parenDepth > 0) parenDepth--; }
+
+      // Check for separator " / " or " /" outside parentheses
+      if (parenDepth === 0 && ch === '/' && (
+        (i > 0 && line[i - 1] === ' ') || (i < line.length - 1 && line[i + 1] === ' ')
+      )) {
+        const cleaned = current.trim().replace(/\/$/, '').trim();
+        if (cleaned) {
+          jobs.push(cleaned);
+        }
+        current = '';
+        if (i < line.length - 1 && line[i + 1] === ' ') {
+          i++; // Skip following space
+        }
+        continue;
+      }
+      current += ch;
+    }
+    const finalCleaned = current.trim().replace(/\/$/, '').trim();
+    if (finalCleaned) {
+      jobs.push(finalCleaned);
+    }
+    return jobs;
+  }
+
+  // Remove an individual job leg from a vehicle row and return it to undispatched state in Booker requests
+  function removeJobFromVehicle(rowId, jobText, targetBookingId = null, targetItemNo = null) {
+    const targetRow = rows.find(r => r.id === rowId);
+    if (!targetRow) return;
+
+    const allBookings = getAllBookings();
+    let bookingChanged = false;
+    const affectedBookings = [];
+    const removedTimes = [];
+
+    // 1. Match and reset booking item
+    if (targetBookingId) {
+      const booking = allBookings.find(b => b.id === targetBookingId);
+      if (booking) {
+        affectedBookings.push(booking);
+        if (booking.itinerary && Array.isArray(booking.itinerary)) {
+          booking.itinerary.forEach((it, idx) => {
+            const itNo = it.no || (idx + 1);
+            if (String(itNo) === String(targetItemNo) || !targetItemNo) {
+              it.dispatched = false;
+              delete it.dispatchedToVehicle;
+              delete it.dispatchedDate;
+              delete it.dispatchedRowNo;
+              delete it.dispatchedRowId;
+              bookingChanged = true;
+
+              const t = extractJobTime(it, booking);
+              if (t) removedTimes.push(t.replace(':', '.'));
+            }
+          });
+        }
+      }
+    } else {
+      // Find matching item by job text in linked bookings
+      allBookings.forEach(b => {
+        const isLinked = (targetRow.linkedBookingIds && targetRow.linkedBookingIds.includes(b.id)) ||
+                         (b.assignedVehicle && targetRow.plate && b.assignedVehicle === targetRow.plate);
+
+        if (b.itinerary && Array.isArray(b.itinerary)) {
+          b.itinerary.forEach((it, idx) => {
+            if (it.dispatched) {
+              const dest = it.destination ? it.destination.trim() : '';
+              const det = it.detail ? it.detail.trim() : '';
+              const isMatch = (dest && jobText.includes(dest)) ||
+                              (det && jobText.includes(det));
+
+              if (isMatch) {
+                it.dispatched = false;
+                delete it.dispatchedToVehicle;
+                delete it.dispatchedDate;
+                delete it.dispatchedRowNo;
+                delete it.dispatchedRowId;
+                bookingChanged = true;
+                if (!affectedBookings.includes(b)) affectedBookings.push(b);
+
+                const t = extractJobTime(it, b);
+                if (t) removedTimes.push(t.replace(':', '.'));
+              }
+            }
+          });
+        }
+      });
+    }
+
+    // Extract time from job text itself (e.g. 01:00 น. or 01.00)
+    const timeMatches = jobText.match(/(\d{1,2}[:.]\d{2})/g);
+    if (timeMatches) {
+      timeMatches.forEach(tm => {
+        removedTimes.push(tm.replace(':', '.'));
+      });
+    }
+
+    // 2. Update status of affected bookings
+    affectedBookings.forEach(b => {
+      const validItems = (b.itinerary || []).filter(it => it.detail || it.destination);
+      const dispatchedItems = validItems.filter(it => it.dispatched);
+
+      if (dispatchedItems.length === 0) {
+        const targetStatus = (b.approverSignature || b.statusLabel?.includes('อนุมัติ')) ? 'approved' : 'pending_approval';
+        const targetLabel = targetStatus === 'approved' ? 'อนุมัติแล้ว (รอจัดสรรรถ/ยืนยัน)' : 'รอหัวหน้าฝ่ายอนุมัติ';
+        b.status = targetStatus;
+        b.statusLabel = targetLabel;
+        b.assignedVehicle = '';
+        b.assignedDriver = '';
+        delete b.assignedDate;
+        delete b.isDispatchedDirectly;
+      } else {
+        b.status = 'partially_dispatched';
+        b.statusLabel = `จัดรถแล้วบางส่วน (${dispatchedItems.length}/${validItems.length} งาน)`;
+      }
+      updateBooking(b.id, b);
+
+      // Check if targetRow still has any other job from this booking
+      const stillHasJobInThisRow = (b.itinerary || []).some(it =>
+        it.dispatched && (it.dispatchedRowId === targetRow.id || it.dispatchedToVehicle === targetRow.plate)
+      );
+
+      if (!stillHasJobInThisRow && targetRow.linkedBookingIds) {
+        targetRow.linkedBookingIds = targetRow.linkedBookingIds.filter(id => id !== b.id);
+      }
+    });
+
+    // Recalculate row's departments and bookers from remaining active bookings/jobs
+    updateRowDepartmentsAndBookers(targetRow, allBookings);
+
+    // 3. Remove jobText from targetRow.itineraryText cleanly
+    if (targetRow.itineraryText) {
+      const lines = targetRow.itineraryText.split('\n');
+      const newLines = [];
+
+      lines.forEach(line => {
+        const jobsInLine = splitJobsFromLine(line);
+        const remainingJobs = jobsInLine.filter(j => {
+          const cleanJ = j.trim();
+          const cleanTarget = jobText.trim();
+          if (cleanJ === cleanTarget) return false;
+          if (cleanTarget.length > 8 && cleanJ.includes(cleanTarget)) return false;
+          if (cleanJ.length > 8 && cleanTarget.includes(cleanJ)) return false;
+          return true;
+        });
+        if (remainingJobs.length > 0) {
+          newLines.push(remainingJobs.join(' / '));
+        }
+      });
+
+      targetRow.itineraryText = newLines.join('\n').trim();
+      targetRow.itineraryLines = newLines;
+
+      if (!targetRow.itineraryText) {
+        targetRow.showItineraryBox = false;
+      }
+    }
+
+    // 4. Clean up time in targetRow.time
+    if (targetRow.time && removedTimes.length > 0) {
+      const existingTimes = targetRow.time.split('/').map(t => t.trim()).filter(Boolean);
+      const updatedTimes = existingTimes.filter(t => !removedTimes.includes(t));
+      targetRow.time = updatedTimes.join(' / ');
+    }
+
+    // 5. Clean up structured itinerary if present
+    if (targetRow.itinerary && Array.isArray(targetRow.itinerary)) {
+      targetRow.itinerary = targetRow.itinerary.filter(it => {
+        const dest = it.destination ? it.destination.trim() : '';
+        const det = it.detail ? it.detail.trim() : '';
+        return !((dest && jobText.includes(dest)) || (det && jobText.includes(det)));
+      });
+    }
+
+    if (bookingChanged) {
+      saveAllBookings(allBookings);
+    }
+    saveCurrentSchedule();
+    syncBookingsWithSchedule();
+    render();
+    const shortLabel = jobText.length > 30 ? jobText.slice(0, 30) + '...' : jobText;
+    showToast(`✓ ลบงาน "${shortLabel}" ออกจากรถคันที่ ${targetRow.no} เรียบร้อยแล้ว (งานกลับไปรอจัดใหม่)`);
+  }
+
+  // Format itinerary with subtle red/blue highlights and small delete cross buttons for each dispatched job
+  function formatItineraryWithHighlights(text, row = null) {
     if (!text) return '';
-    const lines = text.split('\n');
-    return lines.map(line => {
-      let formatted = escapeHtml(line);
-      // Highlight time ranges e.g. "เวลา 13.00-16.30 น.", "เวลา 13.00 - 17.00 น.", "18.00 น."
-      formatted = formatted.replace(/(เวลา\s*\d{1,2}[\.:]\d{2}\s*[-–]\s*\d{1,2}[\.:]\d{2}\s*น\.)/g, '<span style="color: #dc2626; font-weight: 600;">$1</span>');
-      formatted = formatted.replace(/(\b\d{1,2}[\.:]\d{2}\s*น\.)/g, '<span style="color: #dc2626; font-weight: 600;">$1</span>');
-      formatted = formatted.replace(/(เครื่องลง\s*\d{1,2}[\.:]\d{2}\s*น\.)/g, '<span style="color: #0284c7; font-weight: 600;">$1</span>');
-      formatted = formatted.replace(/(ติดต่อ\s*K\.[^\/\n]+)/g, '<span style="color: #dc2626; font-weight: 600;">$1</span>');
-      return `<div class="dispatch-itinerary-line">${formatted}</div>`;
-    }).join('');
+    const allBookings = getAllBookings();
+
+    // Find all bookings and items linked to this row
+    const rowBookings = row ? allBookings.filter(b => {
+      const isLinked = (row.linkedBookingIds && row.linkedBookingIds.includes(b.id)) ||
+                       (b.assignedVehicle && row.plate && b.assignedVehicle === row.plate);
+      return isLinked;
+    }) : [];
+
+    let jobGlobalCounter = 0;
+    // Filter out empty lines completely to prevent excessive vertical gaps between jobs
+    const validLines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    if (validLines.length === 0) return '';
+
+    return validLines.map(line => {
+      // Split line into individual jobs
+      const jobs = splitJobsFromLine(line);
+      if (jobs.length === 0) {
+        return '';
+      }
+
+      const formattedJobs = jobs.map(job => {
+        jobGlobalCounter++;
+        const rawJobTrim = job.trim();
+
+        // Check if job text already has order number prefix (e.g. "1. ", "1) ", "ลำดับที่ 1: ")
+        const orderMatch = rawJobTrim.match(/^(\d+[\.\)]|ลำดับที่\s*\d+[:\.]?)\s*(.*)$/);
+        let orderPrefix = '';
+        let jobContent = rawJobTrim;
+
+        if (orderMatch) {
+          orderPrefix = orderMatch[1].endsWith('.') ? orderMatch[1] : `${orderMatch[1]}.`;
+          jobContent = orderMatch[2];
+        } else {
+          orderPrefix = `${jobGlobalCounter}.`;
+        }
+
+        let formatted = escapeHtml(jobContent);
+        // Highlight time ranges e.g. "เวลา 13.00-16.30 น.", "เวลา 13.00 - 17.00 น.", "18.00 น."
+        formatted = formatted.replace(/(เวลา\s*\d{1,2}[\.:]\d{2}\s*[-–]\s*\d{1,2}[\.:]\d{2}\s*น\.)/g, '<span style="color: #dc2626; font-weight: 600;">$1</span>');
+        formatted = formatted.replace(/(\b\d{1,2}[\.:]\d{2}\s*น\.)/g, '<span style="color: #dc2626; font-weight: 600;">$1</span>');
+        formatted = formatted.replace(/(เครื่องลง\s*\d{1,2}[\.:]\d{2}\s*น\.)/g, '<span style="color: #0284c7; font-weight: 600;">$1</span>');
+        formatted = formatted.replace(/(ติดต่อ\s*K\.[^\/\n]+)/g, '<span style="color: #dc2626; font-weight: 600;">$1</span>');
+
+        // Match with specific booking item if available
+        let matchedBookingId = '';
+        let matchedItemNo = '';
+
+        for (const b of rowBookings) {
+          if (b.itinerary && Array.isArray(b.itinerary)) {
+            for (let idx = 0; idx < b.itinerary.length; idx++) {
+              const it = b.itinerary[idx];
+              const dest = it.destination ? it.destination.trim() : '';
+              const det = it.detail ? it.detail.trim() : '';
+              if ((dest && job.includes(dest)) || (det && job.includes(det))) {
+                matchedBookingId = b.id;
+                matchedItemNo = String(it.no || (idx + 1));
+                break;
+              }
+            }
+          }
+          if (matchedBookingId) break;
+        }
+
+        const rowIdAttr = row ? `data-row-id="${escapeHtml(row.id)}"` : '';
+        const bIdAttr = matchedBookingId ? `data-booking-id="${escapeHtml(matchedBookingId)}"` : '';
+        const itNoAttr = matchedItemNo ? `data-item-no="${escapeHtml(matchedItemNo)}"` : '';
+
+        return `
+          <span class="dispatch-job-segment" style="display: inline-flex; align-items: baseline; margin-right: 2px;">
+            <span class="dispatch-job-order font-bold" style="color: #1e40af; margin-right: 5px; flex-shrink: 0;" contenteditable="false">${escapeHtml(orderPrefix)}</span>
+            <span>${formatted}</span>
+            <button 
+              type="button" 
+              class="btn-remove-job-item no-print" 
+              ${rowIdAttr} 
+              data-job-text="${escapeHtml(job)}" 
+              ${bIdAttr} 
+              ${itNoAttr} 
+              title="ลบงานนี้ออกจากรถคันนี้"
+              contenteditable="false"
+            >✕</button>
+          </span>
+        `;
+      });
+
+      return `<div class="dispatch-itinerary-line">${formattedJobs.join('<span class="dispatch-job-separator" style="color: #94a3b8; margin: 0 4px; font-weight: 600;" contenteditable="false">/</span>')}</div>`;
+    }).filter(Boolean).join('');
   }
 
   render();

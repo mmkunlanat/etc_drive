@@ -3947,20 +3947,74 @@ body {
 /* Itinerary Details Box */
 .dispatch-itinerary-cell {
   background-color: #ffffff;
-  padding: 8px 12px !important;
+  padding: 6px 12px !important;
   text-align: left;
-  line-height: 1.6;
-  font-size: 0.92rem;
+  line-height: 1.45;
+  font-size: 0.9rem;
   border-top: 1px solid #000000;
   border-bottom: 1px solid #000000;
 }
 
 .dispatch-itinerary-line {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+  line-height: 1.45;
 }
 
 .dispatch-itinerary-line:last-child {
   margin-bottom: 0;
+}
+
+/* Button to remove single job from vehicle in spreadsheet */
+.btn-remove-job-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  min-width: 17px;
+  border-radius: 50%;
+  background-color: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  margin-left: 6px;
+  margin-right: 4px;
+  cursor: pointer;
+  vertical-align: middle;
+  padding: 0;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.btn-remove-job-item:hover {
+  background-color: #ef4444;
+  color: #ffffff;
+  border-color: #b91c1c;
+  transform: scale(1.15);
+  box-shadow: 0 1px 4px rgba(220, 38, 38, 0.35);
+}
+
+.btn-remove-job-item:active {
+  transform: scale(0.95);
+}
+
+.dispatch-job-segment {
+  display: inline;
+}
+
+.dispatch-job-order {
+  color: #1e40af;
+  font-weight: 800;
+  margin-right: 5px;
+  user-select: none;
+}
+
+@media print {
+  .btn-remove-job-item {
+    display: none !important;
+  }
 }
 
 /* Red text highlighting for times and airport notes */
@@ -4020,16 +4074,16 @@ body {
   width: 100%;
   border: 1px dashed transparent;
   background: transparent;
-  padding: 4px 6px;
+  padding: 2px 4px;
   font-family: inherit;
-  font-size: 0.92rem;
-  line-height: 1.55;
+  font-size: 0.9rem;
+  line-height: 1.45;
   color: #000000;
   outline: none;
-  min-height: 48px;
+  min-height: 36px;
   border-radius: 4px;
   transition: all 0.15s ease;
-  white-space: pre-wrap;
+  white-space: normal;
   word-break: break-word;
 }
 

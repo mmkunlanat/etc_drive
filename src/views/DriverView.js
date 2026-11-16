@@ -51,20 +51,28 @@ function parseItineraryFromText(rawTextOrLines) {
     const subStops = line.split('/').map(s => s.trim()).filter(Boolean);
     if (subStops.length > 1) {
       subStops.forEach(stop => {
+        const timeMatch = stop.match(/(\d{1,2}[:.]\d{2})\s*น\./);
+        const passMatch = stop.match(/(\d+)\s*คน/);
         items.push({
           no: items.length + 1,
           detail: stop,
           destination: stop,
+          time: timeMatch ? timeMatch[1].replace('.', ':') : '',
+          passengers: passMatch ? passMatch[1] : '',
           note: '',
           completed: false,
           completedAt: null
         });
       });
     } else {
+      const timeMatch = line.match(/(\d{1,2}[:.]\d{2})\s*น\./);
+      const passMatch = line.match(/(\d+)\s*คน/);
       items.push({
         no: items.length + 1,
         detail: line,
         destination: line,
+        time: timeMatch ? timeMatch[1].replace('.', ':') : '',
+        passengers: passMatch ? passMatch[1] : '',
         note: '',
         completed: false,
         completedAt: null
