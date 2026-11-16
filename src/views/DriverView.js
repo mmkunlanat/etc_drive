@@ -8,6 +8,7 @@ import {
   updateBooking,
   getDispatchSchedule,
   saveDispatchSchedule,
+  getScheduleApprovalMeta,
   DRIVER_POOL
 } from '../store.js';
 import { renderPaperModal } from '../components/PaperModal.js';
@@ -38,223 +39,211 @@ function parseVehiclePlate(vehicleStr) {
   return { plate: vehicleStr, type: 'ยานพาหนะส่วนกลาง', colorClass: '' };
 }
 
-function parseItineraryFromText(rawTextOrLines) {
-  if (!rawTextOrLines) return [];
-  const rawLines = typeof rawTextOrLines === 'string' 
-    ? rawTextOrLines.split('\n') 
-    : (Array.isArray(rawTextOrLines) ? rawTextOrLines : []);
-  const cleanLines = rawLines.map(l => l.trim()).filter(Boolean);
-  const items = [];
-  
-  cleanLines.forEach((line) => {
-    const subStops = line.split('/').map(s => s.trim()).filter(Boolean);
-    if (subStops.length > 1) {
-      subStops.forEach(stop => {
-        items.push({
-          no: items.length + 1,
-          detail: stop,
-          destination: stop,
-          note: '',
-          completed: false,
-          completedAt: null
-        });
-      });
-    } else {
-      items.push({
-        no: items.length + 1,
-        detail: line,
-        destination: line,
-        note: '',
-        completed: false,
-        completedAt: null
-      });
+// Helper to split a line into individual jobs safely without splitting inside parentheses e.g. "(10:00 น. / 3 คน)"
+function splitJobsFromLine(line) {
+  if (!line) return [];
+  const jobs = [];
+  let current = '';
+  let parenDepth = 0;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '(') parenDepth++;
+    else if (ch === ')') { if (parenDepth > 0) parenDepth--; }
+
+    if (parenDepth === 0 && ch === '/' && (
+      (i > 0 && line[i - 1] === ' ') || (i < line.length - 1 && line[i + 1] === ' ')
+    )) {
+      const cleaned = current.trim().replace(/\/$/, '').trim();
+      if (cleaned) {
+        jobs.push(cleaned);
+      }
+      current = '';
+      if (i < line.length - 1 && line[i + 1] === ' ') {
+        i++;
+      }
+      continue;
     }
+    current += ch;
+  }
+  const finalCleaned = current.trim().replace(/\/$/, '').trim();
+  if (finalCleaned) {
+    jobs.push(finalCleaned);
+  }
+  return jobs;
+}
+
+function formatBookerName(name) {
+  if (!name) return '';
+  let clean = name.trim();
+  if (clean.startsWith('K.') || clean.startsWith('k.')) return clean;
+  clean = clean.replace(/^(นาย|นางสาว|นาง|คุณ)\s*/i, '').trim();
+  const firstName = clean.split(' ')[0];
+  return `K.${firstName}`;
+}
+
+// Parse itinerary stops directly from Admin's vehicle dispatch row
+function parseItineraryFromDispatchRow(row) {
+  if (!row) return [];
+
+  // Check if row already has completed state saved in row.itinerary
+  const existingCompletedMap = new Map();
+  if (Array.isArray(row.itinerary) && row.itinerary.length > 0) {
+    row.itinerary.forEach((it, idx) => {
+      const key = `${it.no || idx + 1}_${it.destination || ''}_${it.detail || ''}`;
+      if (it.completed) {
+        existingCompletedMap.set(key, { completed: true, completedAt: it.completedAt });
+        existingCompletedMap.set(String(it.no || idx + 1), { completed: true, completedAt: it.completedAt });
+      }
+    });
+  }
+
+  const rawText = row.itineraryText || (Array.isArray(row.itineraryLines) ? row.itineraryLines.join('\n') : '');
+  if (!rawText || !rawText.trim()) {
+    if (Array.isArray(row.itinerary) && row.itinerary.length > 0) {
+      return row.itinerary.map((step, idx) => ({
+        no: step.no || (idx + 1),
+        destination: step.destination || step.detail || `จุดหมายที่ ${idx + 1}`,
+        detail: step.detail || step.destination || '',
+        note: step.note || '',
+        time: step.time || '',
+        passengers: step.passengers || '',
+        completed: Boolean(step.completed),
+        completedAt: step.completedAt || null
+      }));
+    }
+    return [];
+  }
+
+  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+  const items = [];
+
+  lines.forEach(line => {
+    const subJobs = splitJobsFromLine(line);
+    subJobs.forEach(jobStr => {
+      const cleanJob = jobStr.trim();
+      if (!cleanJob) return;
+
+      const timeMatch = cleanJob.match(/(\d{1,2}[:.]\d{2})\s*น\./) || cleanJob.match(/(\d{1,2}[:.]\d{2})/);
+      const passMatch = cleanJob.match(/(\d+)\s*คน/);
+
+      let dest = cleanJob;
+      let detail = cleanJob;
+      const bracketMatch = cleanJob.match(/^(.*?)\s*\((.*?)\)$/);
+      if (bracketMatch) {
+        dest = bracketMatch[1].trim();
+        detail = bracketMatch[2].trim();
+      }
+
+      // Remove leading order numbers e.g. "1. อ.เมือง..." -> "อ.เมือง..."
+      dest = dest.replace(/^\d+[\.\)]\s*/, '').trim();
+
+      const itemNo = items.length + 1;
+      const key = `${itemNo}_${dest}_${detail}`;
+      const savedState = existingCompletedMap.get(key) || existingCompletedMap.get(String(itemNo)) || {};
+
+      items.push({
+        no: itemNo,
+        destination: dest || cleanJob,
+        detail: detail || cleanJob,
+        time: timeMatch ? timeMatch[1].replace('.', ':') : '',
+        passengers: passMatch ? passMatch[1] : '',
+        note: '',
+        completed: Boolean(savedState.completed),
+        completedAt: savedState.completedAt || null
+      });
+    });
   });
-  
+
   return items;
 }
 
-// Pull jobs directly from Admin's recorded daily dispatch schedule & linked bookings
-// Each distinct booking / assignment is preserved as its own individual job
+// Pull jobs strictly from Admin's daily dispatch schedule approved by Approver
 function getDriverJobsForDate(dateIso, driver, allBookings) {
-  if (!driver) return [];
-  
-  // 1. Get Admin's recorded dispatch schedule for this date
+  if (!driver || !dateIso) return [];
+
+  // 1. ตรวจสอบว่าตารางจัดรถประจำวันนี้ ได้รับการอนุมัติจากผู้อนุมัติแล้วหรือไม่
+  const scheduleMeta = getScheduleApprovalMeta(dateIso);
+  if (!scheduleMeta || scheduleMeta.status !== 'approved') {
+    return []; // ถ้าผู้อนุมัติยังไม่อนุมัติ คนขับจะไม่เห็นงาน
+  }
+
+  // 2. ดึงตารางจัดรถประจำวันของวันที่ระบุ
   const dispatchRows = getDispatchSchedule(dateIso) || [];
-  
-  // 2. Find rows in Admin's dispatch table assigned to this driver
+
+  // 3. กรองเฉพาะแถวในตารางจัดรถที่มอบหมายให้พนักงานขับรถคนนี้
   const myDispatchRows = dispatchRows.filter(r => {
     if (!r) return false;
     const nameMatch = r.driverName && (
+      r.driverName.trim().toLowerCase() === driver.name.trim().toLowerCase() ||
       r.driverName.trim().toLowerCase().includes(driver.name.trim().toLowerCase()) ||
       driver.name.trim().toLowerCase().includes(r.driverName.trim().toLowerCase())
     );
     const codeMatch = r.driverCode && r.driverCode !== '#N/A' && String(r.driverCode).trim() === String(driver.code).trim();
-    
-    // Check if the row has any actual work assigned
-    const hasText = r.itineraryText && r.itineraryText.trim();
+
+    // ต้องเป็นแถวที่มีงานจริงในตารางจัดรถ
+    const hasText = Boolean(r.itineraryText && r.itineraryText.trim());
     const hasLines = Array.isArray(r.itineraryLines) && r.itineraryLines.length > 0 && r.itineraryLines.some(l => l && l.trim());
-    const hasBooker = r.booker && r.booker.trim();
-    const hasLinkedBookings = Array.isArray(r.linkedBookingIds) && r.linkedBookingIds.length > 0;
-    const hasWork = Boolean(hasText || hasLines || hasBooker || hasLinkedBookings);
-    
-    return (nameMatch || codeMatch) && hasWork;
+    const hasBooker = Boolean(r.booker && r.booker.trim());
+    const hasLinked = Array.isArray(r.linkedBookingIds) && r.linkedBookingIds.length > 0;
+    const hasItin = Array.isArray(r.itinerary) && r.itinerary.length > 0;
+
+    return (nameMatch || codeMatch) && (hasText || hasLines || hasBooker || hasLinked || hasItin);
   });
 
   const jobs = [];
-  const processedBookingIds = new Set();
 
-  // Standardize itinerary steps so every item has completed and completedAt
-  const sanitizeItinerary = (rawList) => {
-    if (!Array.isArray(rawList)) return [];
-    return rawList.map((step, idx) => ({
-      no: step.no || (idx + 1),
-      destination: step.destination || step.detail || `จุดหมายที่ ${idx + 1}`,
-      detail: step.detail || step.destination || '',
-      note: step.note || '',
-      time: step.time || '',
-      passengers: step.passengers || '',
-      completed: Boolean(step.completed),
-      completedAt: step.completedAt || null
-    }));
-  };
-
-  // 3. Build job cards from Admin's dispatch schedule rows
-  // If a row has multiple bookings, each booking MUST be its own independent job card!
+  // 4. สร้างการ์ดงานของคนขับจากแต่ละแถวรถในตารางจัดรถประจำวันที่อนุมัติแล้ว
   myDispatchRows.forEach(row => {
     const linkedIds = Array.isArray(row.linkedBookingIds) ? row.linkedBookingIds : [];
-    const linkedBookings = linkedIds.map(id => allBookings.find(b => b.id === id)).filter(Boolean);
+    const linkedBookings = linkedIds.map(id => (allBookings || getAllBookings()).find(b => b.id === id)).filter(Boolean);
 
-    if (linkedBookings.length > 0) {
-      linkedBookings.forEach(b => {
-        processedBookingIds.add(b.id);
-        
-        const rawList = (b.itinerary && b.itinerary.length > 0)
-          ? b.itinerary
-          : ((row.itinerary && row.itinerary.length > 0) ? row.itinerary : parseItineraryFromText(row.itineraryText || row.itineraryLines));
-
-        const itinerary = sanitizeItinerary(rawList);
-        const allCompleted = itinerary.length > 0 && itinerary.every(s => s.completed);
-        const anyCompleted = itinerary.some(s => s.completed);
-
-        let jobStatus = b.driverJobStatus || row.driverJobStatus || 'not_started';
-        if (allCompleted) {
-          jobStatus = 'completed';
-        } else if (anyCompleted && jobStatus !== 'completed') {
-          jobStatus = 'in_progress';
-        }
-
-        jobs.push({
-          id: b.id,
-          dispatchRowId: row.id,
-          dispatchRowNo: row.no,
-          isFromAdminDispatch: true,
-          usageDate: dateIso,
-          startTime: b.startTime || (row.time ? row.time.replace('.', ':') : '08:30'),
-          endTime: b.endTime || '17:00',
-          assignedVehicle: row.plate || b.assignedVehicle || 'รอยืนยันรถ',
-          assignedDriver: row.driverName || driver.name,
-          assignedDriverId: driver.id,
-          bookerName: b.bookerName || row.booker || '-',
-          bookerPhone: b.bookerPhone || '',
-          department: b.department || row.department || '-',
-          notes: b.notes || row.comment || '',
-          itinerary: itinerary,
-          status: allCompleted ? 'completed' : (b.status || 'dispatched'),
-          statusLabel: allCompleted ? 'เสร็จสิ้นภารกิจ' : (b.statusLabel || 'จัดรถแล้ว (ตารางจัดรถแอดมิน)'),
-          driverConfirmed: Boolean(b.driverConfirmed || row.driverConfirmed || false),
-          driverConfirmedAt: b.driverConfirmedAt || row.driverConfirmedAt || '',
-          driverJobStatus: jobStatus
-        });
-      });
-    } else {
-      // Standalone row in dispatch schedule without linked formal booking
-      const rawList = (row.itinerary && row.itinerary.length > 0)
-        ? row.itinerary
-        : parseItineraryFromText(row.itineraryText || row.itineraryLines);
-      
-      const itinerary = sanitizeItinerary(rawList);
-      const allCompleted = itinerary.length > 0 && itinerary.every(s => s.completed);
-      const anyCompleted = itinerary.some(s => s.completed);
-
-      let jobStatus = row.driverJobStatus || 'not_started';
-      if (allCompleted) {
-        jobStatus = 'completed';
-      } else if (anyCompleted && jobStatus !== 'completed') {
-        jobStatus = 'in_progress';
+    // รวมเบอร์โทรติดต่อของผู้จองทั้งหมดในรถคันนี้
+    const phoneList = [];
+    linkedBookings.forEach(b => {
+      if (b.bookerPhone && !phoneList.includes(b.bookerPhone)) {
+        const nameLabel = b.bookerName ? formatBookerName(b.bookerName) + ': ' : '';
+        phoneList.push(`${nameLabel}${b.bookerPhone}`);
       }
+    });
 
-      jobs.push({
-        id: `DISP-${dateIso}-R${row.no}`,
-        dispatchRowId: row.id,
-        dispatchRowNo: row.no,
-        isFromAdminDispatch: true,
-        usageDate: dateIso,
-        startTime: row.time ? row.time.replace('.', ':') : '08:30',
-        endTime: '17:00',
-        assignedVehicle: row.plate || 'รอยืนยันรถ',
-        assignedDriver: row.driverName || driver.name,
-        assignedDriverId: driver.id,
-        bookerName: row.booker || '-',
-        bookerPhone: '',
-        department: row.department || '-',
-        notes: row.comment || '',
-        itinerary: itinerary,
-        status: allCompleted ? 'completed' : 'dispatched',
-        statusLabel: allCompleted ? 'เสร็จสิ้นภารกิจ' : 'จัดรถแล้ว (ตารางจัดรถแอดมิน)',
-        driverConfirmed: Boolean(row.driverConfirmed || false),
-        driverConfirmedAt: row.driverConfirmedAt || '',
-        driverJobStatus: jobStatus
-      });
-    }
-  });
-
-  // 4. Also check direct bookings assigned to this driver for this date that weren't linked in Admin rows
-  const directBookings = allBookings.filter(b => {
-    if (!b || processedBookingIds.has(b.id)) return false;
-    const matchId = b.assignedDriverId === driver.id;
-    const matchName = b.assignedDriver && (
-      b.assignedDriver.toLowerCase().includes(driver.name.toLowerCase()) ||
-      driver.name.toLowerCase().includes(b.assignedDriver.toLowerCase())
-    );
-    const isThisDate = b.usageDate === dateIso;
-    const isDispatched = b.status === 'dispatched' || b.status === 'completed' || b.status === 'approved';
-    return (matchId || matchName) && isThisDate && isDispatched;
-  });
-
-  directBookings.forEach(b => {
-    processedBookingIds.add(b.id);
-    const itinerary = sanitizeItinerary(b.itinerary || []);
+    // Parse รายการจุดหมาย/เส้นทางวิ่งจากแถวตารางจัดรถประจำวันของแอดมิน
+    const itinerary = parseItineraryFromDispatchRow(row);
     const allCompleted = itinerary.length > 0 && itinerary.every(s => s.completed);
     const anyCompleted = itinerary.some(s => s.completed);
 
-    let jobStatus = b.driverJobStatus || 'not_started';
+    let jobStatus = row.driverJobStatus || 'not_started';
     if (allCompleted) {
       jobStatus = 'completed';
     } else if (anyCompleted && jobStatus !== 'completed') {
       jobStatus = 'in_progress';
     }
 
+    const jobTitleId = linkedBookings.length > 0 
+      ? linkedBookings.map(b => b.id).join(', ') 
+      : `DISP-${dateIso}-R${row.no}`;
+
     jobs.push({
-      id: b.id,
-      dispatchRowId: null,
-      dispatchRowNo: null,
-      isFromAdminDispatch: false,
-      usageDate: b.usageDate || dateIso,
-      startTime: b.startTime || '08:30',
-      endTime: b.endTime || '17:00',
-      assignedVehicle: b.assignedVehicle || b.requestedVehicle || 'รอยืนยันรถ',
-      assignedDriver: b.assignedDriver || driver.name,
+      id: jobTitleId,
+      dispatchRowId: row.id,
+      dispatchRowNo: row.no,
+      linkedBookingIds: linkedIds,
+      isFromAdminDispatch: true,
+      usageDate: dateIso,
+      startTime: row.time ? row.time.replace('.', ':') : '08:30',
+      endTime: '17:00',
+      assignedVehicle: row.plate || 'รอยืนยันรถ',
+      assignedDriver: row.driverName || driver.name,
       assignedDriverId: driver.id,
-      bookerName: b.bookerName,
-      bookerPhone: b.bookerPhone,
-      department: b.department,
-      notes: b.notes,
+      bookerName: row.booker || (linkedBookings.map(b => b.bookerName).filter(Boolean).join(' / ') || '-'),
+      bookerPhone: phoneList.join(' / ') || '',
+      department: row.department || (linkedBookings.map(b => b.department).filter(Boolean).join(' / ') || '-'),
+      notes: row.comment || (linkedBookings.map(b => b.notes).filter(Boolean).join('; ') || ''),
       itinerary: itinerary,
-      status: allCompleted ? 'completed' : b.status,
-      statusLabel: allCompleted ? 'เสร็จสิ้นภารกิจ' : b.statusLabel,
-      driverConfirmed: Boolean(b.driverConfirmed || false),
-      driverConfirmedAt: b.driverConfirmedAt || '',
+      status: allCompleted ? 'completed' : 'dispatched',
+      statusLabel: allCompleted ? 'เสร็จสิ้นภารกิจ' : 'จัดรถแล้ว (ตารางจัดรถแอดมิน)',
+      driverConfirmed: Boolean(row.driverConfirmed || false),
+      driverConfirmedAt: row.driverConfirmedAt || '',
       driverJobStatus: jobStatus
     });
   });
@@ -262,34 +251,16 @@ function getDriverJobsForDate(dateIso, driver, allBookings) {
   return jobs;
 }
 
-// Synchronize status updates strictly to THIS specific job and its corresponding record
+// Synchronize status updates strictly to THIS specific job and its corresponding record in dispatch schedule and bookings
 function updateJobStatus(job, updates) {
-  // 1. Update this specific booking if it has a real booking ID
-  if (job.id && job.id.startsWith('REQ-')) {
-    updateBooking(job.id, updates);
-  }
-
-  // 2. Also update Admin's dispatch schedule row
+  // 1. Update Admin's dispatch schedule row
   if (job.usageDate && job.dispatchRowId) {
     const rows = getDispatchSchedule(job.usageDate);
     if (rows && rows.length > 0) {
       const targetRow = rows.find(r => r.id === job.dispatchRowId || r.no === String(job.dispatchRowNo));
       if (targetRow) {
-        if (!targetRow.confirmedBookingIds) targetRow.confirmedBookingIds = [];
-        if (updates.driverConfirmed) {
-          if (!targetRow.confirmedBookingIds.includes(job.id)) {
-            targetRow.confirmedBookingIds.push(job.id);
-          }
-        }
-        
-        // If row has multiple linked bookings, check if all of them are now confirmed
-        const allLinked = targetRow.linkedBookingIds || [];
-        const isRowAllConfirmed = allLinked.length > 0 
-          ? allLinked.every(bId => targetRow.confirmedBookingIds.includes(bId))
-          : (updates.driverConfirmed ?? targetRow.driverConfirmed);
-
         if (updates.driverConfirmed !== undefined) {
-          targetRow.driverConfirmed = isRowAllConfirmed;
+          targetRow.driverConfirmed = updates.driverConfirmed;
         }
         if (updates.driverConfirmedAt !== undefined) {
           targetRow.driverConfirmedAt = updates.driverConfirmedAt;
@@ -305,6 +276,18 @@ function updateJobStatus(job, updates) {
       }
     }
   }
+
+  // 2. Synchronize to all linked bookings
+  const bookingIds = job.linkedBookingIds || (job.id && job.id.startsWith('REQ-') ? [job.id] : []);
+  bookingIds.forEach(bId => {
+    updateBooking(bId, {
+      driverConfirmed: updates.driverConfirmed,
+      driverConfirmedAt: updates.driverConfirmedAt,
+      driverJobStatus: updates.driverJobStatus,
+      status: updates.status,
+      statusLabel: updates.statusLabel
+    });
+  });
 }
 
 export function renderDriverView(container) {
@@ -320,17 +303,40 @@ export function renderDriverView(container) {
     const allBookings = getAllBookings();
     const currentDriver = DRIVER_POOL.find(d => d.id === selectedDriverId) || DRIVER_POOL[0];
 
+    // Check approval status from Approver
+    const todayMeta = getScheduleApprovalMeta(todayIso);
+    const tomorrowMeta = getScheduleApprovalMeta(tomorrowIso);
+    const isTodayApproved = todayMeta && todayMeta.status === 'approved';
+    const isTomorrowApproved = tomorrowMeta && tomorrowMeta.status === 'approved';
+
     // Fetch jobs pulled directly from Admin's dispatch schedule and bookings
-    const todayTrips = getDriverJobsForDate(todayIso, currentDriver, allBookings);
-    const tomorrowTrips = getDriverJobsForDate(tomorrowIso, currentDriver, allBookings);
+    const rawTodayTrips = getDriverJobsForDate(todayIso, currentDriver, allBookings);
+    const rawTomorrowTrips = getDriverJobsForDate(tomorrowIso, currentDriver, allBookings);
+
+    // Only allow driver to see trips once the schedule has been approved by the Approver
+    const todayTrips = isTodayApproved ? rawTodayTrips : [];
+    const tomorrowTrips = isTomorrowApproved ? rawTomorrowTrips : [];
 
     let displayedTrips = [];
+    let isCurrentDateApproved = true;
+    let currentScheduleMeta = null;
+    let currentScheduleThai = todayThai;
+
     if (activeDateTab === 'today') {
       displayedTrips = todayTrips;
+      isCurrentDateApproved = isTodayApproved;
+      currentScheduleMeta = todayMeta;
+      currentScheduleThai = todayThai;
     } else if (activeDateTab === 'tomorrow') {
       displayedTrips = tomorrowTrips;
+      isCurrentDateApproved = isTomorrowApproved;
+      currentScheduleMeta = tomorrowMeta;
+      currentScheduleThai = tomorrowThai;
     } else {
       displayedTrips = [...todayTrips, ...tomorrowTrips];
+      isCurrentDateApproved = isTodayApproved || isTomorrowApproved;
+      currentScheduleMeta = !isTodayApproved ? todayMeta : tomorrowMeta;
+      currentScheduleThai = !isTodayApproved ? todayThai : tomorrowThai;
     }
 
     const totalJobs = displayedTrips.length;
@@ -374,18 +380,22 @@ export function renderDriverView(container) {
             <button type="button" class="driver-date-tab-btn ${activeDateTab === 'today' ? 'active' : ''}" data-tab="today">
               <span>📅</span>
               <span>งานวันนี้ (${todayThai.short})</span>
-              <span class="tab-badge ${todayTrips.length > 0 ? 'badge-has-jobs' : ''}">${todayTrips.length}</span>
+              ${isTodayApproved 
+                ? `<span class="tab-badge ${todayTrips.length > 0 ? 'badge-has-jobs' : ''}">${todayTrips.length}</span>` 
+                : `<span class="tab-badge" style="background: #f59e0b; color: #fff; font-size: 0.68rem; padding: 1px 6px;">⏳ รออนุมัติ</span>`}
             </button>
 
             <button type="button" class="driver-date-tab-btn ${activeDateTab === 'tomorrow' ? 'active' : ''}" data-tab="tomorrow">
               <span>📆</span>
               <span>งานวันถัดไป (${tomorrowThai.short})</span>
-              <span class="tab-badge ${tomorrowTrips.length > 0 ? 'badge-has-jobs' : ''}">${tomorrowTrips.length}</span>
+              ${isTomorrowApproved 
+                ? `<span class="tab-badge ${tomorrowTrips.length > 0 ? 'badge-has-jobs' : ''}">${tomorrowTrips.length}</span>` 
+                : `<span class="tab-badge" style="background: #f59e0b; color: #fff; font-size: 0.68rem; padding: 1px 6px;">⏳ รออนุมัติ</span>`}
             </button>
 
             <button type="button" class="driver-date-tab-btn ${activeDateTab === 'all' ? 'active' : ''}" data-tab="all">
               <span>📋</span>
-              <span>งานทั้งหมด (วันนี้ + ถัดไป)</span>
+              <span>งานทั้งหมด (ที่อนุมัติแล้ว)</span>
               <span class="tab-badge">${todayTrips.length + tomorrowTrips.length}</span>
             </button>
           </div>
@@ -396,47 +406,53 @@ export function renderDriverView(container) {
           </button>
         </div>
 
-        <!-- Progress Banner when more than 1 job (ต้องกดยืนยันไปทีละงาน) -->
-        ${totalJobs > 1 ? `
-          <div class="driver-confirm-progress-banner ${allConfirmed ? 'all-confirmed' : 'has-pending'}">
-            <div class="confirm-progress-left">
-              <span style="font-size: 1.5rem;">${allConfirmed ? '✅' : '🔔'}</span>
-              <div>
-                <div class="confirm-progress-title">
-                  ${allConfirmed ? 'ยืนยันรับทราบงานครบทุกรายการแล้ว' : `สถานะการยืนยันงาน: ยืนยันแล้ว ${confirmedCount} จาก ${totalJobs} งาน`}
-                </div>
-                <div class="confirm-subtext">
-                  ${allConfirmed 
-                    ? 'คุณได้กดยืนยันรับงานครบทุกงานแล้ว สามารถเริ่มออกเดินทางตามตารางเวลาได้ครับ' 
-                    : `มีงานที่ยังไม่ได้ยืนยันอีก ${unconfirmedCount} งาน (กรุณากดยืนยันรับงานไปทีละรายการด้านล่าง)`}
+        <!-- Render Content based on approval status -->
+        ${!isCurrentDateApproved ? renderPendingApprovalState(activeDateTab, currentScheduleThai, currentScheduleMeta) : `
+          <!-- Approved Schedule Verification Banner -->
+          ${renderApprovedBanner(currentScheduleThai, currentScheduleMeta, activeDateTab, isTodayApproved, isTomorrowApproved, todayThai, tomorrowThai)}
+
+          <!-- Progress Banner when more than 1 job (ต้องกดยืนยันไปทีละงาน) -->
+          ${totalJobs > 1 ? `
+            <div class="driver-confirm-progress-banner ${allConfirmed ? 'all-confirmed' : 'has-pending'}">
+              <div class="confirm-progress-left">
+                <span style="font-size: 1.5rem;">${allConfirmed ? '✅' : '🔔'}</span>
+                <div>
+                  <div class="confirm-progress-title">
+                    ${allConfirmed ? 'ยืนยันรับทราบงานครบทุกรายการแล้ว' : `สถานะการยืนยันงาน: ยืนยันแล้ว ${confirmedCount} จาก ${totalJobs} งาน`}
+                  </div>
+                  <div class="confirm-subtext">
+                    ${allConfirmed 
+                      ? 'คุณได้กดยืนยันรับงานครบทุกงานแล้ว สามารถเริ่มออกเดินทางตามตารางเวลาได้ครับ' 
+                      : `มีงานที่ยังไม่ได้ยืนยันอีก ${unconfirmedCount} งาน (กรุณากดยืนยันรับงานไปทีละรายการด้านล่าง)`}
+                  </div>
                 </div>
               </div>
+              <div class="confirm-progress-pill ${allConfirmed ? 'pill-green' : 'pill-amber'}">
+                ${allConfirmed ? `✓ ครบ ${totalJobs} งาน` : `รอยืนยันอีก ${unconfirmedCount} งาน`}
+              </div>
             </div>
-            <div class="confirm-progress-pill ${allConfirmed ? 'pill-green' : 'pill-amber'}">
-              ${allConfirmed ? `✓ ครบ ${totalJobs} งาน` : `รอยืนยันอีก ${unconfirmedCount} งาน`}
-            </div>
-          </div>
-        ` : ''}
+          ` : ''}
 
-        <!-- Section Title & Counter -->
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 8px;">
-          <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--slate-800); display: flex; align-items: center; gap: 8px;">
-            <span>${activeDateTab === 'tomorrow' ? '📆' : '📋'}</span>
-            <span>
-              ${activeDateTab === 'today' ? `ตารางงานขับรถวันนี้ (วันที่ ${todayThai.full})` :
-                activeDateTab === 'tomorrow' ? `ตารางงานขับรถวันถัดไป (วันที่ ${tomorrowThai.full})` :
-                `ตารางงานขับรถทั้งหมด (${todayThai.short} - ${tomorrowThai.short})`}
+          <!-- Section Title & Counter -->
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 8px;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--slate-800); display: flex; align-items: center; gap: 8px;">
+              <span>${activeDateTab === 'tomorrow' ? '📆' : '📋'}</span>
+              <span>
+                ${activeDateTab === 'today' ? `ตารางงานขับรถวันนี้ (วันที่ ${todayThai.full})` :
+                  activeDateTab === 'tomorrow' ? `ตารางงานขับรถวันถัดไป (วันที่ ${tomorrowThai.full})` :
+                  `ตารางงานขับรถทั้งหมด (${todayThai.short} - ${tomorrowThai.short})`}
+              </span>
+            </h3>
+            <span style="font-size: 0.85rem; font-weight: 600; color: #1e40af; background: #dbeafe; padding: 4px 12px; border-radius: 20px;">
+              มีทั้งหมด ${totalJobs} ภารกิจ
             </span>
-          </h3>
-          <span style="font-size: 0.85rem; font-weight: 600; color: #1e40af; background: #dbeafe; padding: 4px 12px; border-radius: 20px;">
-            มีทั้งหมด ${totalJobs} ภารกิจ
-          </span>
-        </div>
+          </div>
 
-        <!-- Trips List: Each job must be confirmed one-by-one -->
-        ${totalJobs === 0 
-          ? renderEmptyState(activeDateTab, todayThai, tomorrowThai, todayTrips.length, tomorrowTrips.length) 
-          : displayedTrips.map((trip, idx) => renderTripCard(trip, idx, totalJobs, todayIso, tomorrowIso, todayThai, tomorrowThai)).join('')}
+          <!-- Trips List: Each job must be confirmed one-by-one -->
+          ${totalJobs === 0 
+            ? renderEmptyState(activeDateTab, todayThai, tomorrowThai, todayTrips.length, tomorrowTrips.length) 
+            : displayedTrips.map((trip, idx) => renderTripCard(trip, idx, totalJobs, todayIso, tomorrowIso, todayThai, tomorrowThai)).join('')}
+        `}
 
       </div>
     `;
@@ -478,6 +494,96 @@ export function renderDriverView(container) {
             📆 ดูงานของวันถัดไป (${tomorrowCount} งาน)
           </button>
         ` : ''}
+      </div>
+    `;
+  }
+
+  function renderPendingApprovalState(tab, thaiDate, meta) {
+    const isPending = meta?.status === 'pending_approval';
+    const isReturned = meta?.status === 'returned';
+    const statusText = isPending 
+      ? 'แอดมินส่งตารางแล้ว (รอผู้อนุมัติยืนยัน)' 
+      : (isReturned ? 'ผู้อนุมัติส่งกลับแก้ไข (แอดมินกำลังปรับปรุงตาราง)' : 'ฉบับร่าง (แอดมินยังไม่ส่งตรวจ)');
+    const statusBg = isReturned ? '#ffe4e6' : (isPending ? '#fef3c7' : '#f1f5f9');
+    const statusColor = isReturned ? '#be123c' : (isPending ? '#b45309' : '#64748b');
+    const statusBorder = isReturned ? '#fca5a5' : (isPending ? '#fde68a' : '#cbd5e1');
+
+    return `
+      <div class="content-card pending-approval-driver-card" style="text-align: center; padding: 3.5rem 1.5rem; background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 12px; margin: 1.5rem 0;">
+        <div style="font-size: 3rem; margin-bottom: 0.8rem;">⏳</div>
+        <h3 style="font-size: 1.25rem; font-weight: 700; color: #92400e; margin-bottom: 8px;">
+          ตารางจัดรถประจำวัน${thaiDate.full} อยู่ระหว่างรอผู้อนุมัติตรวจสอบและยืนยัน
+        </h3>
+        <div style="display: inline-block; background: ${statusBg}; color: ${statusColor}; border: 1px solid ${statusBorder}; font-size: 0.82rem; font-weight: 700; padding: 4px 14px; border-radius: 20px; margin-bottom: 1rem;">
+          สถานะ: ${statusText}
+        </div>
+        <p style="color: #b45309; font-size: 0.95rem; max-width: 580px; margin: 0 auto; line-height: 1.6;">
+          ฝ่ายบริหารยานพาหนะ (แอดมิน) ได้บันทึกตารางจัดรถและส่งไปให้หัวหน้าฝ่าย/ผู้อนุมัติตรวจสอบความถูกต้องเรียบร้อยแล้ว<br>
+          <strong>ระบบจะเปิดให้ท่านดูตารางงานและกดยืนยันรับงานได้ทันที หลังจากผู้อนุมัติกดยืนยันตารางครับ</strong>
+        </p>
+        <div style="margin-top: 1.5rem;">
+          <button type="button" class="btn-primary btn-recheck-approval" style="background: #d97706; padding: 8px 20px; font-size: 0.88rem; font-weight: 600;">
+            🔄 ตรวจสอบสถานะการอนุมัติล่าสุด
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderApprovedBanner(thaiDate, meta, activeTab, isTodayApproved, isTomorrowApproved, todayThai, tomorrowThai) {
+    if (activeTab === 'all') {
+      const parts = [];
+      if (!isTodayApproved) parts.push(`งานวันนี้ (${todayThai.short})`);
+      if (!isTomorrowApproved) parts.push(`งานวันถัดไป (${tomorrowThai.short})`);
+      return `
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.25rem;">
+          <div class="schedule-approved-banner" style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 1.5rem;">✅</span>
+              <div>
+                <div style="font-weight: 700; color: #166534; font-size: 0.95rem;">
+                  แสดงเฉพาะตารางจัดรถที่ผู้อนุมัติได้ยืนยันแล้ว
+                </div>
+                <div style="font-size: 0.8rem; color: #15803d; margin-top: 2px;">
+                  เฉพาะงานที่ผ่านการอนุมัติอย่างเป็นทางการแล้วเท่านั้นจึงจะปรากฏในหน้านี้
+                </div>
+              </div>
+            </div>
+            <span style="font-size: 0.78rem; font-weight: 700; background: #22c55e; color: #fff; padding: 3px 10px; border-radius: 12px;">
+              ✓ ได้รับอนุมัติแล้ว
+            </span>
+          </div>
+
+          ${parts.length > 0 ? `
+            <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 14px; font-size: 0.82rem; color: #b45309; display: flex; align-items: center; gap: 6px;">
+              <span>⏳</span>
+              <span>หมายเหตุ: <strong>${parts.join(' และ ')}</strong> ยังอยู่ระหว่างรอผู้อนุมัติตรวจสอบและยืนยัน จึงยังไม่แสดงในรายการนี้</span>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    if (!meta || meta.status !== 'approved') return '';
+
+    return `
+      <div class="schedule-approved-banner" style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 12px 18px; margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.5rem;">✅</span>
+          <div>
+            <div style="font-weight: 700; color: #166534; font-size: 0.95rem;">
+              ตารางจัดรถประจำวันที่ ${thaiDate.short} ได้รับการอนุมัติและยืนยันแล้ว
+            </div>
+            <div style="font-size: 0.8rem; color: #15803d; margin-top: 2px;">
+              อนุมัติโดย: <strong>${escapeHtml(meta.confirmedBy || 'ผู้อนุมัติฝ่าย')}</strong>
+              ${meta.confirmedAt ? ` เมื่อ ${new Date(meta.confirmedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.` : ''}
+              ${meta.remark ? ` (${escapeHtml(meta.remark)})` : ''}
+            </div>
+          </div>
+        </div>
+        <span style="font-size: 0.78rem; font-weight: 700; background: #22c55e; color: #fff; padding: 3px 10px; border-radius: 12px;">
+          ✓ ตารางยืนยันเป็นทางการ
+        </span>
       </div>
     `;
   }
@@ -528,7 +634,6 @@ export function renderDriverView(container) {
           </div>
 
           <div style="display: flex; align-items: center; gap: 8px;">
-            <strong style="color: #475569; font-size: 0.85rem;">รหัส: ${trip.id}</strong>
             <span class="status-badge ${trip.status}">
               ${trip.statusLabel || trip.status}
             </span>
@@ -645,10 +750,6 @@ export function renderDriverView(container) {
                 <span>(${escapeHtml(trip.bookerPhone)})</span>
               </a>
             ` : ''}
-
-            <button class="btn-secondary-sm btn-driver-view-paper" data-id="${trip.id}">
-              📄 ดูใบงาน
-            </button>
           </div>
         </div>
 
@@ -722,6 +823,14 @@ export function renderDriverView(container) {
       });
     });
 
+    // Recheck approval status button
+    container.querySelectorAll('.btn-recheck-approval').forEach(btn => {
+      btn.addEventListener('click', () => {
+        showToast('✓ ตรวจสอบสถานะการอนุมัติตารางจัดรถล่าสุดเรียบร้อย');
+        render();
+      });
+    });
+
     // Sync button (ดึงข้อมูลล่าสุดจากแอดมิน)
     const btnSyncAdmin = document.getElementById('btn-sync-admin-schedule');
     if (btnSyncAdmin) {
@@ -751,73 +860,12 @@ export function renderDriverView(container) {
         const remainingUnconfirmed = displayedTrips.filter(t => t.id !== id && !t.driverConfirmed && t.driverJobStatus !== 'confirmed' && t.driverJobStatus !== 'in_progress' && t.driverJobStatus !== 'completed').length;
         
         if (remainingUnconfirmed > 0) {
-          showToast(`✓ ยืนยันรับงาน ${id} แล้ว! (ยังเหลืองานที่ต้องกดยืนยันอีก ${remainingUnconfirmed} งาน)`);
+          showToast(`✓ ยืนยันรับงานเรียบร้อยแล้ว! (ยังเหลืองานที่ต้องกดยืนยันอีก ${remainingUnconfirmed} งาน)`);
         } else {
-          showToast(`🎉 ยืนยันรับงาน ${id} เรียบร้อยแล้ว! (ยืนยันครบทุกงานแล้ว)`);
+          showToast(`🎉 ยืนยันรับงานเรียบร้อยแล้ว! (ยืนยันครบทุกงานแล้ว)`);
         }
 
         render();
-      });
-    });
-
-    // View Paper Form (also supports confirming this specific job)
-    container.querySelectorAll('.btn-driver-view-paper').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-id');
-        const targetTrip = displayedTrips.find(x => x.id === id);
-        const allBookings = getAllBookings();
-        let b = allBookings.find(x => x.id === id);
-        
-        // If not in formal bookings, synthesize official paper view from dispatch row
-        if (!b && targetTrip) {
-          b = {
-            id: targetTrip.id,
-            formCode: '',
-            bookingDate: targetTrip.usageDate,
-            usageDate: targetTrip.usageDate,
-            startTime: targetTrip.startTime,
-            endTime: targetTrip.endTime,
-            department: targetTrip.department,
-            bookerName: targetTrip.bookerName,
-            bookerPhone: targetTrip.bookerPhone,
-            assignedVehicle: targetTrip.assignedVehicle,
-            requestedVehicle: targetTrip.assignedVehicle,
-            assignedDriver: targetTrip.assignedDriver,
-            status: targetTrip.status,
-            statusLabel: targetTrip.statusLabel,
-            itinerary: targetTrip.itinerary,
-            notes: targetTrip.notes,
-            bookerSignature: targetTrip.bookerName,
-            adminSignature: 'ฝ่ายสำนักงานจัดสรรแล้ว'
-          };
-        }
-
-        if (b) {
-          renderPaperModal(b, {
-            confirmText: 'ยืนยันรับงานนี้',
-            onEdit: (booking) => {
-              window.dispatchEvent(new CustomEvent('edit_booking_in_form', { detail: booking }));
-            },
-            onConfirm: (booking) => {
-              const nowTime = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
-              if (targetTrip) {
-                updateJobStatus(targetTrip, {
-                  driverConfirmed: true,
-                  driverConfirmedAt: nowTime,
-                  driverJobStatus: 'confirmed'
-                });
-              } else {
-                updateBooking(booking.id, {
-                  driverConfirmed: true,
-                  driverConfirmedAt: nowTime,
-                  driverJobStatus: 'confirmed'
-                });
-              }
-              showToast(`ยืนยันรับงาน ${booking.id} เรียบร้อยแล้ว`);
-              render();
-            }
-          });
-        }
       });
     });
 
@@ -972,6 +1020,7 @@ export function renderDriverView(container) {
     render();
   }
   window.addEventListener('dispatch_schedule_updated', onScheduleUpdated);
+  window.addEventListener('schedule_approval_updated', onScheduleUpdated);
 
   function showToast(msg) {
     let toast = document.getElementById('app-toast');
