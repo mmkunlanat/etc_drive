@@ -18,7 +18,7 @@ function initApp() {
   const totalApproverPending = pendingApprovals + pendingSchedulesCount;
 
   const returnedSchedulesCount = Object.keys(allScheduleMetas).filter(d => allScheduleMetas[d]?.status === 'returned').length;
-  const pendingDispatch = bookings.filter(b => b.status === 'approved').length;
+  const pendingDispatch = bookings.filter(b => ['pending_approval', 'approved', 'partially_dispatched'].includes(b.status)).length;
 
   app.innerHTML = `
     <!-- Top Application Header with Role Switcher -->
@@ -123,7 +123,7 @@ window.addEventListener('edit_booking_in_form', (e) => {
     const totalApproverPending = pendingApprovals + pendingSchedulesCount;
 
     const returnedSchedulesCount = Object.keys(allScheduleMetas).filter(d => allScheduleMetas[d]?.status === 'returned').length;
-    const pendingDispatch = bookings.filter(b => b.status === 'approved').length;
+    const pendingDispatch = bookings.filter(b => ['pending_approval', 'approved', 'partially_dispatched'].includes(b.status)).length;
 
     // Update Approver role badge
     const approverBtn = document.getElementById('role-btn-approver');
