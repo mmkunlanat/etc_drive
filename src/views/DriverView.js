@@ -39,231 +39,211 @@ function parseVehiclePlate(vehicleStr) {
   return { plate: vehicleStr, type: 'ยานพาหนะส่วนกลาง', colorClass: '' };
 }
 
-function parseItineraryFromText(rawTextOrLines) {
-  if (!rawTextOrLines) return [];
-  const rawLines = typeof rawTextOrLines === 'string' 
-    ? rawTextOrLines.split('\n') 
-    : (Array.isArray(rawTextOrLines) ? rawTextOrLines : []);
-  const cleanLines = rawLines.map(l => l.trim()).filter(Boolean);
+// Helper to split a line into individual jobs safely without splitting inside parentheses e.g. "(10:00 น. / 3 คน)"
+function splitJobsFromLine(line) {
+  if (!line) return [];
+  const jobs = [];
+  let current = '';
+  let parenDepth = 0;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '(') parenDepth++;
+    else if (ch === ')') { if (parenDepth > 0) parenDepth--; }
+
+    if (parenDepth === 0 && ch === '/' && (
+      (i > 0 && line[i - 1] === ' ') || (i < line.length - 1 && line[i + 1] === ' ')
+    )) {
+      const cleaned = current.trim().replace(/\/$/, '').trim();
+      if (cleaned) {
+        jobs.push(cleaned);
+      }
+      current = '';
+      if (i < line.length - 1 && line[i + 1] === ' ') {
+        i++;
+      }
+      continue;
+    }
+    current += ch;
+  }
+  const finalCleaned = current.trim().replace(/\/$/, '').trim();
+  if (finalCleaned) {
+    jobs.push(finalCleaned);
+  }
+  return jobs;
+}
+
+function formatBookerName(name) {
+  if (!name) return '';
+  let clean = name.trim();
+  if (clean.startsWith('K.') || clean.startsWith('k.')) return clean;
+  clean = clean.replace(/^(นาย|นางสาว|นาง|คุณ)\s*/i, '').trim();
+  const firstName = clean.split(' ')[0];
+  return `K.${firstName}`;
+}
+
+// Parse itinerary stops directly from Admin's vehicle dispatch row
+function parseItineraryFromDispatchRow(row) {
+  if (!row) return [];
+
+  // Check if row already has completed state saved in row.itinerary
+  const existingCompletedMap = new Map();
+  if (Array.isArray(row.itinerary) && row.itinerary.length > 0) {
+    row.itinerary.forEach((it, idx) => {
+      const key = `${it.no || idx + 1}_${it.destination || ''}_${it.detail || ''}`;
+      if (it.completed) {
+        existingCompletedMap.set(key, { completed: true, completedAt: it.completedAt });
+        existingCompletedMap.set(String(it.no || idx + 1), { completed: true, completedAt: it.completedAt });
+      }
+    });
+  }
+
+  const rawText = row.itineraryText || (Array.isArray(row.itineraryLines) ? row.itineraryLines.join('\n') : '');
+  if (!rawText || !rawText.trim()) {
+    if (Array.isArray(row.itinerary) && row.itinerary.length > 0) {
+      return row.itinerary.map((step, idx) => ({
+        no: step.no || (idx + 1),
+        destination: step.destination || step.detail || `จุดหมายที่ ${idx + 1}`,
+        detail: step.detail || step.destination || '',
+        note: step.note || '',
+        time: step.time || '',
+        passengers: step.passengers || '',
+        completed: Boolean(step.completed),
+        completedAt: step.completedAt || null
+      }));
+    }
+    return [];
+  }
+
+  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
   const items = [];
-  
-  cleanLines.forEach((line) => {
-    const subStops = line.split('/').map(s => s.trim()).filter(Boolean);
-    if (subStops.length > 1) {
-      subStops.forEach(stop => {
-        const timeMatch = stop.match(/(\d{1,2}[:.]\d{2})\s*น\./);
-        const passMatch = stop.match(/(\d+)\s*คน/);
-        items.push({
-          no: items.length + 1,
-          detail: stop,
-          destination: stop,
-          time: timeMatch ? timeMatch[1].replace('.', ':') : '',
-          passengers: passMatch ? passMatch[1] : '',
-          note: '',
-          completed: false,
-          completedAt: null
-        });
-      });
-    } else {
-      const timeMatch = line.match(/(\d{1,2}[:.]\d{2})\s*น\./);
-      const passMatch = line.match(/(\d+)\s*คน/);
+
+  lines.forEach(line => {
+    const subJobs = splitJobsFromLine(line);
+    subJobs.forEach(jobStr => {
+      const cleanJob = jobStr.trim();
+      if (!cleanJob) return;
+
+      const timeMatch = cleanJob.match(/(\d{1,2}[:.]\d{2})\s*น\./) || cleanJob.match(/(\d{1,2}[:.]\d{2})/);
+      const passMatch = cleanJob.match(/(\d+)\s*คน/);
+
+      let dest = cleanJob;
+      let detail = cleanJob;
+      const bracketMatch = cleanJob.match(/^(.*?)\s*\((.*?)\)$/);
+      if (bracketMatch) {
+        dest = bracketMatch[1].trim();
+        detail = bracketMatch[2].trim();
+      }
+
+      // Remove leading order numbers e.g. "1. อ.เมือง..." -> "อ.เมือง..."
+      dest = dest.replace(/^\d+[\.\)]\s*/, '').trim();
+
+      const itemNo = items.length + 1;
+      const key = `${itemNo}_${dest}_${detail}`;
+      const savedState = existingCompletedMap.get(key) || existingCompletedMap.get(String(itemNo)) || {};
+
       items.push({
-        no: items.length + 1,
-        detail: line,
-        destination: line,
+        no: itemNo,
+        destination: dest || cleanJob,
+        detail: detail || cleanJob,
         time: timeMatch ? timeMatch[1].replace('.', ':') : '',
         passengers: passMatch ? passMatch[1] : '',
         note: '',
-        completed: false,
-        completedAt: null
+        completed: Boolean(savedState.completed),
+        completedAt: savedState.completedAt || null
       });
-    }
+    });
   });
-  
+
   return items;
 }
 
-// Pull jobs directly from Admin's recorded daily dispatch schedule & linked bookings
-// Each distinct booking / assignment is preserved as its own individual job
+// Pull jobs strictly from Admin's daily dispatch schedule approved by Approver
 function getDriverJobsForDate(dateIso, driver, allBookings) {
-  if (!driver) return [];
-  
-  // 1. Get Admin's recorded dispatch schedule for this date
+  if (!driver || !dateIso) return [];
+
+  // 1. ตรวจสอบว่าตารางจัดรถประจำวันนี้ ได้รับการอนุมัติจากผู้อนุมัติแล้วหรือไม่
+  const scheduleMeta = getScheduleApprovalMeta(dateIso);
+  if (!scheduleMeta || scheduleMeta.status !== 'approved') {
+    return []; // ถ้าผู้อนุมัติยังไม่อนุมัติ คนขับจะไม่เห็นงาน
+  }
+
+  // 2. ดึงตารางจัดรถประจำวันของวันที่ระบุ
   const dispatchRows = getDispatchSchedule(dateIso) || [];
-  
-  // 2. Find rows in Admin's dispatch table assigned to this driver
+
+  // 3. กรองเฉพาะแถวในตารางจัดรถที่มอบหมายให้พนักงานขับรถคนนี้
   const myDispatchRows = dispatchRows.filter(r => {
     if (!r) return false;
     const nameMatch = r.driverName && (
+      r.driverName.trim().toLowerCase() === driver.name.trim().toLowerCase() ||
       r.driverName.trim().toLowerCase().includes(driver.name.trim().toLowerCase()) ||
       driver.name.trim().toLowerCase().includes(r.driverName.trim().toLowerCase())
     );
     const codeMatch = r.driverCode && r.driverCode !== '#N/A' && String(r.driverCode).trim() === String(driver.code).trim();
-    
-    // Check if the row has any actual work assigned
-    const hasText = r.itineraryText && r.itineraryText.trim();
+
+    // ต้องเป็นแถวที่มีงานจริงในตารางจัดรถ
+    const hasText = Boolean(r.itineraryText && r.itineraryText.trim());
     const hasLines = Array.isArray(r.itineraryLines) && r.itineraryLines.length > 0 && r.itineraryLines.some(l => l && l.trim());
-    const hasBooker = r.booker && r.booker.trim();
-    const hasLinkedBookings = Array.isArray(r.linkedBookingIds) && r.linkedBookingIds.length > 0;
-    const hasWork = Boolean(hasText || hasLines || hasBooker || hasLinkedBookings);
-    
-    return (nameMatch || codeMatch) && hasWork;
+    const hasBooker = Boolean(r.booker && r.booker.trim());
+    const hasLinked = Array.isArray(r.linkedBookingIds) && r.linkedBookingIds.length > 0;
+    const hasItin = Array.isArray(r.itinerary) && r.itinerary.length > 0;
+
+    return (nameMatch || codeMatch) && (hasText || hasLines || hasBooker || hasLinked || hasItin);
   });
 
   const jobs = [];
-  const processedBookingIds = new Set();
 
-  // Standardize itinerary steps so every item has completed and completedAt
-  const sanitizeItinerary = (rawList) => {
-    if (!Array.isArray(rawList)) return [];
-    return rawList.map((step, idx) => ({
-      no: step.no || (idx + 1),
-      destination: step.destination || step.detail || `จุดหมายที่ ${idx + 1}`,
-      detail: step.detail || step.destination || '',
-      note: step.note || '',
-      time: step.time || '',
-      passengers: step.passengers || '',
-      completed: Boolean(step.completed),
-      completedAt: step.completedAt || null
-    }));
-  };
-
-  // 3. Build job cards from Admin's dispatch schedule rows
-  // If a row has multiple bookings, each booking MUST be its own independent job card!
+  // 4. สร้างการ์ดงานของคนขับจากแต่ละแถวรถในตารางจัดรถประจำวันที่อนุมัติแล้ว
   myDispatchRows.forEach(row => {
     const linkedIds = Array.isArray(row.linkedBookingIds) ? row.linkedBookingIds : [];
-    const linkedBookings = linkedIds.map(id => allBookings.find(b => b.id === id)).filter(Boolean);
+    const linkedBookings = linkedIds.map(id => (allBookings || getAllBookings()).find(b => b.id === id)).filter(Boolean);
 
-    if (linkedBookings.length > 0) {
-      linkedBookings.forEach(b => {
-        processedBookingIds.add(b.id);
-        
-        const rawList = (b.itinerary && b.itinerary.length > 0)
-          ? b.itinerary
-          : ((row.itinerary && row.itinerary.length > 0) ? row.itinerary : parseItineraryFromText(row.itineraryText || row.itineraryLines));
-
-        const itinerary = sanitizeItinerary(rawList);
-        const allCompleted = itinerary.length > 0 && itinerary.every(s => s.completed);
-        const anyCompleted = itinerary.some(s => s.completed);
-
-        let jobStatus = b.driverJobStatus || row.driverJobStatus || 'not_started';
-        if (allCompleted) {
-          jobStatus = 'completed';
-        } else if (anyCompleted && jobStatus !== 'completed') {
-          jobStatus = 'in_progress';
-        }
-
-        jobs.push({
-          id: b.id,
-          dispatchRowId: row.id,
-          dispatchRowNo: row.no,
-          isFromAdminDispatch: true,
-          usageDate: dateIso,
-          startTime: b.startTime || (row.time ? row.time.replace('.', ':') : '08:30'),
-          endTime: b.endTime || '17:00',
-          assignedVehicle: row.plate || b.assignedVehicle || 'รอยืนยันรถ',
-          assignedDriver: row.driverName || driver.name,
-          assignedDriverId: driver.id,
-          bookerName: b.bookerName || row.booker || '-',
-          bookerPhone: b.bookerPhone || '',
-          department: b.department || row.department || '-',
-          notes: b.notes || row.comment || '',
-          itinerary: itinerary,
-          status: allCompleted ? 'completed' : (b.status || 'dispatched'),
-          statusLabel: allCompleted ? 'เสร็จสิ้นภารกิจ' : (b.statusLabel || 'จัดรถแล้ว (ตารางจัดรถแอดมิน)'),
-          driverConfirmed: Boolean(b.driverConfirmed || row.driverConfirmed || false),
-          driverConfirmedAt: b.driverConfirmedAt || row.driverConfirmedAt || '',
-          driverJobStatus: jobStatus
-        });
-      });
-    } else {
-      // Standalone row in dispatch schedule without linked formal booking
-      const rawList = (row.itinerary && row.itinerary.length > 0)
-        ? row.itinerary
-        : parseItineraryFromText(row.itineraryText || row.itineraryLines);
-      
-      const itinerary = sanitizeItinerary(rawList);
-      const allCompleted = itinerary.length > 0 && itinerary.every(s => s.completed);
-      const anyCompleted = itinerary.some(s => s.completed);
-
-      let jobStatus = row.driverJobStatus || 'not_started';
-      if (allCompleted) {
-        jobStatus = 'completed';
-      } else if (anyCompleted && jobStatus !== 'completed') {
-        jobStatus = 'in_progress';
+    // รวมเบอร์โทรติดต่อของผู้จองทั้งหมดในรถคันนี้
+    const phoneList = [];
+    linkedBookings.forEach(b => {
+      if (b.bookerPhone && !phoneList.includes(b.bookerPhone)) {
+        const nameLabel = b.bookerName ? formatBookerName(b.bookerName) + ': ' : '';
+        phoneList.push(`${nameLabel}${b.bookerPhone}`);
       }
+    });
 
-      jobs.push({
-        id: `DISP-${dateIso}-R${row.no}`,
-        dispatchRowId: row.id,
-        dispatchRowNo: row.no,
-        isFromAdminDispatch: true,
-        usageDate: dateIso,
-        startTime: row.time ? row.time.replace('.', ':') : '08:30',
-        endTime: '17:00',
-        assignedVehicle: row.plate || 'รอยืนยันรถ',
-        assignedDriver: row.driverName || driver.name,
-        assignedDriverId: driver.id,
-        bookerName: row.booker || '-',
-        bookerPhone: '',
-        department: row.department || '-',
-        notes: row.comment || '',
-        itinerary: itinerary,
-        status: allCompleted ? 'completed' : 'dispatched',
-        statusLabel: allCompleted ? 'เสร็จสิ้นภารกิจ' : 'จัดรถแล้ว (ตารางจัดรถแอดมิน)',
-        driverConfirmed: Boolean(row.driverConfirmed || false),
-        driverConfirmedAt: row.driverConfirmedAt || '',
-        driverJobStatus: jobStatus
-      });
-    }
-  });
-
-  // 4. Also check direct bookings assigned to this driver for this date that weren't linked in Admin rows
-  const directBookings = allBookings.filter(b => {
-    if (!b || processedBookingIds.has(b.id)) return false;
-    const matchId = b.assignedDriverId === driver.id;
-    const matchName = b.assignedDriver && (
-      b.assignedDriver.toLowerCase().includes(driver.name.toLowerCase()) ||
-      driver.name.toLowerCase().includes(b.assignedDriver.toLowerCase())
-    );
-    const isThisDate = b.usageDate === dateIso;
-    const isDispatched = b.status === 'dispatched' || b.status === 'completed' || b.status === 'approved';
-    return (matchId || matchName) && isThisDate && isDispatched;
-  });
-
-  directBookings.forEach(b => {
-    processedBookingIds.add(b.id);
-    const itinerary = sanitizeItinerary(b.itinerary || []);
+    // Parse รายการจุดหมาย/เส้นทางวิ่งจากแถวตารางจัดรถประจำวันของแอดมิน
+    const itinerary = parseItineraryFromDispatchRow(row);
     const allCompleted = itinerary.length > 0 && itinerary.every(s => s.completed);
     const anyCompleted = itinerary.some(s => s.completed);
 
-    let jobStatus = b.driverJobStatus || 'not_started';
+    let jobStatus = row.driverJobStatus || 'not_started';
     if (allCompleted) {
       jobStatus = 'completed';
     } else if (anyCompleted && jobStatus !== 'completed') {
       jobStatus = 'in_progress';
     }
 
+    const jobTitleId = linkedBookings.length > 0 
+      ? linkedBookings.map(b => b.id).join(', ') 
+      : `DISP-${dateIso}-R${row.no}`;
+
     jobs.push({
-      id: b.id,
-      dispatchRowId: null,
-      dispatchRowNo: null,
-      isFromAdminDispatch: false,
-      usageDate: b.usageDate || dateIso,
-      startTime: b.startTime || '08:30',
-      endTime: b.endTime || '17:00',
-      assignedVehicle: b.assignedVehicle || b.requestedVehicle || 'รอยืนยันรถ',
-      assignedDriver: b.assignedDriver || driver.name,
+      id: jobTitleId,
+      dispatchRowId: row.id,
+      dispatchRowNo: row.no,
+      linkedBookingIds: linkedIds,
+      isFromAdminDispatch: true,
+      usageDate: dateIso,
+      startTime: row.time ? row.time.replace('.', ':') : '08:30',
+      endTime: '17:00',
+      assignedVehicle: row.plate || 'รอยืนยันรถ',
+      assignedDriver: row.driverName || driver.name,
       assignedDriverId: driver.id,
-      bookerName: b.bookerName,
-      bookerPhone: b.bookerPhone,
-      department: b.department,
-      notes: b.notes,
+      bookerName: row.booker || (linkedBookings.map(b => b.bookerName).filter(Boolean).join(' / ') || '-'),
+      bookerPhone: phoneList.join(' / ') || '',
+      department: row.department || (linkedBookings.map(b => b.department).filter(Boolean).join(' / ') || '-'),
+      notes: row.comment || (linkedBookings.map(b => b.notes).filter(Boolean).join('; ') || ''),
       itinerary: itinerary,
-      status: allCompleted ? 'completed' : b.status,
-      statusLabel: allCompleted ? 'เสร็จสิ้นภารกิจ' : b.statusLabel,
-      driverConfirmed: Boolean(b.driverConfirmed || false),
-      driverConfirmedAt: b.driverConfirmedAt || '',
+      status: allCompleted ? 'completed' : 'dispatched',
+      statusLabel: allCompleted ? 'เสร็จสิ้นภารกิจ' : 'จัดรถแล้ว (ตารางจัดรถแอดมิน)',
+      driverConfirmed: Boolean(row.driverConfirmed || false),
+      driverConfirmedAt: row.driverConfirmedAt || '',
       driverJobStatus: jobStatus
     });
   });
@@ -271,34 +251,16 @@ function getDriverJobsForDate(dateIso, driver, allBookings) {
   return jobs;
 }
 
-// Synchronize status updates strictly to THIS specific job and its corresponding record
+// Synchronize status updates strictly to THIS specific job and its corresponding record in dispatch schedule and bookings
 function updateJobStatus(job, updates) {
-  // 1. Update this specific booking if it has a real booking ID
-  if (job.id && job.id.startsWith('REQ-')) {
-    updateBooking(job.id, updates);
-  }
-
-  // 2. Also update Admin's dispatch schedule row
+  // 1. Update Admin's dispatch schedule row
   if (job.usageDate && job.dispatchRowId) {
     const rows = getDispatchSchedule(job.usageDate);
     if (rows && rows.length > 0) {
       const targetRow = rows.find(r => r.id === job.dispatchRowId || r.no === String(job.dispatchRowNo));
       if (targetRow) {
-        if (!targetRow.confirmedBookingIds) targetRow.confirmedBookingIds = [];
-        if (updates.driverConfirmed) {
-          if (!targetRow.confirmedBookingIds.includes(job.id)) {
-            targetRow.confirmedBookingIds.push(job.id);
-          }
-        }
-        
-        // If row has multiple linked bookings, check if all of them are now confirmed
-        const allLinked = targetRow.linkedBookingIds || [];
-        const isRowAllConfirmed = allLinked.length > 0 
-          ? allLinked.every(bId => targetRow.confirmedBookingIds.includes(bId))
-          : (updates.driverConfirmed ?? targetRow.driverConfirmed);
-
         if (updates.driverConfirmed !== undefined) {
-          targetRow.driverConfirmed = isRowAllConfirmed;
+          targetRow.driverConfirmed = updates.driverConfirmed;
         }
         if (updates.driverConfirmedAt !== undefined) {
           targetRow.driverConfirmedAt = updates.driverConfirmedAt;
@@ -314,6 +276,18 @@ function updateJobStatus(job, updates) {
       }
     }
   }
+
+  // 2. Synchronize to all linked bookings
+  const bookingIds = job.linkedBookingIds || (job.id && job.id.startsWith('REQ-') ? [job.id] : []);
+  bookingIds.forEach(bId => {
+    updateBooking(bId, {
+      driverConfirmed: updates.driverConfirmed,
+      driverConfirmedAt: updates.driverConfirmedAt,
+      driverJobStatus: updates.driverJobStatus,
+      status: updates.status,
+      statusLabel: updates.statusLabel
+    });
+  });
 }
 
 export function renderDriverView(container) {
