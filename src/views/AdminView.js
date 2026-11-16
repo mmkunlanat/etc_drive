@@ -1261,6 +1261,8 @@ export function renderAdminView(container) {
         if (targetRow && field) {
           if (field === 'booker') {
             targetRow.booker = mergeBookerNames(targetRow.booker, val);
+          } else if (field === 'department') {
+            targetRow.department = mergeDepartmentCodes(targetRow.department, val);
           } else {
             targetRow[field] = val;
           }
@@ -2160,8 +2162,9 @@ export function renderAdminView(container) {
             const booking = allBookings.find(b => b.id === bId);
             if (!booking) return;
 
-            if (booking.department && (!targetRow.department || targetRow.department.trim() === '')) {
-              targetRow.department = mapDeptCode(booking.department);
+            if (booking.department) {
+              const deptCode = mapDeptCode(booking.department);
+              targetRow.department = mergeDepartmentCodes(targetRow.department, deptCode);
             }
             targetRow.booker = mergeBookerNames(targetRow.booker, booking.bookerName);
 
@@ -2339,8 +2342,9 @@ export function renderAdminView(container) {
       row.time = booking.startTime.replace(':', '.');
     }
 
-    if (booking.department && (!row.department || row.department.trim() === '')) {
-      row.department = mapDeptCode(booking.department);
+    if (booking.department) {
+      const deptCode = mapDeptCode(booking.department);
+      row.department = mergeDepartmentCodes(row.department, deptCode);
     }
     row.booker = mergeBookerNames(row.booker, booking.bookerName);
 
@@ -2398,26 +2402,114 @@ export function renderAdminView(container) {
     if (!existing || existing.trim() === '') {
       return newFormatted;
     }
-    // Check if new name already exists in existing string to prevent duplicates
-    const rawNew = newFormatted.replace(/^K\./i, '').trim();
-    if (existing.includes(rawNew)) {
-      return existing;
+
+    // Split existing bookers by "/"
+    const existingNames = existing.split('/').map(n => n.trim()).filter(Boolean);
+    const rawNew = newFormatted.replace(/^(K\.|k\.|นาย|นางสาว|นาง|คุณ)\s*/i, '').trim();
+
+    // Check if new name already exists in existing names
+    const alreadyExists = existingNames.some(en => {
+      const rawExisting = en.replace(/^(K\.|k\.|นาย|นางสาว|นาง|คุณ)\s*/i, '').trim();
+      return rawExisting === rawNew || en === newFormatted;
+    });
+
+    if (!alreadyExists) {
+      existingNames.push(newFormatted);
     }
-    return `${existing.trim()}/${newFormatted}`;
+    return existingNames.join('/');
   }
 
   // Quick helper to map department name to abbreviation if needed
   function mapDeptCode(dept) {
     if (!dept) return '';
-    if (dept.includes('บัญชีและการเงิน')) return 'ACC';
-    if (dept.includes('ขายและการตลาด')) return 'SALE';
-    if (dept.includes('วิศวกรรม')) return 'IT/ENG';
-    if (dept.includes('ทรัพยากรบุคคล')) return 'HR';
-    if (dept.includes('บริหาร')) return 'MGT/OFF';
-    if (dept.includes('จัดซื้อ')) return 'PUR';
-    if (dept.includes('ผลิต')) return 'PROD';
-    if (dept.includes('ประกันคุณภาพ')) return 'QA';
-    return dept;
+    const clean = String(dept).trim();
+    if (clean.includes('บัญชีและการเงิน') || clean === 'ACC') return 'ACC';
+    if ((clean.includes('ธุรการ') && clean.includes('บัญชี')) || clean === 'ACC/OFF') return 'ACC/OFF';
+    if (clean.includes('ธุรการ') || clean === 'OFF') return 'OFF';
+    if (clean.includes('ขายและการตลาด') || clean === 'SALE') return 'SALE';
+    if (clean.includes('วิศวกรรม') || clean.includes('เทคโนโลยีสารสนเทศ') || clean.includes('สารสนเทศ') || clean === 'IT') return 'IT';
+    if (clean.includes('ทรัพยากรบุคคล') || clean.includes('HR') || clean === 'HR') return 'HR';
+    if (clean.includes('บริหาร') || clean === 'MGT') return 'MGT';
+    if (clean.includes('จัดซื้อ') || clean === 'PUR') return 'PUR';
+    if (clean.includes('ผลิต') || clean.includes('ปฏิบัติการ') || clean === 'PROD') return 'PROD';
+    if (clean.includes('ประกันคุณภาพ') || clean.includes('QA') || clean === 'QA') return 'QA';
+    return clean;
+  }
+
+  // Helper to merge department codes: if more than 1 department, separate with "/" without duplicating (e.g. "ACC/OFF", "SALE/IT")
+  function mergeDepartmentCodes(existing, newDept) {
+    if (!newDept || !newDept.trim()) return existing || '';
+    const mapped = mapDeptCode(newDept);
+    if (!mapped) return existing || '';
+    if (!existing || !existing.trim()) {
+      return mapped;
+    }
+
+    // Split existing and new by "/"
+    const existingParts = existing.split('/').map(d => d.trim()).filter(Boolean);
+    const newParts = mapped.split('/').map(d => d.trim()).filter(Boolean);
+
+    newParts.forEach(np => {
+      if (!existingParts.includes(np)) {
+        existingParts.push(np);
+      }
+    });
+
+    return existingParts.join('/');
+  }
+
+  // Recalculate vehicle row's department and booker from its current active linked bookings/jobs
+  function updateRowDepartmentsAndBookers(row, allBookings) {
+    if (!row) return;
+    const bookings = allBookings || getAllBookings();
+
+    // Find all bookings with at least one job currently dispatched to this row
+    const activeBookings = bookings.filter(b => {
+      const isLinked = (row.linkedBookingIds && row.linkedBookingIds.includes(b.id)) ||
+                       (b.assignedVehicle && row.plate && b.assignedVehicle === row.plate);
+
+      const hasJobInRow = (b.itinerary || []).some(it =>
+        it.dispatched && (it.dispatchedRowId === row.id || (row.plate && it.dispatchedToVehicle === row.plate))
+      );
+
+      return hasJobInRow || (isLinked && (b.status === 'dispatched' || b.status === 'partially_dispatched'));
+    });
+
+    if (activeBookings.length > 0) {
+      // Collect unique departments
+      const deptList = [];
+      activeBookings.forEach(b => {
+        if (b.department) {
+          const code = mapDeptCode(b.department);
+          code.split('/').map(d => d.trim()).filter(Boolean).forEach(d => {
+            if (!deptList.includes(d)) deptList.push(d);
+          });
+        }
+      });
+      if (deptList.length > 0) {
+        row.department = deptList.join('/');
+      }
+
+      // Collect unique bookers
+      const bookerList = [];
+      activeBookings.forEach(b => {
+        if (b.bookerName) {
+          const formatted = formatBookerName(b.bookerName);
+          if (formatted && !bookerList.includes(formatted)) {
+            bookerList.push(formatted);
+          }
+        }
+      });
+      if (bookerList.length > 0) {
+        row.booker = bookerList.join('/');
+      }
+    } else {
+      // If no active bookings in this row and itinerary is empty
+      if (!row.itineraryText || !row.itineraryText.trim()) {
+        row.department = '';
+        row.booker = '';
+      }
+    }
   }
 
   // Modal to choose which vehicle when clicking from the requests list
@@ -2679,14 +2771,6 @@ export function renderAdminView(container) {
       }
 
       if (isTarget) {
-        // Remove booker name if merged
-        const bookerFirstName = b.bookerName ? b.bookerName.replace(/^(นาย|นางสาว|นาง|คุณ|K\.)\s*/i, '').split(' ')[0] : '';
-        if (r.booker && bookerFirstName) {
-          const names = r.booker.split('/').map(n => n.trim()).filter(n => !n.includes(bookerFirstName));
-          r.booker = names.join('/');
-          scheduleChanged = true;
-        }
-
         // Clean stops from itineraryText
         if (r.itineraryText && b.itinerary) {
           const lines = r.itineraryText.split('\n').filter(line => {
@@ -2702,6 +2786,10 @@ export function renderAdminView(container) {
           }
           scheduleChanged = true;
         }
+
+        // Recalculate row's departments and bookers from remaining bookings
+        updateRowDepartmentsAndBookers(r, allBookings);
+        scheduleChanged = true;
       }
     });
 
@@ -2932,14 +3020,11 @@ export function renderAdminView(container) {
 
       if (!stillHasJobInThisRow && targetRow.linkedBookingIds) {
         targetRow.linkedBookingIds = targetRow.linkedBookingIds.filter(id => id !== b.id);
-
-        const bookerFirstName = b.bookerName ? b.bookerName.replace(/^(นาย|นางสาว|นาง|คุณ|K\.)\s*/i, '').split(' ')[0] : '';
-        if (targetRow.booker && bookerFirstName) {
-          const names = targetRow.booker.split('/').map(n => n.trim()).filter(n => !n.includes(bookerFirstName));
-          targetRow.booker = names.join('/');
-        }
       }
     });
+
+    // Recalculate row's departments and bookers from remaining active bookings/jobs
+    updateRowDepartmentsAndBookers(targetRow, allBookings);
 
     // 3. Remove jobText from targetRow.itineraryText cleanly
     if (targetRow.itineraryText) {
