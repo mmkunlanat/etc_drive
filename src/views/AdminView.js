@@ -58,6 +58,9 @@ export function renderAdminView(container) {
     if (row.vehicleStatus === 'available') return true;
     if (row.vehicleStatus === 'busy' || row.vehicleStatus === 'maintenance') return false;
 
+    // If driver has completed all jobs in this row → vehicle is free for the next assignment
+    if (row.driverJobStatus === 'completed') return true;
+
     const hasItinerary = !!(row.itineraryText && row.itineraryText.trim());
     const hasBooker = !!(row.booker && row.booker.trim());
     const hasLinked = Array.isArray(row.linkedBookingIds) && row.linkedBookingIds.length > 0;
@@ -71,13 +74,25 @@ export function renderAdminView(container) {
     return true; // ว่าง
   }
 
-  // Check if a specific plate is available in the current schedule
-  function isPlateAvailableInSchedule(plateLabel, allRows, excludeRowId = null) {
-    if (!plateLabel) return true;
+  // Check if a specific plate is available in the current schedule.
+  // Returns: 'available' | 'done' | 'busy'
+  function getPlateAvailability(plateLabel, allRows, excludeRowId = null) {
+    if (!plateLabel) return 'available';
     const cleanPlate = plateLabel.trim().toLowerCase();
     const otherRows = allRows.filter(r => r.id !== excludeRowId && (r.plate || '').trim().toLowerCase() === cleanPlate);
-    if (otherRows.length === 0) return true;
-    return !otherRows.some(r => !isRowAvailable(r));
+    if (otherRows.length === 0) return 'available';
+    // If all matching rows are completed → vehicle is free (done, ready for next job)
+    const allDone = otherRows.every(r => r.driverJobStatus === 'completed');
+    if (allDone) return 'done';
+    // If any row is still busy → not available
+    if (otherRows.some(r => !isRowAvailable(r))) return 'busy';
+    return 'available';
+  }
+
+  // Legacy wrapper for backward compat
+  function isPlateAvailableInSchedule(plateLabel, allRows, excludeRowId = null) {
+    const avail = getPlateAvailability(plateLabel, allRows, excludeRowId);
+    return avail !== 'busy';
   }
 
   loadSchedule();
@@ -323,6 +338,71 @@ export function renderAdminView(container) {
         </div>
 
         <!-- The Spreadsheet Table -->
+        ${(() => {
+          // --- Driver Status Summary Panel (no-print) ---
+          const hasApproved = schedMeta && schedMeta.status === 'approved';
+          if (!hasApproved || rows.length === 0) return '';
+          const rowsWithJob = rows.filter(r => !!(r.itineraryText && r.itineraryText.trim()) || (Array.isArray(r.linkedBookingIds) && r.linkedBookingIds.length > 0) || !!(r.booker && r.booker.trim()));
+          if (rowsWithJob.length === 0) return '';
+          const completedRows = rowsWithJob.filter(r => r.driverJobStatus === 'completed');
+          const inProgressRows = rowsWithJob.filter(r => r.driverJobStatus === 'in_progress');
+          const freeAfterCompleteRows = completedRows.filter(r => r.plate && r.plate.trim());
+          if (completedRows.length === 0 && inProgressRows.length === 0) return '';
+          return `
+            <div class="no-print" style="background: linear-gradient(135deg,#f0fdf4 60%,#eff6ff 100%); border: 1.5px solid #86efac; border-radius: 10px; padding: 12px 16px; margin-bottom: 10px; box-shadow: 0 2px 6px rgba(22,163,74,0.08);">
+              <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom: ${completedRows.length > 0 || inProgressRows.length > 0 ? '10px' : '0'};">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:1.3rem;">🚦</span>
+                  <span style="font-weight:700; color:#166534; font-size:0.92rem;">สถานะงานจากพนักงานขับรถ (Real-time)</span>
+                </div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  ${completedRows.length > 0 ? `<span style="background:#dcfce7;color:#15803d;border:1px solid #86efac;border-radius:999px;padding:3px 10px;font-size:0.78rem;font-weight:700;">✅ เสร็จสิ้น ${completedRows.length} คัน</span>` : ''}
+                  ${inProgressRows.length > 0 ? `<span style="background:#fef9c3;color:#a16207;border:1px solid #fde047;border-radius:999px;padding:3px 10px;font-size:0.78rem;font-weight:700;">🚗 กำลังวิ่ง ${inProgressRows.length} คัน</span>` : ''}
+                </div>
+              </div>
+              ${completedRows.length > 0 ? `
+                <div style="margin-bottom:8px;">
+                  <div style="font-size:0.8rem; font-weight:700; color:#166534; margin-bottom:5px;">งานที่เสร็จสิ้นแล้ว — รถพร้อมรับงานต่อ:</div>
+                  <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                    ${completedRows.map(r => {
+                      const itin = Array.isArray(r.itinerary) ? r.itinerary : [];
+                      const done = itin.filter(s => s && s.completed).length;
+                      return `<div style="background:#fff;border:1.5px solid #86efac;border-radius:8px;padding:6px 12px;display:flex;align-items:center;gap:8px;min-width:200px;box-shadow:0 1px 3px rgba(22,163,74,0.1);">
+                        <span style="font-size:1.1rem;">🏁</span>
+                        <div>
+                          <div style="font-weight:700;font-size:0.88rem;color:#166534;">${escapeHtml(r.plate || `คันที่ ${r.no}`)}</div>
+                          <div style="font-size:0.75rem;color:#15803d;">👨‍✈️ ${escapeHtml(r.driverName || '-')}${itin.length > 0 ? ` · เสร็จ ${done}/${itin.length} งาน` : ''}</div>
+                          ${r.driverConfirmedAt ? `<div style="font-size:0.7rem;color:#4ade80;">⏱ เสร็จสิ้น ${escapeHtml(r.driverJobStatus === 'completed' && r.driverConfirmedAt ? r.driverConfirmedAt : '')}</div>` : ''}
+                        </div>
+                        <span style="margin-left:auto;background:#dcfce7;color:#15803d;border-radius:999px;padding:2px 8px;font-size:0.72rem;font-weight:700;">✅ ว่างแล้ว</span>
+                      </div>`;
+                    }).join('')}
+                  </div>
+                </div>
+              ` : ''}
+              ${inProgressRows.length > 0 ? `
+                <div>
+                  <div style="font-size:0.8rem; font-weight:700; color:#a16207; margin-bottom:5px;">กำลังปฏิบัติงาน:</div>
+                  <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                    ${inProgressRows.map(r => {
+                      const itin = Array.isArray(r.itinerary) ? r.itinerary : [];
+                      const done = itin.filter(s => s && s.completed).length;
+                      return `<div style="background:#fffbeb;border:1.5px solid #fde047;border-radius:8px;padding:6px 12px;display:flex;align-items:center;gap:8px;min-width:200px;">
+                        <span style="font-size:1.1rem;">🚗</span>
+                        <div>
+                          <div style="font-weight:700;font-size:0.88rem;color:#92400e;">${escapeHtml(r.plate || `คันที่ ${r.no}`)}</div>
+                          <div style="font-size:0.75rem;color:#a16207;">👨‍✈️ ${escapeHtml(r.driverName || '-')}${itin.length > 0 ? ` · ${done}/${itin.length} จุดหมาย` : ''}</div>
+                        </div>
+                        <span style="margin-left:auto;background:#fef9c3;color:#a16207;border-radius:999px;padding:2px 8px;font-size:0.72rem;font-weight:700;">🚗 วิ่งอยู่</span>
+                      </div>`;
+                    }).join('')}
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        })()}
+
         <table class="dispatch-excel-table">
           <thead>
             <tr>
@@ -368,6 +448,32 @@ export function renderAdminView(container) {
   function renderVehicleRowGroup(row, index, bookerPool = []) {
     const plateClass = row.plateColor === 'green' ? 'plate-bg-green' : (row.plateColor === 'yellow' ? 'plate-bg-yellow' : 'plate-bg-default');
     const timeClass = row.timeColor === 'pink' ? 'time-bg-pink' : '';
+
+    // --- Driver Job Status for Admin visibility ---
+    const driverJobStatus = row.driverJobStatus || 'not_started';
+    const driverConfirmed = Boolean(row.driverConfirmed);
+    const hasJob = !!(row.itineraryText && row.itineraryText.trim()) || (Array.isArray(row.linkedBookingIds) && row.linkedBookingIds.length > 0) || !!(row.booker && row.booker.trim());
+
+    // Parse itinerary completion from stored itinerary state
+    let totalStops = 0;
+    let completedStops = 0;
+    if (Array.isArray(row.itinerary) && row.itinerary.length > 0) {
+      totalStops = row.itinerary.length;
+      completedStops = row.itinerary.filter(s => s && s.completed).length;
+    }
+
+    let driverStatusBadge = '';
+    if (hasJob) {
+      if (driverJobStatus === 'completed') {
+        driverStatusBadge = `<span class="no-print" style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#15803d;border:1px solid #86efac;border-radius:999px;padding:2px 9px;font-size:0.72rem;font-weight:700;white-space:nowrap;" title="คนขับรายงานเสร็จสิ้นภารกิจแล้ว">✅ เสร็จสิ้นแล้ว${totalStops > 0 ? ` (${completedStops}/${totalStops})` : ''}</span>`;
+      } else if (driverJobStatus === 'in_progress') {
+        driverStatusBadge = `<span class="no-print" style="display:inline-flex;align-items:center;gap:4px;background:#fef9c3;color:#a16207;border:1px solid #fde047;border-radius:999px;padding:2px 9px;font-size:0.72rem;font-weight:700;white-space:nowrap;" title="คนขับกำลังปฏิบัติงานอยู่">🚗 กำลังวิ่งงาน${totalStops > 0 ? ` (${completedStops}/${totalStops})` : ''}</span>`;
+      } else if (driverConfirmed) {
+        driverStatusBadge = `<span class="no-print" style="display:inline-flex;align-items:center;gap:4px;background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;border-radius:999px;padding:2px 9px;font-size:0.72rem;font-weight:700;white-space:nowrap;" title="คนขับยืนยันรับงานแล้ว ยังไม่ได้เริ่มวิ่ง">✓ ยืนยันรับงานแล้ว</span>`;
+      } else {
+        driverStatusBadge = `<span class="no-print" style="display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;border-radius:999px;padding:2px 9px;font-size:0.72rem;font-weight:700;white-space:nowrap;" title="รอคนขับยืนยันรับงาน">⏳ รอคนขับยืนยัน</span>`;
+      }
+    }
     const hasItinerary = !!(row.itineraryText && row.itineraryText.trim());
     const hasComment = !!(row.comment && row.comment.trim());
     const showItinerary = hasItinerary || row.showItineraryBox;
@@ -411,7 +517,18 @@ export function renderAdminView(container) {
             </button>
             <div class="cell-dropdown-menu no-print" id="dropdown-plate-${row.id}" style="display: none; min-width: 230px;">
               ${VEHICLE_TYPES.map(v => {
-      const optAvail = isPlateAvailableInSchedule(v.label, rows, row.id);
+      const plateStatus = getPlateAvailability(v.label, rows, row.id);
+      const isCurrentRowPlate = row.plate && v.label.trim().toLowerCase() === row.plate.trim().toLowerCase();
+      let statusBadge;
+      if (isCurrentRowPlate) {
+        statusBadge = `<span class="opt-status-pill" style="background:#dbeafe;color:#1d4ed8;border-color:#93c5fd;">✓ คันนี้</span>`;
+      } else if (plateStatus === 'done') {
+        statusBadge = `<span class="opt-status-pill" style="background:#dcfce7;color:#15803d;border-color:#86efac;">✅ ว่างแล้ว</span>`;
+      } else if (plateStatus === 'busy') {
+        statusBadge = `<span class="opt-status-pill pill-busy">กำลังใช้งาน</span>`;
+      } else {
+        statusBadge = `<span class="opt-status-pill pill-avail">ว่าง</span>`;
+      }
       return `
                   <div 
                     class="cell-opt-item" 
@@ -422,9 +539,7 @@ export function renderAdminView(container) {
                   >
                     <span>${escapeHtml(v.label)}</span>
                     <div style="display: flex; align-items: center; gap: 4px;">
-                      <span class="opt-status-pill ${optAvail ? 'pill-avail' : 'pill-busy'}">
-                        ${optAvail ? 'ว่าง' : 'ไม่ว่าง'}
-                      </span>
+                      ${statusBadge}
                       <span class="cell-opt-badge ${v.color || 'yellow'}">
                         ${v.color === 'green' ? 'เขียว' : (v.color === 'yellow' ? 'เหลือง' : 'ทั่วไป')}
                       </span>
@@ -605,6 +720,7 @@ export function renderAdminView(container) {
 
         <!-- Non-print Actions -->
         <td class="col-actions no-print" style="background: #f8fafc; padding: 4px;">
+          ${driverStatusBadge ? `<div style="display:flex;justify-content:center;margin-bottom:4px;">${driverStatusBadge}</div>` : ''}
           <div style="display: flex; gap: 3px; justify-content: center; flex-wrap: wrap;">
             <button 
               type="button" 
