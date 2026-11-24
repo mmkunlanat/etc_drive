@@ -7,6 +7,7 @@ import {
   validateBookingAdvance,
   checkSubmissionTimeDeadline,
   DEPARTMENTS,
+  DRIVER_POOL,
   getAllBookings,
   createBooking,
   updateBooking,
@@ -131,6 +132,7 @@ export function renderBookerView(container) {
   let currentDepartment = 'ฝ่ายขายและการตลาด';
   let currentStartTime = '08:30';
   let currentEndTime = '17:00';
+  let currentRequestedDriver = '';
   let currentNotes = 'ผู้โดยสาร 3 ท่าน ได้แก่ สมชาย, วรรณา, กิตติ มีกระเป๋าเอกสารและของที่ระลึก 2 ลัง';
   let editingBookingId = null;
   let itineraryRows = [
@@ -191,6 +193,7 @@ export function renderBookerView(container) {
     currentDepartment = b.department || 'ฝ่ายขายและการตลาด';
     currentStartTime = b.startTime || '08:30';
     currentEndTime = b.endTime || '17:00';
+    currentRequestedDriver = b.requestedDriver || '';
     currentNotes = b.notes || '';
 
     itineraryRows = (b.itinerary && b.itinerary.length > 0)
@@ -456,6 +459,29 @@ export function renderBookerView(container) {
             </div>
           </div>
 
+          <!-- Driver Input Row (Optional - สามารถกรอกหรือไม่กรอกก็ได้) -->
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label class="form-label" for="requestedDriver" style="display: flex; align-items: center; justify-content: space-between;">
+              <span>👨‍✈️ พนักงานขับรถ </span>
+              <span style="font-size: 0.78rem; color: #64748b; font-weight: normal;"></span>
+            </label>
+            <input 
+              type="text" 
+              id="requestedDriver" 
+              class="form-control" 
+              list="driver-pool-datalist" 
+              placeholder="พิมพ์ชื่อคนขับ หรือคลิกเลือกจากรายการ (เช่น วัชรินทร์, ปิยะวัฒน์, สมศักดิ์ หรือ 'พนักงานขับเอง')" 
+              value="${escapeHtml(currentRequestedDriver)}" 
+              autocomplete="off"
+            />
+            <datalist id="driver-pool-datalist">
+              ${DRIVER_POOL.map(d => `<option value="${d.name}">${d.code && d.code !== '-' ? `รหัส ${d.code} (${d.status || ''})` : ''}</option>`).join('')}
+            </datalist>
+            <div style="font-size: 0.74rem; color: #64748b; margin-top: 3px;">
+              * ไม่บังคับระบุ หากไม่กรอก แอดมินจะจัดสรรพนักงานขับรถให้ตามความเหมาะสมของภารกิจ
+            </div>
+          </div>
+
           <!-- Third Row: Usage Date & Time Range (ENFORCES 1-DAY ADVANCE) -->
           <div class="booking-datetime-row">
             
@@ -691,20 +717,34 @@ export function renderBookerView(container) {
         <div class="card-header-flex">
           <div class="card-title-group">
             <h2>
-              <span></span>
-              <span></span>
+              <span>📋</span>
+              <span>ประวัติและสถานะการขอใช้รถของฉัน</span>
             </h2>
             <p>ติดตามตารางการใช้รถ ตรวจสอบสถานะคำขอ และพิมพ์แบบฟอร์ม</p>
           </div>
           <div class="history-top-actions">
-            <button type="button" id="btn-open-cal-modal" class="btn-outline-blue" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 0.85rem; font-weight: 600;">
-              <span>📅</span>
-              <span></span>
-            </button>
+            <div class="booker-date-picker-wrap" style="display: inline-flex; align-items: center; gap: 6px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 4px 10px;">
+              <label for="booker-history-date-picker" style="font-size: 0.88rem; font-weight: 600; color: #475569; display: inline-flex; align-items: center; gap: 4px; margin: 0; cursor: pointer;">
+                <span>📅</span>
+                <span style="font-size: 0.82rem;">ค้นหาวันที่:</span>
+              </label>
+              <input 
+                type="date" 
+                id="booker-history-date-picker" 
+                class="dispatch-date-picker-input" 
+                value="${historyFilter.startDate || ''}" 
+                title="เลือกวันที่เพื่อกรองประวัติการขอใช้รถ"
+                style="padding: 4px 8px; font-size: 0.85rem; border: 1px solid #94a3b8; border-radius: 6px; background: #ffffff; color: #0f172a; cursor: pointer;"
+              />
+              ${historyFilter.startDate ? `
+                <button type="button" id="btn-clear-date-filter" class="btn-clear-filter" style="font-size: 0.78rem; padding: 3px 8px; border-radius: 5px; cursor: pointer;" title="ล้างการเลือกวันที่ (แสดงทั้งหมด)">
+                  ✕ ทั้งหมด
+                </button>
+              ` : ''}
+            </div>
             <button id="btn-create-new-top" class="btn-primary" style="padding: 6px 14px; font-size: 0.85rem;">
               <span>+ กรอกใบขอใช้รถ</span>
             </button>
-              
           </div>
         </div>
 
@@ -950,10 +990,14 @@ export function renderBookerView(container) {
                       ${b.assignedVehicle || b.requestedVehicle || '-'}
                     </div>
                     ${b.assignedDriver ? `
-                      <div style="font-size: 0.75rem; color: #059669;">
-                        🚗 ${b.assignedDriver}
+                      <div style="font-size: 0.75rem; color: #059669; margin-top: 2px;">
+                        👨‍✈️ ${escapeHtml(b.assignedDriver)}
                       </div>
-                    ` : ''}
+                    ` : (b.requestedDriver ? `
+                      <div style="font-size: 0.75rem; color: #0284c7; margin-top: 2px;">
+                        👨‍✈️ ขอคนขับ: ${escapeHtml(b.requestedDriver)}
+                      </div>
+                    ` : '')}
                   </td>
                   <td>
                     <div style="max-width: 180px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
@@ -1141,10 +1185,42 @@ export function renderBookerView(container) {
       });
     });
 
+    // Booker History Date Picker Filter
+    const bookerDateInput = document.getElementById('booker-history-date-picker');
+    if (bookerDateInput) {
+      bookerDateInput.addEventListener('change', (e) => {
+        const val = e.target.value;
+        if (val) {
+          historyFilter.startDate = val;
+          historyFilter.endDate = val;
+          historyFilter.preset = 'custom';
+        } else {
+          historyFilter = { preset: 'all', startDate: '', endDate: '' };
+        }
+        render();
+      });
+    }
+
+    const btnClearDate = document.getElementById('btn-clear-date-filter');
+    if (btnClearDate) {
+      btnClearDate.addEventListener('click', () => {
+        historyFilter = { preset: 'all', startDate: '', endDate: '' };
+        render();
+      });
+    }
+
     // Reset filter text button
     const btnResetFilterText = document.getElementById('btn-reset-filter-text');
     if (btnResetFilterText) {
       btnResetFilterText.addEventListener('click', () => {
+        historyFilter = { preset: 'all', startDate: '', endDate: '' };
+        render();
+      });
+    }
+
+    const btnResetFilterInline = document.getElementById('btn-reset-filter-inline');
+    if (btnResetFilterInline) {
+      btnResetFilterInline.addEventListener('click', () => {
         historyFilter = { preset: 'all', startDate: '', endDate: '' };
         render();
       });
@@ -1482,6 +1558,7 @@ export function renderBookerView(container) {
           currentDepartment = 'ฝ่ายขายและการตลาด';
           currentStartTime = '08:30';
           currentEndTime = '17:00';
+          currentRequestedDriver = '';
           currentNotes = '';
           itineraryRows = [
             { no: 1, detail: '', time: '', passengers: '', note: '', destination: '' }
@@ -1864,7 +1941,7 @@ export function renderBookerView(container) {
     const bookerPhone = document.getElementById('bookerPhone')?.value || '081-999-1234';
     const department = document.getElementById('department')?.value || 'ฝ่ายขายและการตลาด';
     const requestedVehicle = document.getElementById('requestedVehicle')?.value || '';
-    const requestedDriver = document.getElementById('requestedDriver')?.value || '';
+    const requestedDriver = document.getElementById('requestedDriver')?.value.trim() || '';
     const notes = document.getElementById('notes')?.value || '';
 
     return {
@@ -1879,7 +1956,7 @@ export function renderBookerView(container) {
       department,
       requestedVehicle,
       assignedVehicle: '',
-      requestedDriver: '',
+      requestedDriver: requestedDriver,
       assignedDriver: '',
       status: 'pending_approval',
       statusLabel: 'รอหัวหน้าฝ่ายอนุมัติ',
