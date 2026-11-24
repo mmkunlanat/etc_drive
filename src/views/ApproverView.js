@@ -364,10 +364,12 @@ export function renderApproverView(container) {
                     <span class="label">ช่วงเวลา:</span>
                     <span class="val">${req.startTime} - ${req.endTime} น.</span>
                   </div>
-                  ${req.assignedDriver ? `
+                  ${(req.assignedDriver || req.requestedDriver) ? `
                     <div class="info-row">
                       <span class="label">พนักงานขับรถ:</span>
-                      <span class="val" style="color: #059669;">${escapeHtml(req.assignedDriver)}</span>
+                      <span class="val" style="color: #059669; font-weight: 600;">
+                        👨‍✈️ ${escapeHtml(req.assignedDriver ? req.assignedDriver : `${req.requestedDriver} (ผู้ขอระบุ)`)}
+                      </span>
                     </div>
                   ` : ''}
                 </div>
@@ -620,7 +622,15 @@ export function renderApproverView(container) {
                         </div>
                       </td>
                       <td>${uThai.short} (${h.startTime} - ${h.endTime} น.)</td>
-                      <td>${escapeHtml(h.bookerName)} <div style="font-size: 0.75rem; color: var(--slate-400);">${escapeHtml(h.department)}</div></td>
+                      <td>
+                        ${escapeHtml(h.bookerName)} 
+                        <div style="font-size: 0.75rem; color: var(--slate-400);">${escapeHtml(h.department)}</div>
+                        ${(h.assignedDriver || h.requestedDriver) ? `
+                          <div style="font-size: 0.72rem; color: #059669; margin-top: 2px;">
+                            👨‍✈️ ${escapeHtml(h.assignedDriver ? h.assignedDriver : `${h.requestedDriver} (ขอ)`)}
+                          </div>
+                        ` : ''}
+                      </td>
                       <td>${escapeHtml(h.approverSignature || '-')}</td>
                       <td>
                         <span class="status-badge ${h.status}">${h.statusLabel}</span>
