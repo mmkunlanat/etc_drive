@@ -643,78 +643,31 @@ export function renderAdminView(container) {
           <span class="cell-print-text print-only" data-field="time">${escapeHtml(row.time || '')}</span>
         </td>
 
-        <!-- ฝ่าย/แผนก (ตัวเลือกที่พิมพ์แก้ไขได้) -->
+        <!-- ฝ่าย/แผนก (ช่อง text) -->
         <td class="col-dept">
-          <div class="cell-combobox-wrap">
-            <input 
-              type="text" 
-              class="dispatch-cell-input text-center cell-combobox-input" 
-              data-field="department" 
-              data-row-id="${row.id}" 
-              value="${escapeHtml(row.department || '')}" 
-              placeholder="ฝ่าย/แผนก"
-              autocomplete="off"
-            />
-            <button 
-              type="button" 
-              class="btn-cell-dropdown-arrow no-print" 
-              data-toggle-dropdown="dept-${row.id}" 
-              tabindex="-1"
-              title="เลือกฝ่าย/แผนก"
-            >
-              ▾
-            </button>
-            <div class="cell-dropdown-menu no-print" id="dropdown-dept-${row.id}" style="display: none; min-width: 190px;">
-              ${DISPATCH_DEPARTMENTS.map(dp => `
-                <div 
-                  class="cell-opt-item" 
-                  data-field="department" 
-                  data-val="${escapeHtml(dp.code)}" 
-                  data-row-id="${row.id}"
-                >
-                  <strong>${escapeHtml(dp.code)}</strong>
-                  <span class="cell-opt-subtext">${escapeHtml(dp.label.replace(dp.code, '').replace(/[\(\)]/g, '').trim())}</span>
-                </div>
-              `).join('')}
-            </div>
-          </div>
+          <input 
+            type="text" 
+            class="dispatch-cell-input text-center" 
+            data-field="department" 
+            data-row-id="${row.id}" 
+            value="${escapeHtml(row.department || '')}" 
+            placeholder="ฝ่าย/แผนก"
+            autocomplete="off"
+          />
           <span class="cell-print-text print-only" data-field="department">${escapeHtml(row.department || '')}</span>
         </td>
 
-        <!-- ผู้จอง (ถ้ามีมากกว่า 1 ให้ / และ ใส่ชื่อผู้จองอีกคนได้เลย) -->
+        <!-- ผู้จอง (ช่อง text) -->
         <td class="col-booker">
-          <div class="cell-combobox-wrap">
-            <input 
-              type="text" 
-              class="dispatch-cell-input text-center cell-combobox-input" 
-              data-field="booker" 
-              data-row-id="${row.id}" 
-              value="${escapeHtml(row.booker || '')}" 
-              placeholder="K.ชื่อ1/K.ชื่อ2"
-              autocomplete="off"
-            />
-            <button 
-              type="button" 
-              class="btn-cell-dropdown-arrow no-print" 
-              data-toggle-dropdown="booker-${row.id}" 
-              tabindex="-1"
-              title="เลือกชื่อผู้จอง (หากมีมากกว่า 1 คน จะใส่ / ให้อัตโนมัติ)"
-            >
-              ▾
-            </button>
-            <div class="cell-dropdown-menu no-print" id="dropdown-booker-${row.id}" style="display: none; min-width: 170px;">
-              ${bookerPool.map(bName => `
-                <div 
-                  class="cell-opt-item" 
-                  data-field="booker" 
-                  data-val="${escapeHtml(bName)}" 
-                  data-row-id="${row.id}"
-                >
-                  <strong>${escapeHtml(bName)}</strong>
-                </div>
-              `).join('')}
-            </div>
-          </div>
+          <input 
+            type="text" 
+            class="dispatch-cell-input text-center font-bold" 
+            data-field="booker" 
+            data-row-id="${row.id}" 
+            value="${escapeHtml(row.booker || '')}" 
+            placeholder="K.ชื่อ1/K.ชื่อ2"
+            autocomplete="off"
+          />
           <span class="cell-print-text print-only font-bold" data-field="booker">${escapeHtml(row.booker || '')}</span>
         </td>
 
@@ -1971,11 +1924,12 @@ export function renderAdminView(container) {
       mainText = metaParts ? `ภารกิจ (${metaParts})` : '';
     }
 
+    const cleanMain = mainText.replace(/^\s*(\d+[\.\)]|ลำดับที่\s*\d+[:\.]?)\s*/, '');
     const order = (orderNumber !== null && orderNumber !== undefined) ? orderNumber : (item ? item.no : null);
-    if (order && !mainText.match(/^\s*\d+[\.\)]/)) {
-      return `${order}. ${mainText}`;
+    if (order) {
+      return `${order}. ${cleanMain}`;
     }
-    return mainText;
+    return cleanMain;
   }
 
   // Booker Request Picker Modal - allows Admin to select undispatched jobs to fill into the car row
@@ -2287,6 +2241,11 @@ export function renderAdminView(container) {
           const allPickedTimes = [];
           const allPickedStops = [];
 
+          // Count existing jobs in targetRow to continue order numbering smoothly across all selected bookings
+          let existingCount = (targetRow.itineraryText || '').split('\n')
+            .flatMap(l => splitJobsFromLine(l))
+            .filter(Boolean).length;
+
           Object.keys(selections).forEach(bId => {
             const booking = allBookings.find(b => b.id === bId);
             if (!booking) return;
@@ -2363,11 +2322,6 @@ export function renderAdminView(container) {
             booking.assignedDriver = targetRow.driverName ? `${targetRow.driverName}` : 'ฝ่ายสำนักงานจัดสรรแล้ว';
             booking.assignedDate = selectedDate;
             updateBooking(booking.id, booking);
-
-            // Count existing jobs in targetRow to continue order numbering smoothly
-            let existingCount = (targetRow.itineraryText || '').split('\n')
-              .flatMap(l => splitJobsFromLine(l))
-              .filter(Boolean).length;
 
             // Build text for this booking's picked stops with individual job times and order numbers
             const stopsText = pickedStops.map(item => {
@@ -3254,17 +3208,14 @@ export function renderAdminView(container) {
         jobGlobalCounter++;
         const rawJobTrim = job.trim();
 
-        // Check if job text already has order number prefix (e.g. "1. ", "1) ", "ลำดับที่ 1: ")
+        // Strip existing order number prefix (e.g. "1. ", "1) ", "ลำดับที่ 1: ") so jobs are numbered sequentially
         const orderMatch = rawJobTrim.match(/^(\d+[\.\)]|ลำดับที่\s*\d+[:\.]?)\s*(.*)$/);
-        let orderPrefix = '';
         let jobContent = rawJobTrim;
 
         if (orderMatch) {
-          orderPrefix = orderMatch[1].endsWith('.') ? orderMatch[1] : `${orderMatch[1]}.`;
-          jobContent = orderMatch[2];
-        } else {
-          orderPrefix = `${jobGlobalCounter}.`;
+          jobContent = orderMatch[2].trim();
         }
+        const orderPrefix = `${jobGlobalCounter}.`;
 
         let formatted = escapeHtml(jobContent);
         // Highlight time ranges e.g. "เวลา 13.00-16.30 น.", "เวลา 13.00 - 17.00 น.", "18.00 น."
