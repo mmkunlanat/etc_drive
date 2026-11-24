@@ -103,13 +103,17 @@ export function renderPaperModal(booking, optionsOrOnClose) {
             <div class="paper-doc-title">ใบขออนุมัติการใช้รถ</div>
 
             <div class="paper-row" style="margin-top: 1.25rem;">
-              <div class="fill-item" style="flex: 1 1 280px;">
+              <div class="fill-item" style="flex: 1 1 220px;">
                 <span>ฝ่าย/แผนก</span>
                 <span class="dotted-line" style="flex-grow: 1;">${booking.department || '-'}</span>
               </div>
-              <div class="fill-item" style="flex: 1 1 320px;">
+              <div class="fill-item" style="flex: 1 1 220px;">
                 <span>ขออนุมัติใช้รถ</span>
                 <span class="dotted-line" style="flex-grow: 1;">${booking.assignedVehicle || booking.requestedVehicle || '-'}</span>
+              </div>
+              <div class="fill-item" style="flex: 1 1 200px;">
+                <span>พนักงานขับรถ</span>
+                <span class="dotted-line" style="flex-grow: 1;">${booking.assignedDriver || booking.requestedDriver || '-'}</span>
               </div>
             </div>
 
