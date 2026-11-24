@@ -146,8 +146,13 @@ function parseItineraryFromDispatchRow(row) {
     return [];
   }
 
-  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+  // Pre-process: normalize raw text so segments run together (e.g. ")นิคม...") get split properly.
+  // Insert " / " between closing paren and the start of the next Thai/alphanum segment.
+  const normalizedText = rawText.replace(/\)\s*([\u0E00-\u0E7F\w])/g, ') / $1');
+
+  const lines = normalizedText.split('\n').map(l => l.trim()).filter(Boolean);
   const items = [];
+  const seenDestKeys = new Set(); // for deduplication of identical job segments
 
   lines.forEach(line => {
     const subJobs = splitJobsFromLine(line);
@@ -155,7 +160,7 @@ function parseItineraryFromDispatchRow(row) {
       const cleanJob = jobStr.trim();
       if (!cleanJob) return;
 
-      const timeMatch = cleanJob.match(/(\d{1,2}[:.]\d{2})\s*น\./) || cleanJob.match(/(\d{1,2}[:.]\d{2})/);
+      const timeMatch = cleanJob.match(/(\d{1,2}[:.]?\d{2})\s*น\./) || cleanJob.match(/(\d{1,2}[:.]?\d{2})/);
       const passMatch = cleanJob.match(/(\d+)\s*คน/);
 
       let dest = cleanJob;
@@ -167,10 +172,15 @@ function parseItineraryFromDispatchRow(row) {
       }
 
       // Remove leading order numbers e.g. "1. อ.เมือง..." -> "อ.เมือง..."
-      dest = dest.replace(/^\d+[\.\)]\s*/, '').trim();
+      dest = dest.replace(/^\d+[\.\)\s]\s*/, '').trim();
+
+      // Deduplicate: skip items whose destination+detail are identical to one already added
+      const dedupeKey = dest.substring(0, 40) + '_' + detail.substring(0, 40);
+      if (seenDestKeys.has(dedupeKey)) return;
+      seenDestKeys.add(dedupeKey);
 
       const itemNo = items.length + 1;
-      const key = `${itemNo}_${dest}_${detail}`;
+      const key = itemNo + '_' + dest + '_' + detail;
       const savedState = existingCompletedMap.get(key) || existingCompletedMap.get(String(itemNo)) || {};
 
       items.push({
