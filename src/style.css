@@ -3429,14 +3429,14 @@ body {
   box-shadow: 0 3px 8px rgba(37, 99, 235, 0.35);
 }
 
-/* Authentic Blue Sheet Layout */
+/* Official Paper Sheet Layout - Matching Dispatch Table Style & Colors */
 .official-paper-sheet {
-  background: #f7faff;
-  border: 2px solid #2d5b94;
+  background: #ffffff;
+  border: 1.5px solid #000000;
   padding: 1.75rem 2rem;
-  font-family: var(--font-formal);
-  color: #1a365d;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  font-family: 'Sarabun', 'Prompt', sans-serif;
+  color: #000000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
   position: relative;
   font-size: 15px;
   line-height: 1.6;
@@ -3445,8 +3445,8 @@ body {
 .paper-doc-title {
   text-align: center;
   font-size: 24px;
-  font-weight: 700;
-  color: #1a365d;
+  font-weight: 800;
+  color: #000000;
   letter-spacing: 0.5px;
   margin-bottom: 0.5rem;
 }
@@ -3457,6 +3457,7 @@ body {
   right: 2rem;
   text-align: right;
   font-size: 14px;
+  color: #000000;
 }
 
 .meta-line {
@@ -3469,11 +3470,11 @@ body {
 
 .dotted-line {
   display: inline-block;
-  border-bottom: 1.5px dotted #2d5b94;
+  border-bottom: 1.5px dotted #000000;
   min-width: 130px;
   text-align: center;
   font-weight: 600;
-  color: #0f274a;
+  color: #000000;
 }
 
 .paper-row {
@@ -3482,6 +3483,7 @@ body {
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 10px;
+  color: #000000;
 }
 
 .paper-row .fill-item {
@@ -3490,71 +3492,85 @@ body {
   gap: 6px;
 }
 
-/* Official Table */
+/* Official Table (Matching Dispatch Table: Gray Header, Black Borders) */
 .paper-table {
   width: 100%;
   border-collapse: collapse;
   margin: 1rem 0;
-  border: 1.5px solid #2d5b94;
+  border: 1.5px solid #000000;
   font-size: 14px;
+  background-color: #ffffff;
 }
 
 .paper-table th {
-  background-color: #dbeafe;
-  color: #1a365d;
-  border: 1px solid #2d5b94;
+  background-color: #d9d9d9 !important;
+  color: #000000 !important;
+  border: 1px solid #000000 !important;
   padding: 8px 10px;
   font-weight: 700;
   text-align: center;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
 }
 
 .paper-table td {
-  border: 1px solid #7ba3d0;
+  border: 1px solid #000000 !important;
   padding: 7px 10px;
   height: 38px;
   vertical-align: middle;
+  background-color: #ffffff;
+  color: #000000;
 }
 
 .paper-table tr:nth-child(even) td {
-  background-color: #f0f7ff;
+  background-color: #ffffff;
 }
 
 .paper-notes-box {
   margin: 12px 0 16px;
   font-size: 14px;
+  color: #000000;
 }
 
-/* Official Signatures Grid (3 columns matching the document) */
+/* Official Signatures Grid (Matching Dispatch Table: Gray Header, Black Borders) */
 .paper-signatures-table {
   width: 100%;
   border-collapse: collapse;
-  border: 1.5px solid #2d5b94;
+  border: 1.5px solid #000000;
   margin-top: 14px;
+  background-color: #ffffff;
 }
 
 .paper-signatures-table th {
-  background-color: #dbeafe;
-  border: 1px solid #2d5b94;
+  background-color: #d9d9d9 !important;
+  color: #000000 !important;
+  border: 1px solid #000000 !important;
   padding: 6px;
   font-size: 13px;
   text-align: center;
+  font-weight: 700;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
 }
 
 .paper-signatures-table td {
-  border: 1px solid #2d5b94;
+  border: 1px solid #000000 !important;
   padding: 12px 8px;
   text-align: center;
   font-size: 13px;
   width: 33.33%;
   vertical-align: bottom;
   height: 100px;
+  background-color: #ffffff;
+  color: #000000;
 }
 
 .sig-name-line {
   margin-top: 8px;
-  border-top: 1px dotted #2d5b94;
+  border-top: 1px dotted #000000;
   padding-top: 4px;
   font-weight: 600;
+  color: #000000;
 }
 
 /* Footer note */
@@ -3610,9 +3626,30 @@ body {
 }
 
 /* Print styles for Paper Modal (A4 Portrait Official Form) */
+@page officialPaper {
+  size: A4 portrait;
+  margin: 5mm 6mm;
+}
+
+@page dispatchPaper {
+  size: A4 landscape;
+  margin: 4mm 6mm;
+}
+
 @media print {
+  html.has-paper-modal,
   body.has-paper-modal {
     background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100vh !important;
+    overflow: hidden !important;
+  }
+
+  body.has-paper-modal > *:not(#paper-modal-backdrop) {
+    display: none !important;
   }
 
   body.has-paper-modal .app-header,
@@ -3630,6 +3667,9 @@ body {
     padding: 0 !important;
     margin: 0 !important;
     display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
   }
 
   body.has-paper-modal .paper-modal-dialog {
@@ -3639,16 +3679,119 @@ body {
     max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
+    background: none !important;
+    height: auto !important;
+  }
+
+  body.has-paper-modal .paper-modal-body {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
   }
 
   body.has-paper-modal .official-paper-sheet {
-    position: static !important;
+    page: officialPaper;
+    position: relative !important;
     width: 100% !important;
+    box-sizing: border-box !important;
     border: 1.5px solid #000000 !important;
     box-shadow: none !important;
-    padding: 10mm 12mm !important;
-    margin: 0 !important;
-    page-break-after: avoid;
+    padding: 5mm 8mm 4mm 8mm !important;
+    margin: 0 auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
+    max-height: 285mm !important;
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+  }
+
+  body.has-paper-modal .paper-doc-title {
+    font-size: 18px !important;
+    margin-bottom: 2px !important;
+  }
+
+  body.has-paper-modal .paper-top-right-meta {
+    top: 5mm !important;
+    right: 8mm !important;
+    font-size: 12px !important;
+  }
+
+  body.has-paper-modal .paper-row {
+    margin-top: 4px !important;
+    gap: 6px !important;
+  }
+
+  body.has-paper-modal .paper-table {
+    margin: 6px 0 !important;
+    font-size: 12.5px !important;
+  }
+
+  body.has-paper-modal * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  body.has-paper-modal .paper-table th {
+    background-color: #d9d9d9 !important;
+    color: #000000 !important;
+    border: 1px solid #000000 !important;
+    padding: 3px 6px !important;
+    height: 26px !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+  }
+
+  body.has-paper-modal .paper-table td {
+    border: 1px solid #000000 !important;
+    padding: 3px 6px !important;
+    height: 26px !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  body.has-paper-modal .paper-notes-box {
+    margin: 4px 0 6px !important;
+    font-size: 12px !important;
+  }
+
+  body.has-paper-modal .paper-signatures-table {
+    margin-top: 4px !important;
+    border: 1.5px solid #000000 !important;
+  }
+
+  body.has-paper-modal .paper-signatures-table th {
+    background-color: #d9d9d9 !important;
+    color: #000000 !important;
+    border: 1px solid #000000 !important;
+    padding: 3px !important;
+    font-size: 11.5px !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+  }
+
+  body.has-paper-modal .paper-signatures-table td {
+    border: 1px solid #000000 !important;
+    padding: 4px !important;
+    height: 55px !important;
+    font-size: 11.5px !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  body.has-paper-modal .sig-name-line {
+    font-size: 11px !important;
+    margin-top: 2px !important;
+  }
+
+  body.has-paper-modal .paper-footer-bar {
+    margin-top: 4px !important;
+    font-size: 10.5px !important;
   }
 }
 
@@ -3947,17 +4090,17 @@ body {
 /* Itinerary Details Box */
 .dispatch-itinerary-cell {
   background-color: #ffffff;
-  padding: 6px 12px !important;
+  padding: 4px 10px !important;
   text-align: left;
-  line-height: 1.45;
-  font-size: 0.9rem;
+  line-height: 1.32;
+  font-size: 0.88rem;
   border-top: 1px solid #000000;
   border-bottom: 1px solid #000000;
 }
 
 .dispatch-itinerary-line {
-  margin-bottom: 2px;
-  line-height: 1.45;
+  margin-bottom: 1px;
+  line-height: 1.32;
 }
 
 .dispatch-itinerary-line:last-child {
@@ -4077,7 +4220,7 @@ body {
   padding: 2px 4px;
   font-family: inherit;
   font-size: 0.9rem;
-  line-height: 1.45;
+  line-height: 1.3;
   color: #000000;
   outline: none;
   min-height: 36px;
@@ -4698,19 +4841,28 @@ body {
   color: #1d4ed8;
 }
 
-/* Print Styling for Admin Dispatch Schedule (Landscape Spreadsheet A4) */
+/* Print Styling for Admin Dispatch Schedule (Landscape / Portrait Single Page Fit) */
 @media print {
   @page {
-    size: landscape;
-    margin: 8mm 10mm;
+    size: auto;
+    margin: 5mm 8mm;
   }
 
+  html:not(.has-paper-modal),
   body:not(.has-paper-modal) {
     background: #ffffff !important;
     color: #000000 !important;
-    font-size: 10.5pt;
+    font-family: 'Sarabun', 'Prompt', sans-serif !important;
     margin: 0 !important;
     padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  body:not(.has-paper-modal) * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
 
   body:not(.has-paper-modal) .app-header,
@@ -4725,7 +4877,8 @@ body {
   body:not(.has-paper-modal) .role-nav-group,
   body:not(.has-paper-modal) .col-actions,
   body:not(.has-paper-modal) .toast-box,
-  body:not(.has-paper-modal) #paper-modal-backdrop {
+  body:not(.has-paper-modal) #paper-modal-backdrop,
+  body:not(.has-paper-modal) .btn-remove-job-item {
     display: none !important;
   }
 
@@ -4734,35 +4887,56 @@ body {
     max-width: 100% !important;
     width: 100% !important;
     padding: 0 !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
+    page: dispatchPaper;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
   }
 
   body:not(.has-paper-modal) .dispatch-paper-card {
     border: none !important;
     box-shadow: none !important;
     padding: 0 !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
     width: 100% !important;
     max-width: 100% !important;
-    background: transparent !important;
+    background: #ffffff !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
   }
 
+  /* Compact on-screen dispatch title heading (Navy Blue #002060) */
   body:not(.has-paper-modal) .dispatch-title-heading {
-    color: #000000 !important;
-    font-size: 1.8rem !important;
-    margin: 0 0 4px 0 !important;
+    color: #002060 !important;
+    font-size: 1.35rem !important;
+    margin: 0 0 2px 0 !important;
     text-align: center !important;
     font-weight: 800 !important;
+    letter-spacing: 0.5px !important;
+    font-family: 'Sarabun', 'Prompt', sans-serif !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
+  /* Compact on-screen dispatch date subheading (Navy Blue #002060) */
   body:not(.has-paper-modal) .dispatch-date-subheading {
-    color: #000000 !important;
-    font-size: 1.05rem !important;
-    margin: 0 0 10px 0 !important;
+    color: #002060 !important;
+    font-size: 0.95rem !important;
+    margin: 0 0 5px 0 !important;
     text-align: left !important;
     font-weight: 700 !important;
+    font-family: 'Sarabun', 'Prompt', sans-serif !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
+  /* Dispatch Excel Table: Tight spacing to strictly enforce 1 page */
   body:not(.has-paper-modal) .dispatch-excel-table {
     width: 100% !important;
     border-collapse: collapse !important;
@@ -4770,6 +4944,18 @@ body {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     table-layout: auto !important;
+    font-size: 0.85rem !important;
+    font-family: 'Sarabun', 'Prompt', sans-serif !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  body:not(.has-paper-modal) .dispatch-excel-table thead {
+    display: table-row-group !important; /* Prevent Chrome from repeating thead across breaks */
   }
 
   body:not(.has-paper-modal) .dispatch-excel-table th,
@@ -4777,72 +4963,123 @@ body {
     border: 1px solid #000000 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
-    padding: 4px 6px !important;
-    line-height: 1.4 !important;
+    padding: 3px 6px !important;
+    line-height: 1.25 !important;
+    vertical-align: middle !important;
+    font-size: 0.85rem !important;
   }
 
   body:not(.has-paper-modal) .dispatch-excel-table thead th {
     background-color: #d9d9d9 !important;
     color: #000000 !important;
     font-weight: 700 !important;
-    height: 32px !important;
-    font-size: 0.92rem !important;
+    height: 26px !important;
+    font-size: 0.88rem !important;
+    text-align: center !important;
+    letter-spacing: 0.2px !important;
+    border: 1px solid #000000 !important;
+    padding: 2px 6px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   body:not(.has-paper-modal) .dispatch-main-tr,
   body:not(.has-paper-modal) .dispatch-itinerary-tr,
   body:not(.has-paper-modal) .dispatch-comment-tr {
     page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
+  /* Exact on-screen plate colors (Yellow & Green) */
   body:not(.has-paper-modal) .plate-bg-yellow {
     background-color: #ffff99 !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   body:not(.has-paper-modal) .plate-bg-green {
     background-color: #bbf7d0 !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
+  /* Exact on-screen time pink */
   body:not(.has-paper-modal) .time-bg-pink {
     background-color: #fbcfe8 !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
+  /* Exact on-screen comment peach with red text */
   body:not(.has-paper-modal) .dispatch-comment-cell,
   body:not(.has-paper-modal) .dispatch-comment-tr {
     background-color: #ffe6cc !important;
     color: #dc2626 !important;
-  }
-
-  body:not(.has-paper-modal) .cell-combobox-wrap input,
-  body:not(.has-paper-modal) .col-no input,
-  body:not(.has-paper-modal) .col-time input,
-  body:not(.has-paper-modal) .dispatch-comment-input {
-    display: none !important;
-  }
-
-  body:not(.has-paper-modal) .cell-print-text {
-    display: block !important;
-    text-align: inherit !important;
-    font-size: inherit !important;
-    font-weight: inherit !important;
-    color: inherit !important;
-    white-space: normal !important;
-    word-break: break-word !important;
+    font-weight: 700 !important;
+    padding: 4px 10px !important;
+    font-size: 0.85rem !important;
+    line-height: 1.25 !important;
+    border-top: 1px solid #000000 !important;
+    border-bottom: 1px solid #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   body:not(.has-paper-modal) .dispatch-comment-print-text {
     display: block !important;
     color: #dc2626 !important;
     font-weight: 700 !important;
-    font-size: 0.95rem !important;
+    font-size: 0.85rem !important;
+    line-height: 1.25 !important;
     white-space: pre-wrap !important;
+    word-break: break-word !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide raw input boxes and display clean text in cells */
+  body:not(.has-paper-modal) .cell-combobox-wrap input,
+  body:not(.has-paper-modal) .col-no input,
+  body:not(.has-paper-modal) .col-time input,
+  body:not(.has-paper-modal) .dispatch-comment-input,
+  body:not(.has-paper-modal) .dispatch-cell-input,
+  body:not(.has-paper-modal) .dispatch-excel-table input {
+    display: none !important;
+  }
+
+  body:not(.has-paper-modal) .cell-print-text {
+    display: block !important;
+    text-align: center !important;
+    font-size: 0.85rem !important;
+    font-weight: 600 !important;
+    color: #000000 !important;
+    white-space: normal !important;
     word-break: break-word !important;
   }
 
+  body:not(.has-paper-modal) .col-booker .cell-print-text {
+    font-weight: 700 !important;
+  }
+
+  /* Itinerary details: Tightly spaced stops to keep distance close */
   body:not(.has-paper-modal) .dispatch-itinerary-cell {
     background-color: #ffffff !important;
     border: 1px solid #000000 !important;
-    padding: 6px 10px !important;
+    padding: 2px 8px !important;
+    text-align: left !important;
+    line-height: 1.25 !important;
+    font-size: 0.85rem !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   body:not(.has-paper-modal) .dispatch-itinerary-box {
@@ -4851,10 +5088,26 @@ body {
     box-shadow: none !important;
     padding: 0 !important;
     min-height: 0 !important;
-    white-space: pre-wrap !important;
+    white-space: normal !important;
     word-break: break-word !important;
     color: #000000 !important;
-    line-height: 1.5 !important;
+    font-size: 0.85rem !important;
+    line-height: 1.25 !important;
+  }
+
+  body:not(.has-paper-modal) .dispatch-itinerary-line {
+    display: block !important;
+    margin: 0 0 2px 0 !important;
+    padding: 0 !important;
+    line-height: 1.25 !important;
+  }
+
+  body:not(.has-paper-modal) .dispatch-job-segment {
+    display: inline-flex !important;
+    align-items: baseline !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1.25 !important;
   }
 
   body:not(.has-paper-modal) .dispatch-itinerary-box[contenteditable]:empty:before {
@@ -4862,14 +5115,26 @@ body {
     content: "" !important;
   }
 
+  body:not(.has-paper-modal) .dispatch-job-order {
+    color: #1e40af !important;
+    font-weight: 800 !important;
+    margin-right: 4px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   body:not(.has-paper-modal) .dispatch-red-highlight {
     color: #dc2626 !important;
-    font-weight: 700 !important;
+    font-weight: 600 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   body:not(.has-paper-modal) .dispatch-blue-highlight {
     color: #0284c7 !important;
-    font-weight: 700 !important;
+    font-weight: 600 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
 

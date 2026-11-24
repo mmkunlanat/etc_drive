@@ -151,5 +151,42 @@ window.addEventListener('edit_booking_in_form', (e) => {
   window.addEventListener('bookings_updated', updateRoleBadges);
   window.addEventListener('schedule_approval_updated', updateRoleBadges);
 
+  // Setup dynamic print page orientation listener
+  window.addEventListener('beforeprint', () => {
+    let styleEl = document.getElementById('dynamic-print-page-style');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'dynamic-print-page-style';
+      document.head.appendChild(styleEl);
+    }
+    if (document.body.classList.contains('has-paper-modal')) {
+      styleEl.textContent = `
+        @page {
+          size: A4 portrait !important;
+          margin: 5mm 6mm !important;
+        }
+      `;
+    } else {
+      const printCard = document.getElementById('dispatch-print-area');
+      const naturalH = printCard ? printCard.scrollHeight : 0;
+      let scaleCss = '';
+      if (naturalH > 670) {
+        const zoomVal = Math.max(0.55, +(660 / naturalH).toFixed(3));
+        scaleCss = `
+          body:not(.has-paper-modal) .dispatch-paper-card {
+            zoom: ${zoomVal} !important;
+          }
+        `;
+      }
+      styleEl.textContent = `
+        @page {
+          size: A4 landscape !important;
+          margin: 4mm 6mm !important;
+        }
+        ${scaleCss}
+      `;
+    }
+  });
+
   // Start the app
   initApp();
