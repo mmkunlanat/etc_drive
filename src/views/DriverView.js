@@ -238,6 +238,7 @@ function getDriverJobsForDate(dateIso, driver, allBookings) {
       bookerName: row.booker || (linkedBookings.map(b => b.bookerName).filter(Boolean).join(' / ') || '-'),
       bookerPhone: phoneList.join(' / ') || '',
       department: row.department || (linkedBookings.map(b => b.department).filter(Boolean).join(' / ') || '-'),
+      requestedDriver: linkedBookings.map(b => b.requestedDriver).filter(Boolean).join(' / ') || '',
       notes: row.comment || (linkedBookings.map(b => b.notes).filter(Boolean).join('; ') || ''),
       itinerary: itinerary,
       status: allCompleted ? 'completed' : 'dispatched',
@@ -741,6 +742,11 @@ export function renderDriverView(container) {
             <div style="font-size: 0.8rem; color: var(--slate-600); margin-top: 2px;">
               📝 หมายเหตุ/ผู้โดยสาร: ${escapeHtml(trip.notes || '-')}
             </div>
+            ${trip.requestedDriver ? `
+              <div style="font-size: 0.8rem; color: #0284c7; margin-top: 2px;">
+                👨‍✈️ คนขับที่ผู้ขอระบุ: <strong>${escapeHtml(trip.requestedDriver)}</strong>
+              </div>
+            ` : ''}
           </div>
 
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">

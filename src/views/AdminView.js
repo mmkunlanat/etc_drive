@@ -1035,6 +1035,11 @@ export function renderAdminView(container) {
                           ประเภทรถที่ขอ: <strong>${escapeHtml(b.requestedVehicle)}</strong>
                         </div>
                       ` : ''}
+                      ${b.requestedDriver ? `
+                        <div style="font-size: 0.72rem; color: #0284c7; margin-top: 2px;">
+                          👨‍✈️ คนขับที่ขอ: <strong>${escapeHtml(b.requestedDriver)}</strong>
+                        </div>
+                      ` : ''}
                     </td>
                     <td>
                       ${b.assignedVehicle ? `
@@ -2080,6 +2085,7 @@ export function renderAdminView(container) {
                       <div>📅 <strong>วันที่ใช้งาน:</strong> ${uDate.short}</div>
                       <div>⏰ <strong>เวลา:</strong> ${b.startTime} - ${b.endTime} น.</div>
                       <div>🚘 <strong>รถที่ต้องการ:</strong> ${escapeHtml(b.requestedVehicle || '-')}</div>
+                      <div>👨‍✈️ <strong>คนขับที่ขอ:</strong> ${escapeHtml(b.requestedDriver || '-')}</div>
                       <div>📞 <strong>โทร:</strong> ${escapeHtml(b.bookerPhone || '-')}</div>
                     </div>
 
@@ -2351,6 +2357,14 @@ export function renderAdminView(container) {
               }
               pickedStops.push(synStop);
               allPickedStops.push(synStop);
+            }
+
+            if (!targetRow.driverName && booking.requestedDriver) {
+              targetRow.driverName = booking.requestedDriver;
+              const matchDriver = DRIVER_POOL.find(d => d.name === booking.requestedDriver || booking.requestedDriver.includes(d.name));
+              if (matchDriver && matchDriver.code && matchDriver.code !== '-') {
+                targetRow.driverCode = matchDriver.code;
+              }
             }
 
             booking.assignedVehicle = targetRow.plate;
