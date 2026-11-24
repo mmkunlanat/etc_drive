@@ -731,13 +731,27 @@ export function renderAdminView(container) {
       ${showItinerary ? `
         <tr class="dispatch-itinerary-tr" data-row-id="${row.id}">
           <td colspan="7" class="dispatch-itinerary-cell">
-            <div 
-              class="dispatch-itinerary-box" 
-              contenteditable="true" 
+            ${hasItinerary ? `
+              <div class="dispatch-itinerary-preview-bar no-print" style="margin-bottom: 6px; padding: 4px 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.82rem;">
+                <div style="font-weight: 600; color: #475569; font-size: 0.76rem; margin-bottom: 3px; display: flex; align-items: center; justify-content: space-between;">
+                  <span>📋 รายการงานในรถคันนี้ (กด ✕ เพื่อนำงานออก หรือพิมพ์แก้ไข/กด Enter เพื่อเพิ่มงานใหม่ในกล่องด้านล่าง):</span>
+                </div>
+                <div class="dispatch-itinerary-preview-content" data-row-id="${row.id}">
+                  ${formatItineraryWithHighlights(row.itineraryText || '', row)}
+                </div>
+              </div>
+            ` : ''}
+            <textarea 
+              rows="5" 
+              cols="40" 
+              class="dispatch-itinerary-textarea no-print" 
               data-field="itineraryText" 
               data-row-id="${row.id}" 
-              placeholder="พิมพ์รายละเอียดงาน / ส่งเอกสาร / รับเช็ค / รับ-ส่งผู้โดยสาร / เที่ยวบิน / เบอร์ติดต่อ (ขึ้นบรรทัดใหม่เพื่อแยกช่วงงาน)..."
-            >${formatItineraryWithHighlights(row.itineraryText || '', row)}</div>
+              placeholder="พิมพ์รายละเอียดงาน (กด Enter เพื่อขึ้นบรรทัดใหม่และสร้างลำดับงาน 1, 2, 3... อัตโนมัติ)..."
+            >${escapeHtml(row.itineraryText || '')}</textarea>
+            <div class="dispatch-itinerary-box print-only" data-field="itineraryText" data-row-id="${row.id}">
+              ${formatItineraryWithHighlights(row.itineraryText || '', row)}
+            </div>
           </td>
           <td class="no-print" style="background: #f8fafc; text-align: center; font-size: 0.7rem; color: #94a3b8; vertical-align: top; padding-top: 8px;">
             <button 
@@ -1411,33 +1425,133 @@ export function renderAdminView(container) {
     container._outsideClickHandler = handleOutsideClick;
     document.addEventListener('click', handleOutsideClick);
 
-    // Contenteditable itinerary box
-    container.querySelectorAll('.dispatch-itinerary-box').forEach(box => {
-      box.addEventListener('input', (e) => {
+    // Textarea itinerary box
+    container.querySelectorAll('.dispatch-itinerary-textarea').forEach(textarea => {
+      textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          const ta = e.target;
+          const val = ta.value;
+          const start = ta.selectionStart;
+          const end = ta.selectionEnd;
+
+          const beforeCursor = val.substring(0, start);
+          const afterCursor = val.substring(end);
+
+          const lastNewlineIdx = beforeCursor.lastIndexOf('\n');
+          const lineStartIdx = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
+          const currentLineBefore = beforeCursor.substring(lineStartIdx);
+
+          const nextNewlineIdx = afterCursor.indexOf('\n');
+          const currentLineAfter = nextNewlineIdx === -1 ? afterCursor : afterCursor.substring(0, nextNewlineIdx);
+
+          const fullCurrentLine = currentLineBefore + currentLineAfter;
+
+          // If current textarea is completely empty, start line 1 with "1. "
+          if (val.trim() === '') {
+            e.preventDefault();
+            ta.value = '1. ';
+            ta.selectionStart = ta.selectionEnd = 3;
+            ta.dispatchEvent(new Event('input', { bubbles: true }));
+            return;
+          }
+
+          // Check if current line starts with e.g. "1. ", "2. ", "1) ", "ลำดับที่ 1: "
+          const prefixMatch = fullCurrentLine.match(/^(\s*)(\d+)([\.\)])\s*(.*)$/);
+
+          if (prefixMatch) {
+            const indent = prefixMatch[1] || '';
+            const num = parseInt(prefixMatch[2], 10);
+            const delim = prefixMatch[3] || '.';
+            const content = prefixMatch[4] || '';
+
+            // If empty item (e.g. user pressed enter on "3. " with no content), clear prefix
+            if (content.trim() === '') {
+              e.preventDefault();
+              const newBefore = beforeCursor.substring(0, lineStartIdx);
+              ta.value = newBefore + afterCursor;
+              ta.selectionStart = ta.selectionEnd = lineStartIdx;
+              ta.dispatchEvent(new Event('input', { bubbles: true }));
+              return;
+            }
+
+            e.preventDefault();
+            const nextNum = num + 1;
+            const insertStr = `\n${indent}${nextNum}${delim} `;
+            const newText = beforeCursor + insertStr + afterCursor;
+            ta.value = newText;
+            const newPos = start + insertStr.length;
+            ta.selectionStart = ta.selectionEnd = newPos;
+            ta.dispatchEvent(new Event('input', { bubbles: true }));
+            return;
+          } else {
+            e.preventDefault();
+            const linesBefore = beforeCursor.split('\n');
+            const lineCount = linesBefore.length;
+
+            if (lineCount === 1 && fullCurrentLine.trim() !== '') {
+              const updatedBefore = `1. ${beforeCursor}`;
+              const insertStr = `\n2. `;
+              ta.value = updatedBefore + insertStr + afterCursor;
+              const newPos = updatedBefore.length + insertStr.length;
+              ta.selectionStart = ta.selectionEnd = newPos;
+              ta.dispatchEvent(new Event('input', { bubbles: true }));
+              return;
+            }
+
+            const nextNum = lineCount + 1;
+            const insertStr = `\n${nextNum}. `;
+            ta.value = beforeCursor + insertStr + afterCursor;
+            const newPos = start + insertStr.length;
+            ta.selectionStart = ta.selectionEnd = newPos;
+            ta.dispatchEvent(new Event('input', { bubbles: true }));
+            return;
+          }
+        }
+      });
+
+      textarea.addEventListener('input', (e) => {
         const rowId = e.target.getAttribute('data-row-id');
-        const field = e.target.getAttribute('data-field');
-        
-        // Strip out remove buttons and dynamic order prefixes to keep clean text
-        const clone = e.target.cloneNode(true);
-        clone.querySelectorAll('.btn-remove-job-item').forEach(b => b.remove());
-        clone.querySelectorAll('.dispatch-job-order').forEach(o => o.remove());
-        clone.querySelectorAll('.dispatch-job-separator').forEach(s => {
-          s.replaceWith(' / ');
-        });
-        const val = clone.innerText;
+        const val = e.target.value;
 
         const targetRow = rows.find(r => r.id === rowId);
-        if (targetRow && field) {
-          targetRow[field] = val;
-          if (field === 'itineraryText' && val.trim() === '') {
+        if (targetRow) {
+          targetRow.itineraryText = val;
+          targetRow.itineraryLines = val.split('\n').filter(Boolean);
+
+          // Update preview and print elements live
+          const cell = e.target.closest('.dispatch-itinerary-cell');
+          if (cell) {
+            const previewContent = cell.querySelector('.dispatch-itinerary-preview-content');
+            if (previewContent) {
+              previewContent.innerHTML = formatItineraryWithHighlights(targetRow.itineraryText || '', targetRow);
+              previewContent.querySelectorAll('.btn-remove-job-item').forEach(btn => {
+                btn.addEventListener('click', (ev) => {
+                  ev.preventDefault(); ev.stopPropagation();
+                  const rId = btn.getAttribute('data-row-id');
+                  const jobText = btn.getAttribute('data-job-text');
+                  const bId = btn.getAttribute('data-booking-id') || null;
+                  const itNo = btn.getAttribute('data-item-no') || null;
+                  removeJobFromVehicle(rId, jobText, bId, itNo);
+                });
+              });
+            }
+            const printBox = cell.querySelector('.dispatch-itinerary-box.print-only');
+            if (printBox) {
+              printBox.innerHTML = formatItineraryWithHighlights(targetRow.itineraryText || '', targetRow);
+            }
+          }
+
+          if (val.trim() === '') {
             releaseLinkedBookings(targetRow);
             targetRow.linkedBookingIds = [];
           }
           debounceAutoSave();
         }
       });
-      box.addEventListener('blur', () => {
+
+      textarea.addEventListener('blur', () => {
         syncBookingsWithSchedule();
+        debounceAutoSave();
       });
     });
 

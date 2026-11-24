@@ -4247,6 +4247,29 @@ body {
   font-style: italic;
 }
 
+.dispatch-itinerary-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  padding: 6px 10px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  resize: vertical;
+  min-height: 85px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dispatch-itinerary-textarea:focus {
+  border-color: #2563eb;
+  background: #ffffff;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
 .dispatch-comment-input {
   width: 100%;
   border: 1px dashed transparent;
@@ -5080,6 +5103,11 @@ body {
     font-size: 0.85rem !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  body:not(.has-paper-modal) .dispatch-itinerary-textarea,
+  body:not(.has-paper-modal) .dispatch-itinerary-preview-bar {
+    display: none !important;
   }
 
   body:not(.has-paper-modal) .dispatch-itinerary-box {
