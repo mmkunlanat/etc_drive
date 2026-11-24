@@ -176,8 +176,8 @@ export function renderPaperModal(booking, optionsOrOnClose) {
               <tbody>
                 <tr>
                   <td>
-                    <div style="font-size: 11px; color: #4b6b94; margin-bottom: 6px;">ลงชื่อผู้ขอใช้รถ</div>
-                    <div style="min-height: 35px; display: flex; align-items: center; justify-content: center; font-family: cursive; font-size: 16px; color: #1e3a8a;">
+                    <div style="font-size: 11px; color: #475569; margin-bottom: 6px; font-weight: 600;">ลงชื่อผู้ขอใช้รถ</div>
+                    <div style="min-height: 35px; display: flex; align-items: center; justify-content: center; font-family: cursive; font-size: 16px; color: #002060;">
                       ${booking.bookerSignature || booking.bookerName || '...........................................'}
                     </div>
                     <div class="sig-name-line">
@@ -185,8 +185,8 @@ export function renderPaperModal(booking, optionsOrOnClose) {
                     </div>
                   </td>
                   <td>
-                    <div style="font-size: 11px; color: #4b6b94; margin-bottom: 6px;">ลงชื่อผู้อนุมัติ</div>
-                    <div style="min-height: 35px; display: flex; align-items: center; justify-content: center; font-size: 15px; color: ${booking.status === 'rejected' ? '#dc2626' : '#1e3a8a'}; font-family: ${booking.status === 'rejected' ? 'inherit' : 'cursive'}; font-weight: ${booking.status === 'rejected' ? '700' : 'normal'};">
+                    <div style="font-size: 11px; color: #475569; margin-bottom: 6px; font-weight: 600;">ลงชื่อผู้อนุมัติ</div>
+                    <div style="min-height: 35px; display: flex; align-items: center; justify-content: center; font-size: 15px; color: ${booking.status === 'rejected' ? '#dc2626' : '#002060'}; font-family: ${booking.status === 'rejected' ? 'inherit' : 'cursive'}; font-weight: ${booking.status === 'rejected' ? '700' : 'normal'};">
                       ${booking.status === 'rejected' ? '[ ไม่อนุมัติ ]' : (booking.approverSignature || '...........................................')}
                     </div>
                     <div class="sig-name-line">
@@ -194,15 +194,15 @@ export function renderPaperModal(booking, optionsOrOnClose) {
                     </div>
                   </td>
                   <td>
-                    <div style="font-size: 11px; color: #4b6b94; margin-bottom: 6px;">ลงชื่อผู้จัดรถ</div>
-                    <div style="min-height: 35px; display: flex; align-items: center; justify-content: center; font-family: cursive; font-size: 16px; color: #1e3a8a;">
+                    <div style="font-size: 11px; color: #475569; margin-bottom: 6px; font-weight: 600;">ลงชื่อผู้จัดรถ</div>
+                    <div style="min-height: 35px; display: flex; align-items: center; justify-content: center; font-family: cursive; font-size: 16px; color: #002060;">
                       ${booking.adminSignature || '...........................................'}
                     </div>
                     <div class="sig-name-line">
                       (${booking.adminSignature ? booking.adminSignature : '...........................................'})
                     </div>
                     ${booking.assignedDriver ? `
-                      <div style="font-size: 11px; color: #1e40af; margin-top: 4px; font-weight: 500;">
+                      <div style="font-size: 11px; color: #0f172a; margin-top: 4px; font-weight: 600;">
                         ผู้ขับขี่: ${booking.assignedDriver}
                       </div>
                     ` : ''}
@@ -241,6 +241,7 @@ export function renderPaperModal(booking, optionsOrOnClose) {
 
   document.body.insertAdjacentHTML('beforeend', modalHtml);
   document.body.classList.add('has-paper-modal');
+  document.documentElement.classList.add('has-paper-modal');
 
   // Close handlers
   const backdrop = document.getElementById('paper-modal-backdrop');
@@ -252,6 +253,7 @@ export function renderPaperModal(booking, optionsOrOnClose) {
   const close = () => {
     window.removeEventListener('keydown', handleKey);
     document.body.classList.remove('has-paper-modal');
+    document.documentElement.classList.remove('has-paper-modal');
     backdrop.remove();
     if (onClose) onClose();
   };
@@ -267,6 +269,18 @@ export function renderPaperModal(booking, optionsOrOnClose) {
   });
 
   printBtn.addEventListener('click', () => {
+    let styleEl = document.getElementById('dynamic-print-page-style');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'dynamic-print-page-style';
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent = `
+      @page {
+        size: A4 portrait !important;
+        margin: 5mm 6mm !important;
+      }
+    `;
     window.print();
   });
 

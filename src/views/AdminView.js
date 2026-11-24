@@ -1244,10 +1244,45 @@ export function renderAdminView(container) {
           }
         });
 
-        // Sync input values to DOM attribute for fallback
-        container.querySelectorAll('input').forEach(input => {
-          input.setAttribute('value', input.value);
+        // Sync all input values to DOM attribute and cell-print-text spans
+        container.querySelectorAll('td').forEach(td => {
+          const input = td.querySelector('.dispatch-cell-input');
+          const span = td.querySelector('.cell-print-text');
+          if (input) {
+            input.setAttribute('value', input.value);
+            if (span) {
+              span.textContent = input.value || '';
+            }
+          }
         });
+
+        let styleEl = document.getElementById('dynamic-print-page-style');
+        if (!styleEl) {
+          styleEl = document.createElement('style');
+          styleEl.id = 'dynamic-print-page-style';
+          document.head.appendChild(styleEl);
+        }
+
+        // Calculate dynamic scale based on actual card height to guarantee exact 1 page without cutting anything off
+        const printCard = container.querySelector('#dispatch-print-area');
+        const naturalH = printCard ? printCard.scrollHeight : 0;
+        let scaleCss = '';
+        if (naturalH > 670) {
+          const zoomVal = Math.max(0.55, +(660 / naturalH).toFixed(3));
+          scaleCss = `
+            body:not(.has-paper-modal) .dispatch-paper-card {
+              zoom: ${zoomVal} !important;
+            }
+          `;
+        }
+
+        styleEl.textContent = `
+          @page {
+            size: A4 landscape !important;
+            margin: 4mm 6mm !important;
+          }
+          ${scaleCss}
+        `;
 
         window.print();
       });
@@ -3248,22 +3283,7 @@ export function renderAdminView(container) {
         const bIdAttr = matchedBookingId ? `data-booking-id="${escapeHtml(matchedBookingId)}"` : '';
         const itNoAttr = matchedItemNo ? `data-item-no="${escapeHtml(matchedItemNo)}"` : '';
 
-        return `
-          <span class="dispatch-job-segment" style="display: inline-flex; align-items: baseline; margin-right: 2px;">
-            <span class="dispatch-job-order font-bold" style="color: #1e40af; margin-right: 5px; flex-shrink: 0;" contenteditable="false">${escapeHtml(orderPrefix)}</span>
-            <span>${formatted}</span>
-            <button 
-              type="button" 
-              class="btn-remove-job-item no-print" 
-              ${rowIdAttr} 
-              data-job-text="${escapeHtml(job)}" 
-              ${bIdAttr} 
-              ${itNoAttr} 
-              title="ลบงานนี้ออกจากรถคันนี้"
-              contenteditable="false"
-            >✕</button>
-          </span>
-        `;
+        return `<span class="dispatch-job-segment" style="display: inline-flex; align-items: baseline; margin-right: 2px;"><span class="dispatch-job-order font-bold" style="color: #1e40af; margin-right: 5px; flex-shrink: 0;" contenteditable="false">${escapeHtml(orderPrefix)}</span><span>${formatted}</span><button type="button" class="btn-remove-job-item no-print" ${rowIdAttr} data-job-text="${escapeHtml(job)}" ${bIdAttr} ${itNoAttr} title="ลบงานนี้ออกจากรถคันนี้" contenteditable="false">✕</button></span>`;
       });
 
       return `<div class="dispatch-itinerary-line">${formattedJobs.join('<span class="dispatch-job-separator" style="color: #94a3b8; margin: 0 4px; font-weight: 600;" contenteditable="false">/</span>')}</div>`;
