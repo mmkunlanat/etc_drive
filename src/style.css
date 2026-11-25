@@ -4247,6 +4247,50 @@ body {
   font-style: italic;
 }
 
+.dispatch-itinerary-editor {
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dispatch-job-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  padding: 4px 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dispatch-job-item-row:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  background: #ffffff;
+}
+
+.dispatch-job-input-text {
+  flex: 1;
+  outline: none;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  color: #0f172a;
+  min-height: 22px;
+  word-break: break-word;
+}
+
+.dispatch-job-input-text[contenteditable]:empty:before {
+  content: attr(placeholder);
+  color: #94a3b8;
+  font-style: italic;
+}
+
 .dispatch-itinerary-textarea {
   width: 100%;
   box-sizing: border-box;
@@ -5105,6 +5149,7 @@ body {
     print-color-adjust: exact !important;
   }
 
+  body:not(.has-paper-modal) .dispatch-itinerary-editor,
   body:not(.has-paper-modal) .dispatch-itinerary-textarea,
   body:not(.has-paper-modal) .dispatch-itinerary-preview-bar {
     display: none !important;
