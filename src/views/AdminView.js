@@ -38,7 +38,19 @@ export function renderAdminView(container) {
     const rawRows = getDispatchSchedule(selectedDate);
     // Normalize data and clean up redundant consecutive empty newlines
     rows = rawRows.map(r => {
-      const rawText = r.itineraryText || (Array.isArray(r.itineraryLines) ? r.itineraryLines.join('\n') : '');
+      let rawText = r.itineraryText || (Array.isArray(r.itineraryLines) ? r.itineraryLines.join('\n') : '');
+      if (!rawText && Array.isArray(r.itinerary) && r.itinerary.length > 0) {
+        rawText = r.itinerary.map((it, idx) => {
+          const dest = it.destination ? it.destination.trim() : '';
+          const det = it.detail ? it.detail.trim() : '';
+          const time = it.time ? `${it.time} น.` : '';
+          const pass = it.passengers ? `${it.passengers} คน` : '';
+          const meta = [time, pass].filter(Boolean).join(' / ');
+          let s = dest && det && dest !== det ? `${dest} (${det}${meta ? ' ' + meta : ''})` : (dest || det);
+          if (meta && !s.includes(meta)) s += ` (${meta})`;
+          return `${idx + 1}. ${s}`;
+        }).join('\n');
+      }
       const cleanText = rawText ? rawText.replace(/\n\s*\n+/g, '\n').trim() : '';
       return {
         ...r,
@@ -568,6 +580,20 @@ export function renderAdminView(container) {
         driverStatusBadge = `<span class="no-print" style="display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;border-radius:999px;padding:2px 9px;font-size:0.72rem;font-weight:700;white-space:nowrap;" title="รอคนขับยืนยันรับงาน">⏳ รอคนขับยืนยัน</span>`;
       }
     }
+    // Auto-populate itineraryText from row.itinerary if missing
+    if (!row.itineraryText && Array.isArray(row.itinerary) && row.itinerary.length > 0) {
+      row.itineraryText = row.itinerary.map((it, idx) => {
+        const dest = it.destination ? it.destination.trim() : '';
+        const det = it.detail ? it.detail.trim() : '';
+        const time = it.time ? `${it.time} น.` : '';
+        const pass = it.passengers ? `${it.passengers} คน` : '';
+        const meta = [time, pass].filter(Boolean).join(' / ');
+        let s = dest && det && dest !== det ? `${dest} (${det}${meta ? ' ' + meta : ''})` : (dest || det);
+        if (meta && !s.includes(meta)) s += ` (${meta})`;
+        return `${idx + 1}. ${s}`;
+      }).join('\n');
+    }
+
     const hasItinerary = !!(row.itineraryText && row.itineraryText.trim());
     const hasComment = !!(row.comment && row.comment.trim());
     const showItinerary = hasItinerary || row.showItineraryBox;
@@ -1337,6 +1363,18 @@ export function renderAdminView(container) {
           }
         });
 
+        // Sync itinerary print box for each vehicle row
+        container.querySelectorAll('.dispatch-itinerary-tr').forEach(tr => {
+          const rowId = tr.getAttribute('data-row-id');
+          const r = rows.find(x => x.id === rowId);
+          if (r) {
+            const printBox = tr.querySelector('.dispatch-itinerary-box.print-only');
+            if (printBox) {
+              printBox.innerHTML = formatItineraryWithHighlights(r.itineraryText || '', r);
+            }
+          }
+        });
+
         // Sync all input values to DOM attribute and cell-print-text spans
         container.querySelectorAll('td').forEach(td => {
           const input = td.querySelector('.dispatch-cell-input');
@@ -1356,12 +1394,12 @@ export function renderAdminView(container) {
           document.head.appendChild(styleEl);
         }
 
-        // Calculate dynamic scale based on actual card height to guarantee exact 1 page without cutting anything off
+        // Calculate dynamic scale based on actual card height to guarantee exact 1 page portrait without cutting anything off
         const printCard = container.querySelector('#dispatch-print-area');
         const naturalH = printCard ? printCard.scrollHeight : 0;
         let scaleCss = '';
-        if (naturalH > 670) {
-          const zoomVal = Math.max(0.55, +(660 / naturalH).toFixed(3));
+        if (naturalH > 980) {
+          const zoomVal = Math.max(0.65, +(960 / naturalH).toFixed(3));
           scaleCss = `
             body:not(.has-paper-modal) .dispatch-paper-card {
               zoom: ${zoomVal} !important;
@@ -1371,7 +1409,7 @@ export function renderAdminView(container) {
 
         styleEl.textContent = `
           @page {
-            size: A4 landscape !important;
+            size: A4 portrait !important;
             margin: 4mm 6mm !important;
           }
           ${scaleCss}

@@ -3632,7 +3632,7 @@ body {
 }
 
 @page dispatchPaper {
-  size: A4 landscape;
+  size: A4 portrait;
   margin: 4mm 6mm;
 }
 
@@ -4911,8 +4911,8 @@ body {
 /* Print Styling for Admin Dispatch Schedule (Landscape / Portrait Single Page Fit) */
 @media print {
   @page {
-    size: auto;
-    margin: 5mm 8mm;
+    size: A4 portrait;
+    margin: 4mm 6mm;
   }
 
   html:not(.has-paper-modal),
@@ -5155,7 +5155,11 @@ body {
     display: none !important;
   }
 
+  body:not(.has-paper-modal) .print-only,
+  body:not(.has-paper-modal) .dispatch-itinerary-box.print-only,
   body:not(.has-paper-modal) .dispatch-itinerary-box {
+    display: block !important;
+    visibility: visible !important;
     border: none !important;
     background: transparent !important;
     box-shadow: none !important;
