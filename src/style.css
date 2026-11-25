@@ -5050,6 +5050,14 @@ body {
     print-color-adjust: exact !important;
   }
 
+  body:not(.has-paper-modal) .dispatch-excel-table .col-no { width: 6% !important; }
+  body:not(.has-paper-modal) .dispatch-excel-table .col-plate { width: 22% !important; }
+  body:not(.has-paper-modal) .dispatch-excel-table .col-code { width: 9% !important; }
+  body:not(.has-paper-modal) .dispatch-excel-table .col-driver { width: 18% !important; }
+  body:not(.has-paper-modal) .dispatch-excel-table .col-time { width: 12% !important; }
+  body:not(.has-paper-modal) .dispatch-excel-table .col-dept { width: 14% !important; }
+  body:not(.has-paper-modal) .dispatch-excel-table .col-booker { width: 19% !important; }
+
   body:not(.has-paper-modal) .dispatch-main-tr,
   body:not(.has-paper-modal) .dispatch-itinerary-tr,
   body:not(.has-paper-modal) .dispatch-comment-tr {
