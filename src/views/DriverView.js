@@ -82,6 +82,37 @@ function formatBookerName(name) {
   return `K.${firstName}`;
 }
 
+// Helper to extract clean and deduplicated phone contacts from a trip object or phone string
+function getTripPhoneContacts(trip) {
+  if (Array.isArray(trip?.phoneContacts) && trip.phoneContacts.length > 0) {
+    return trip.phoneContacts;
+  }
+  if (!trip?.bookerPhone) return [];
+  const contacts = [];
+  const seen = new Set();
+  const parts = String(trip.bookerPhone).split(/[\/,;]+/).map(p => p.trim()).filter(Boolean);
+  parts.forEach(p => {
+    let name = '';
+    let phone = p;
+    if (p.includes(':')) {
+      const idx = p.indexOf(':');
+      name = formatBookerName(p.substring(0, idx).trim());
+      phone = p.substring(idx + 1).trim();
+    }
+    const cleanDigits = phone.replace(/[^\d+]/g, '');
+    const dedupeKey = cleanDigits || phone;
+    if (dedupeKey && !seen.has(dedupeKey)) {
+      seen.add(dedupeKey);
+      contacts.push({
+        name: name,
+        phone: phone,
+        telUrl: cleanDigits || phone
+      });
+    }
+  });
+  return contacts;
+}
+
 // Parse itinerary stops directly from Admin's vehicle dispatch row
 function parseItineraryFromDispatchRow(row) {
   if (!row) return [];
@@ -115,8 +146,13 @@ function parseItineraryFromDispatchRow(row) {
     return [];
   }
 
-  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+  // Pre-process: normalize raw text so segments run together (e.g. ")นิคม...") get split properly.
+  // Insert " / " between closing paren and the start of the next Thai/alphanum segment.
+  const normalizedText = rawText.replace(/\)\s*([\u0E00-\u0E7F\w])/g, ') / $1');
+
+  const lines = normalizedText.split('\n').map(l => l.trim()).filter(Boolean);
   const items = [];
+  const seenDestKeys = new Set(); // for deduplication of identical job segments
 
   lines.forEach(line => {
     const subJobs = splitJobsFromLine(line);
@@ -124,7 +160,7 @@ function parseItineraryFromDispatchRow(row) {
       const cleanJob = jobStr.trim();
       if (!cleanJob) return;
 
-      const timeMatch = cleanJob.match(/(\d{1,2}[:.]\d{2})\s*น\./) || cleanJob.match(/(\d{1,2}[:.]\d{2})/);
+      const timeMatch = cleanJob.match(/(\d{1,2}[:.]?\d{2})\s*น\./) || cleanJob.match(/(\d{1,2}[:.]?\d{2})/);
       const passMatch = cleanJob.match(/(\d+)\s*คน/);
 
       let dest = cleanJob;
@@ -136,10 +172,15 @@ function parseItineraryFromDispatchRow(row) {
       }
 
       // Remove leading order numbers e.g. "1. อ.เมือง..." -> "อ.เมือง..."
-      dest = dest.replace(/^\d+[\.\)]\s*/, '').trim();
+      dest = dest.replace(/^\d+[\.\)\s]\s*/, '').trim();
+
+      // Deduplicate: skip items whose destination+detail are identical to one already added
+      const dedupeKey = dest.substring(0, 40) + '_' + detail.substring(0, 40);
+      if (seenDestKeys.has(dedupeKey)) return;
+      seenDestKeys.add(dedupeKey);
 
       const itemNo = items.length + 1;
-      const key = `${itemNo}_${dest}_${detail}`;
+      const key = itemNo + '_' + dest + '_' + detail;
       const savedState = existingCompletedMap.get(key) || existingCompletedMap.get(String(itemNo)) || {};
 
       items.push({
@@ -198,14 +239,60 @@ function getDriverJobsForDate(dateIso, driver, allBookings) {
     const linkedIds = Array.isArray(row.linkedBookingIds) ? row.linkedBookingIds : [];
     const linkedBookings = linkedIds.map(id => (allBookings || getAllBookings()).find(b => b.id === id)).filter(Boolean);
 
-    // รวมเบอร์โทรติดต่อของผู้จองทั้งหมดในรถคันนี้
-    const phoneList = [];
+    // รวมเบอร์โทรติดต่อของผู้จองทั้งหมดในรถคันนี้ (แยกรายบุคคลและกำจัดเบอร์ซ้ำ)
+    const phoneContacts = [];
+    const seenPhones = new Set();
+
     linkedBookings.forEach(b => {
-      if (b.bookerPhone && !phoneList.includes(b.bookerPhone)) {
-        const nameLabel = b.bookerName ? formatBookerName(b.bookerName) + ': ' : '';
-        phoneList.push(`${nameLabel}${b.bookerPhone}`);
-      }
+      const rawPhone = (b.bookerPhone || '').trim();
+      if (!rawPhone) return;
+
+      const parts = rawPhone.split(/[\/,;]+/).map(p => p.trim()).filter(Boolean);
+      parts.forEach(p => {
+        let name = b.bookerName ? formatBookerName(b.bookerName) : '';
+        let phoneNum = p;
+        if (p.includes(':')) {
+          const colonIdx = p.indexOf(':');
+          name = formatBookerName(p.substring(0, colonIdx).trim()) || name;
+          phoneNum = p.substring(colonIdx + 1).trim();
+        }
+        const cleanDigits = phoneNum.replace(/[^\d+]/g, '');
+        const dedupeKey = cleanDigits || phoneNum;
+        if (dedupeKey && !seenPhones.has(dedupeKey)) {
+          seenPhones.add(dedupeKey);
+          phoneContacts.push({
+            name: name,
+            phone: phoneNum,
+            telUrl: cleanDigits || phoneNum
+          });
+        }
+      });
     });
+
+    if (phoneContacts.length === 0 && row.bookerPhone) {
+      const parts = String(row.bookerPhone).split(/[\/,;]+/).map(p => p.trim()).filter(Boolean);
+      parts.forEach(p => {
+        let name = row.booker ? formatBookerName(row.booker) : '';
+        let phoneNum = p;
+        if (p.includes(':')) {
+          const colonIdx = p.indexOf(':');
+          name = formatBookerName(p.substring(0, colonIdx).trim()) || name;
+          phoneNum = p.substring(colonIdx + 1).trim();
+        }
+        const cleanDigits = phoneNum.replace(/[^\d+]/g, '');
+        const dedupeKey = cleanDigits || phoneNum;
+        if (dedupeKey && !seenPhones.has(dedupeKey)) {
+          seenPhones.add(dedupeKey);
+          phoneContacts.push({
+            name: name,
+            phone: phoneNum,
+            telUrl: cleanDigits || phoneNum
+          });
+        }
+      });
+    }
+
+    const phoneList = phoneContacts.map(c => `${c.name ? c.name + ': ' : ''}${c.phone}`);
 
     // Parse รายการจุดหมาย/เส้นทางวิ่งจากแถวตารางจัดรถประจำวันของแอดมิน
     const itinerary = parseItineraryFromDispatchRow(row);
@@ -237,6 +324,7 @@ function getDriverJobsForDate(dateIso, driver, allBookings) {
       assignedDriverId: driver.id,
       bookerName: row.booker || (linkedBookings.map(b => b.bookerName).filter(Boolean).join(' / ') || '-'),
       bookerPhone: phoneList.join(' / ') || '',
+      phoneContacts: phoneContacts,
       department: row.department || (linkedBookings.map(b => b.department).filter(Boolean).join(' / ') || '-'),
       requestedDriver: linkedBookings.map(b => b.requestedDriver).filter(Boolean).join(' / ') || '',
       notes: row.comment || (linkedBookings.map(b => b.notes).filter(Boolean).join('; ') || ''),
@@ -750,12 +838,16 @@ export function renderDriverView(container) {
           </div>
 
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            ${trip.bookerPhone ? `
-              <a href="tel:${trip.bookerPhone}" class="call-btn">
-                <span>📞 โทรติดต่อ</span>
-                <span>(${escapeHtml(trip.bookerPhone)})</span>
-              </a>
-            ` : ''}
+            ${(() => {
+              const contacts = getTripPhoneContacts(trip);
+              if (contacts.length === 0) return '';
+              return contacts.map(c => `
+                <a href="tel:${escapeHtml(c.telUrl)}" class="call-btn" style="text-decoration: none;" title="โทรหา ${escapeHtml(c.name || 'ผู้จอง')}: ${escapeHtml(c.phone)}">
+                  <span>📞 โทรติดต่อ</span>
+                  <span>(${escapeHtml(c.name ? c.name + ': ' : '')}${escapeHtml(c.phone)})</span>
+                </a>
+              `).join('');
+            })()}
           </div>
         </div>
 
