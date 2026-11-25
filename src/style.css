@@ -3632,7 +3632,7 @@ body {
 }
 
 @page dispatchPaper {
-  size: A4 landscape;
+  size: A4 portrait;
   margin: 4mm 6mm;
 }
 
@@ -4247,6 +4247,73 @@ body {
   font-style: italic;
 }
 
+.dispatch-itinerary-editor {
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dispatch-job-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  padding: 4px 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dispatch-job-item-row:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  background: #ffffff;
+}
+
+.dispatch-job-input-text {
+  flex: 1;
+  outline: none;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  color: #0f172a;
+  min-height: 22px;
+  word-break: break-word;
+}
+
+.dispatch-job-input-text[contenteditable]:empty:before {
+  content: attr(placeholder);
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.dispatch-itinerary-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  padding: 6px 10px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  resize: vertical;
+  min-height: 85px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dispatch-itinerary-textarea:focus {
+  border-color: #2563eb;
+  background: #ffffff;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
 .dispatch-comment-input {
   width: 100%;
   border: 1px dashed transparent;
@@ -4844,8 +4911,8 @@ body {
 /* Print Styling for Admin Dispatch Schedule (Landscape / Portrait Single Page Fit) */
 @media print {
   @page {
-    size: auto;
-    margin: 5mm 8mm;
+    size: A4 portrait;
+    margin: 4mm 6mm;
   }
 
   html:not(.has-paper-modal),
@@ -4983,6 +5050,14 @@ body {
     print-color-adjust: exact !important;
   }
 
+  body:not(.has-paper-modal) .dispatch-excel-table .col-no { width: 6% !important; }
+  body:not(.has-paper-modal) .dispatch-excel-table .col-plate { width: 22% !important; }
+  body:not(.has-paper-modal) .dispatch-excel-table .col-code { width: 9% !important; }
+  body:not(.has-paper-modal) .dispatch-excel-table .col-driver { width: 18% !important; }
+  body:not(.has-paper-modal) .dispatch-excel-table .col-time { width: 12% !important; }
+  body:not(.has-paper-modal) .dispatch-excel-table .col-dept { width: 14% !important; }
+  body:not(.has-paper-modal) .dispatch-excel-table .col-booker { width: 19% !important; }
+
   body:not(.has-paper-modal) .dispatch-main-tr,
   body:not(.has-paper-modal) .dispatch-itinerary-tr,
   body:not(.has-paper-modal) .dispatch-comment-tr {
@@ -5082,7 +5157,17 @@ body {
     print-color-adjust: exact !important;
   }
 
+  body:not(.has-paper-modal) .dispatch-itinerary-editor,
+  body:not(.has-paper-modal) .dispatch-itinerary-textarea,
+  body:not(.has-paper-modal) .dispatch-itinerary-preview-bar {
+    display: none !important;
+  }
+
+  body:not(.has-paper-modal) .print-only,
+  body:not(.has-paper-modal) .dispatch-itinerary-box.print-only,
   body:not(.has-paper-modal) .dispatch-itinerary-box {
+    display: block !important;
+    visibility: visible !important;
     border: none !important;
     background: transparent !important;
     box-shadow: none !important;

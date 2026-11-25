@@ -170,8 +170,8 @@ window.addEventListener('edit_booking_in_form', (e) => {
       const printCard = document.getElementById('dispatch-print-area');
       const naturalH = printCard ? printCard.scrollHeight : 0;
       let scaleCss = '';
-      if (naturalH > 670) {
-        const zoomVal = Math.max(0.55, +(660 / naturalH).toFixed(3));
+      if (naturalH > 980) {
+        const zoomVal = Math.max(0.65, +(960 / naturalH).toFixed(3));
         scaleCss = `
           body:not(.has-paper-modal) .dispatch-paper-card {
             zoom: ${zoomVal} !important;
@@ -180,7 +180,7 @@ window.addEventListener('edit_booking_in_form', (e) => {
       }
       styleEl.textContent = `
         @page {
-          size: A4 landscape !important;
+          size: A4 portrait !important;
           margin: 4mm 6mm !important;
         }
         ${scaleCss}

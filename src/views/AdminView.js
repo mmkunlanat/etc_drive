@@ -38,7 +38,19 @@ export function renderAdminView(container) {
     const rawRows = getDispatchSchedule(selectedDate);
     // Normalize data and clean up redundant consecutive empty newlines
     rows = rawRows.map(r => {
-      const rawText = r.itineraryText || (Array.isArray(r.itineraryLines) ? r.itineraryLines.join('\n') : '');
+      let rawText = r.itineraryText || (Array.isArray(r.itineraryLines) ? r.itineraryLines.join('\n') : '');
+      if (!rawText && Array.isArray(r.itinerary) && r.itinerary.length > 0) {
+        rawText = r.itinerary.map((it, idx) => {
+          const dest = it.destination ? it.destination.trim() : '';
+          const det = it.detail ? it.detail.trim() : '';
+          const time = it.time ? `${it.time} น.` : '';
+          const pass = it.passengers ? `${it.passengers} คน` : '';
+          const meta = [time, pass].filter(Boolean).join(' / ');
+          let s = dest && det && dest !== det ? `${dest} (${det}${meta ? ' ' + meta : ''})` : (dest || det);
+          if (meta && !s.includes(meta)) s += ` (${meta})`;
+          return `${idx + 1}. ${s}`;
+        }).join('\n');
+      }
       const cleanText = rawText ? rawText.replace(/\n\s*\n+/g, '\n').trim() : '';
       return {
         ...r,
@@ -444,6 +456,100 @@ export function renderAdminView(container) {
     `;
   }
 
+  // Format job description text with red time highlights
+  function formatJobTextHtml(text) {
+    if (!text) return '';
+    let formatted = escapeHtml(text);
+    formatted = formatted.replace(/(เวลา\s*\d{1,2}[\.:]\d{2}\s*[-–]\s*\d{1,2}[\.:]\d{2}\s*น\.)/g, '<span style="color: #dc2626; font-weight: 600;">$1</span>');
+    formatted = formatted.replace(/(\b\d{1,2}[\.:]\d{2}\s*น\.)/g, '<span style="color: #dc2626; font-weight: 600;">$1</span>');
+    formatted = formatted.replace(/(เครื่องลง\s*\d{1,2}[\.:]\d{2}\s*น\.)/g, '<span style="color: #0284c7; font-weight: 600;">$1</span>');
+    formatted = formatted.replace(/(ติดต่อ\s*K\.[^\/\n]+)/g, '<span style="color: #dc2626; font-weight: 600;">$1</span>');
+    return formatted;
+  }
+
+  // Render single unified itinerary editor with sequential numbering and cross delete buttons behind each job
+  function renderItineraryEditor(row) {
+    const text = row.itineraryText || '';
+    const validLines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const allBookings = getAllBookings();
+    const rowBookings = row ? allBookings.filter(b => {
+      return (row.linkedBookingIds && row.linkedBookingIds.includes(b.id)) ||
+             (b.assignedVehicle && row.plate && b.assignedVehicle === row.plate);
+    }) : [];
+
+    // If no jobs yet, prepare one blank line
+    const displayLines = validLines.length > 0 ? validLines : [''];
+
+    const itemsHtml = displayLines.map((line, idx) => {
+      const cleanContent = line.replace(/^\s*(\d+[\.\)]|ลำดับที่\s*\d+[:\.]?)\s*/, '').trim();
+
+      let matchedBookingId = '';
+      let matchedItemNo = '';
+      if (cleanContent) {
+        for (const b of rowBookings) {
+          if (b.itinerary && Array.isArray(b.itinerary)) {
+            for (let i = 0; i < b.itinerary.length; i++) {
+              const it = b.itinerary[i];
+              const dest = it.destination ? it.destination.trim() : '';
+              const det = it.detail ? it.detail.trim() : '';
+              if ((dest && cleanContent.includes(dest)) || (det && cleanContent.includes(det))) {
+                matchedBookingId = b.id;
+                matchedItemNo = String(it.no || (i + 1));
+                break;
+              }
+            }
+          }
+          if (matchedBookingId) break;
+        }
+      }
+
+      const rowIdAttr = `data-row-id="${escapeHtml(row.id)}"`;
+      const bIdAttr = matchedBookingId ? `data-booking-id="${escapeHtml(matchedBookingId)}"` : '';
+      const itNoAttr = matchedItemNo ? `data-item-no="${escapeHtml(matchedItemNo)}"` : '';
+
+      return `
+        <div class="dispatch-job-item-row" data-row-id="${escapeHtml(row.id)}" data-index="${idx}">
+          <span class="dispatch-job-order font-bold" style="color: #1e40af; font-size: 0.9rem; flex-shrink: 0; min-width: 22px;">${idx + 1}.</span>
+          <div 
+            class="dispatch-job-input-text" 
+            contenteditable="true" 
+            data-row-id="${escapeHtml(row.id)}" 
+            data-index="${idx}" 
+            placeholder="พิมพ์รายละเอียดงาน (กด Enter เพื่อเพิ่มงานใหม่)..."
+          >${formatJobTextHtml(cleanContent)}</div>
+          <button 
+            type="button" 
+            class="btn-remove-job-item no-print" 
+            ${rowIdAttr} 
+            data-job-text="${escapeHtml(line || cleanContent)}" 
+            ${bIdAttr} 
+            ${itNoAttr} 
+            title="ลบงานนี้ออกจากรถคันนี้"
+          >✕</button>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="dispatch-itinerary-editor no-print" data-row-id="${escapeHtml(row.id)}">
+        <div class="dispatch-job-lines-container" data-row-id="${escapeHtml(row.id)}">
+          ${itemsHtml}
+        </div>
+        <div class="dispatch-itinerary-footer no-print" style="margin-top: 6px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+          <button type="button" class="btn-add-inline-job btn-ghost-light" data-row-id="${escapeHtml(row.id)}" style="color: #0284c7; font-size: 0.78rem; font-weight: 700; padding: 3px 8px; border: 1px dashed #7dd3fc; border-radius: 6px; background: #f0f9ff; cursor: pointer;">
+            ➕ เพิ่มงานใหม่ (หรือกด Enter ในบรรทัดงาน)
+          </button>
+          <span style="font-size: 0.72rem; color: #94a3b8;">
+            💡 กด Enter เพื่อขึ้นงานถัดไป • กด ✕ ด้านหลังเพื่อลบงาน
+          </span>
+        </div>
+      </div>
+      <div class="dispatch-itinerary-box print-only" data-field="itineraryText" data-row-id="${escapeHtml(row.id)}">
+        ${formatItineraryWithHighlights(row.itineraryText || '', row)}
+      </div>
+    `;
+  }
+
   // Render a vehicle group (Main car row + Sub-row itinerary + Sub-row comment)
   function renderVehicleRowGroup(row, index, bookerPool = []) {
     const plateClass = row.plateColor === 'green' ? 'plate-bg-green' : (row.plateColor === 'yellow' ? 'plate-bg-yellow' : 'plate-bg-default');
@@ -474,6 +580,20 @@ export function renderAdminView(container) {
         driverStatusBadge = `<span class="no-print" style="display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;border-radius:999px;padding:2px 9px;font-size:0.72rem;font-weight:700;white-space:nowrap;" title="รอคนขับยืนยันรับงาน">⏳ รอคนขับยืนยัน</span>`;
       }
     }
+    // Auto-populate itineraryText from row.itinerary if missing
+    if (!row.itineraryText && Array.isArray(row.itinerary) && row.itinerary.length > 0) {
+      row.itineraryText = row.itinerary.map((it, idx) => {
+        const dest = it.destination ? it.destination.trim() : '';
+        const det = it.detail ? it.detail.trim() : '';
+        const time = it.time ? `${it.time} น.` : '';
+        const pass = it.passengers ? `${it.passengers} คน` : '';
+        const meta = [time, pass].filter(Boolean).join(' / ');
+        let s = dest && det && dest !== det ? `${dest} (${det}${meta ? ' ' + meta : ''})` : (dest || det);
+        if (meta && !s.includes(meta)) s += ` (${meta})`;
+        return `${idx + 1}. ${s}`;
+      }).join('\n');
+    }
+
     const hasItinerary = !!(row.itineraryText && row.itineraryText.trim());
     const hasComment = !!(row.comment && row.comment.trim());
     const showItinerary = hasItinerary || row.showItineraryBox;
@@ -731,13 +851,7 @@ export function renderAdminView(container) {
       ${showItinerary ? `
         <tr class="dispatch-itinerary-tr" data-row-id="${row.id}">
           <td colspan="7" class="dispatch-itinerary-cell">
-            <div 
-              class="dispatch-itinerary-box" 
-              contenteditable="true" 
-              data-field="itineraryText" 
-              data-row-id="${row.id}" 
-              placeholder="พิมพ์รายละเอียดงาน / ส่งเอกสาร / รับเช็ค / รับ-ส่งผู้โดยสาร / เที่ยวบิน / เบอร์ติดต่อ (ขึ้นบรรทัดใหม่เพื่อแยกช่วงงาน)..."
-            >${formatItineraryWithHighlights(row.itineraryText || '', row)}</div>
+            ${renderItineraryEditor(row)}
           </td>
           <td class="no-print" style="background: #f8fafc; text-align: center; font-size: 0.7rem; color: #94a3b8; vertical-align: top; padding-top: 8px;">
             <button 
@@ -1249,6 +1363,18 @@ export function renderAdminView(container) {
           }
         });
 
+        // Sync itinerary print box for each vehicle row
+        container.querySelectorAll('.dispatch-itinerary-tr').forEach(tr => {
+          const rowId = tr.getAttribute('data-row-id');
+          const r = rows.find(x => x.id === rowId);
+          if (r) {
+            const printBox = tr.querySelector('.dispatch-itinerary-box.print-only');
+            if (printBox) {
+              printBox.innerHTML = formatItineraryWithHighlights(r.itineraryText || '', r);
+            }
+          }
+        });
+
         // Sync all input values to DOM attribute and cell-print-text spans
         container.querySelectorAll('td').forEach(td => {
           const input = td.querySelector('.dispatch-cell-input');
@@ -1268,12 +1394,12 @@ export function renderAdminView(container) {
           document.head.appendChild(styleEl);
         }
 
-        // Calculate dynamic scale based on actual card height to guarantee exact 1 page without cutting anything off
+        // Calculate dynamic scale based on actual card height to guarantee exact 1 page portrait without cutting anything off
         const printCard = container.querySelector('#dispatch-print-area');
         const naturalH = printCard ? printCard.scrollHeight : 0;
         let scaleCss = '';
-        if (naturalH > 670) {
-          const zoomVal = Math.max(0.55, +(660 / naturalH).toFixed(3));
+        if (naturalH > 980) {
+          const zoomVal = Math.max(0.65, +(960 / naturalH).toFixed(3));
           scaleCss = `
             body:not(.has-paper-modal) .dispatch-paper-card {
               zoom: ${zoomVal} !important;
@@ -1283,7 +1409,7 @@ export function renderAdminView(container) {
 
         styleEl.textContent = `
           @page {
-            size: A4 landscape !important;
+            size: A4 portrait !important;
             margin: 4mm 6mm !important;
           }
           ${scaleCss}
@@ -1411,33 +1537,160 @@ export function renderAdminView(container) {
     container._outsideClickHandler = handleOutsideClick;
     document.addEventListener('click', handleOutsideClick);
 
-    // Contenteditable itinerary box
-    container.querySelectorAll('.dispatch-itinerary-box').forEach(box => {
-      box.addEventListener('input', (e) => {
-        const rowId = e.target.getAttribute('data-row-id');
-        const field = e.target.getAttribute('data-field');
-        
-        // Strip out remove buttons and dynamic order prefixes to keep clean text
-        const clone = e.target.cloneNode(true);
-        clone.querySelectorAll('.btn-remove-job-item').forEach(b => b.remove());
-        clone.querySelectorAll('.dispatch-job-order').forEach(o => o.remove());
-        clone.querySelectorAll('.dispatch-job-separator').forEach(s => {
-          s.replaceWith(' / ');
-        });
-        const val = clone.innerText;
+    // Inline itinerary job editor events
+    container.querySelectorAll('.dispatch-job-input-text').forEach(inputEl => {
+      inputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const rowId = inputEl.getAttribute('data-row-id');
+          const targetRow = rows.find(r => r.id === rowId);
+          if (!targetRow) return;
 
-        const targetRow = rows.find(r => r.id === rowId);
-        if (targetRow && field) {
-          targetRow[field] = val;
-          if (field === 'itineraryText' && val.trim() === '') {
-            releaseLinkedBookings(targetRow);
-            targetRow.linkedBookingIds = [];
+          const editor = inputEl.closest('.dispatch-itinerary-editor');
+          if (!editor) return;
+          const allTextEls = Array.from(editor.querySelectorAll('.dispatch-job-input-text'));
+          const currentIndex = allTextEls.indexOf(inputEl);
+
+          // Get current clean texts from all lines
+          const currentLines = allTextEls.map(el => {
+            return el.innerText.replace(/^\s*(\d+[\.\)]|ลำดับที่\s*\d+[:\.]?)\s*/, '').trim();
+          });
+
+          // Insert new line right after currentIndex
+          currentLines.splice(currentIndex + 1, 0, '');
+
+          // Rebuild itineraryText
+          targetRow.itineraryText = currentLines
+            .filter((l, idx) => l || idx === currentIndex + 1)
+            .map((l, idx) => `${idx + 1}. ${l}`)
+            .join('\n');
+          targetRow.itineraryLines = targetRow.itineraryText.split('\n').filter(Boolean);
+
+          saveCurrentSchedule();
+          render();
+
+          // Focus newly created line
+          setTimeout(() => {
+            const newEditor = container.querySelector(`.dispatch-itinerary-editor[data-row-id="${rowId}"]`);
+            if (newEditor) {
+              const newInputs = newEditor.querySelectorAll('.dispatch-job-input-text');
+              const nextInput = newInputs[currentIndex + 1];
+              if (nextInput) {
+                nextInput.focus();
+              }
+            }
+          }, 10);
+        } else if (e.key === 'Backspace' && inputEl.innerText.trim() === '') {
+          const editor = inputEl.closest('.dispatch-itinerary-editor');
+          if (!editor) return;
+          const allTextEls = Array.from(editor.querySelectorAll('.dispatch-job-input-text'));
+          if (allTextEls.length > 1) {
+            e.preventDefault();
+            const currentIndex = allTextEls.indexOf(inputEl);
+            const rowId = inputEl.getAttribute('data-row-id');
+            const targetRow = rows.find(r => r.id === rowId);
+            if (!targetRow) return;
+
+            const currentLines = allTextEls.map(el => {
+              return el.innerText.replace(/^\s*(\d+[\.\)]|ลำดับที่\s*\d+[:\.]?)\s*/, '').trim();
+            });
+
+            currentLines.splice(currentIndex, 1);
+
+            targetRow.itineraryText = currentLines
+              .map((l, idx) => `${idx + 1}. ${l}`)
+              .join('\n');
+            targetRow.itineraryLines = targetRow.itineraryText.split('\n').filter(Boolean);
+
+            saveCurrentSchedule();
+            render();
+
+            setTimeout(() => {
+              const newEditor = container.querySelector(`.dispatch-itinerary-editor[data-row-id="${rowId}"]`);
+              if (newEditor) {
+                const newInputs = newEditor.querySelectorAll('.dispatch-job-input-text');
+                const prevInput = newInputs[Math.max(0, currentIndex - 1)];
+                if (prevInput) {
+                  prevInput.focus();
+                  const range = document.createRange();
+                  const sel = window.getSelection();
+                  range.selectNodeContents(prevInput);
+                  range.collapse(false);
+                  sel.removeAllRanges();
+                  sel.addRange(range);
+                }
+              }
+            }, 10);
           }
-          debounceAutoSave();
         }
       });
-      box.addEventListener('blur', () => {
+
+      inputEl.addEventListener('input', () => {
+        const editor = inputEl.closest('.dispatch-itinerary-editor');
+        const rowId = inputEl.getAttribute('data-row-id');
+        const targetRow = rows.find(r => r.id === rowId);
+        if (!targetRow || !editor) return;
+
+        const allTextEls = Array.from(editor.querySelectorAll('.dispatch-job-input-text'));
+        const currentLines = allTextEls.map(el => {
+          return el.innerText.replace(/^\s*(\d+[\.\)]|ลำดับที่\s*\d+[:\.]?)\s*/, '').trim();
+        }).filter(Boolean);
+
+        targetRow.itineraryText = currentLines.map((l, idx) => `${idx + 1}. ${l}`).join('\n');
+        targetRow.itineraryLines = currentLines;
+
+        const cell = inputEl.closest('.dispatch-itinerary-cell');
+        if (cell) {
+          const printBox = cell.querySelector('.dispatch-itinerary-box.print-only');
+          if (printBox) {
+            printBox.innerHTML = formatItineraryWithHighlights(targetRow.itineraryText || '', targetRow);
+          }
+        }
+
+        if (targetRow.itineraryText.trim() === '') {
+          releaseLinkedBookings(targetRow);
+          targetRow.linkedBookingIds = [];
+        }
+        debounceAutoSave();
+      });
+
+      inputEl.addEventListener('blur', () => {
         syncBookingsWithSchedule();
+        debounceAutoSave();
+      });
+    });
+
+    // Add inline job button
+    container.querySelectorAll('.btn-add-inline-job').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const rowId = btn.getAttribute('data-row-id');
+        const targetRow = rows.find(r => r.id === rowId);
+        if (!targetRow) return;
+
+        const editor = btn.closest('.dispatch-itinerary-editor');
+        const allTextEls = editor ? Array.from(editor.querySelectorAll('.dispatch-job-input-text')) : [];
+        const currentLines = allTextEls.map(el => {
+          return el.innerText.replace(/^\s*(\d+[\.\)]|ลำดับที่\s*\d+[:\.]?)\s*/, '').trim();
+        });
+
+        currentLines.push('');
+        targetRow.itineraryText = currentLines
+          .map((l, idx) => `${idx + 1}. ${l}`)
+          .join('\n');
+        targetRow.itineraryLines = targetRow.itineraryText.split('\n').filter(Boolean);
+
+        saveCurrentSchedule();
+        render();
+
+        setTimeout(() => {
+          const newEditor = container.querySelector(`.dispatch-itinerary-editor[data-row-id="${rowId}"]`);
+          if (newEditor) {
+            const newInputs = newEditor.querySelectorAll('.dispatch-job-input-text');
+            const lastInput = newInputs[newInputs.length - 1];
+            if (lastInput) lastInput.focus();
+          }
+        }, 10);
       });
     });
 
